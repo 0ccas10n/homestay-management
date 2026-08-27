@@ -1,0 +1,10 @@
+{
+  "description": "Streamline your homestay business management with an intuitive dashboard for bookings, room management, guest notifications, and expense tracking.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

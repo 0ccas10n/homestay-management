@@ -1,0 +1,201 @@
+// ─── Core shared types ──────────────────────────────────────────────────────────
+// These types align with docs/DATABASE.md and docs/API.md.
+// All datetime fields use ISO 8601 strings with explicit timezone offset.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// ─── Location ──────────────────────────────────────────────────────────────────
+
+export interface Location {
+  locationId: string;
+  name: string;
+  description?: string;
+  publicAddress?: string;
+  phone?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Room ─────────────────────────────────────────────────────────────────────
+
+export type RoomStatus =
+  | 'available'
+  | 'occupied'
+  | 'cleaning'
+  | 'maintenance'
+  | 'inactive';
+
+export interface Room {
+  roomId: string;
+  locationId: string;
+  name: string;
+  description?: string;
+  capacity: number;
+  priceDisplay?: string;
+  status: RoomStatus;
+  active: boolean;
+  imageUrl?: string;
+  floor?: number;
+  amenities?: string[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Customer ─────────────────────────────────────────────────────────────────
+
+export interface Customer {
+  customerId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Booking ───────────────────────────────────────────────────────────────────
+
+export type BookingStatus =
+  | 'inquiry'
+  | 'confirmed'
+  | 'checked_in'
+  | 'checked_out'
+  | 'cancelled'
+  | 'no_show';
+
+export type BookingSource = 'phone' | 'walk_in' | 'online' | 'partner' | 'other';
+
+export interface Booking {
+  bookingId: string;
+  roomId: string;
+  customerId: string;
+  checkInAt: string;          // ISO 8601, e.g. "2026-08-28T14:00:00+07:00"
+  expectedCheckOutAt: string; // ISO 8601
+  actualCheckOutAt?: string;  // Recorded at departure; undefined until checked out
+  status: BookingStatus;
+  source: BookingSource;
+  ratePlanId: string;
+  expectedDurationMinutes: number;
+  baseAmount: number;
+  overtimeMinutes?: number;
+  overtimeAmount?: number;
+  totalAmount: number;
+  numGuests?: number;
+  note?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Rate Plan ─────────────────────────────────────────────────────────────────
+
+export type RatePlanType = 'hourly' | 'overnight' | 'daily';
+
+export interface RatePlan {
+  ratePlanId: string;
+  name: string;
+  type: RatePlanType;
+  /** Minutes included in the base charge */
+  baseMinutes: number;
+  /** Charge for the base period */
+  baseAmount: number;
+  /** Charge per extra minute beyond baseMinutes */
+  extraMinutePrice: number;
+  /** Charge per minute past expectedCheckOutAt (overtime) */
+  overtimeMinutePrice: number;
+  /** For overnight plans: window start time, e.g. "22:00" (HH:MM, local) */
+  overnightStart?: string;
+  /** For overnight plans: window end time, e.g. "10:00" */
+  overnightEnd?: string;
+  active: boolean;
+}
+
+// ─── Cleaning ─────────────────────────────────────────────────────────────────
+
+export type CleaningStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+export type CleaningPriority = 'high' | 'medium' | 'low';
+
+export interface CleaningTask {
+  cleaningId: string;
+  roomId: string;
+  bookingId?: string;
+  scheduledAt: string;   // ISO 8601 — driven by booking's expectedCheckOutAt
+  status: CleaningStatus;
+  priority: CleaningPriority;
+  assignedTo?: string;
+  startedAt?: string;
+  completedAt?: string;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+export type UserRole = 'staff' | 'admin';
+
+export interface User {
+  userId: string;
+  name: string;
+  email: string;
+  // passwordHash is never exposed to the client
+  role: UserRole;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Expense ──────────────────────────────────────────────────────────────────
+
+export interface Expense {
+  expenseId: string;
+  category: string;
+  amount: number;
+  date: string;  // ISO date string "YYYY-MM-DD"
+  description: string;
+  vendor?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Notification ─────────────────────────────────────────────────────────────
+
+export type NotificationType =
+  | 'check_in'
+  | 'check_out'
+  | 'cleaning'
+  | 'maintenance'
+  | 'payment'
+  | 'late';
+
+export type NotificationPriority = 'high' | 'medium' | 'low';
+
+export interface Notification {
+  notificationId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  time: string;   // ISO 8601
+  read: boolean;
+  priority: NotificationPriority;
+  relatedBookingId?: string;
+  relatedRoomId?: string;
+}
+
+// ─── API response envelope ─────────────────────────────────────────────────────
+
+export interface ApiSuccess<T> {
+  success: true;
+  data: T;
+}
+
+export interface ApiError {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+  };
+}
+
+export type ApiResponse<T> = ApiSuccess<T> | ApiError;
