@@ -11,7 +11,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from '@/contexts/AuthContext';
+import AuthProvider from '@/contexts/AuthContext.tsx';
 import RequireAuth from '@/RequireAuth';
 import AppShell from '@/AppShell';
 import LoginPage from '@/pages/Login';

@@ -27,7 +27,12 @@ const TTL_SECONDS = Number(process.env.SESSION_TTL_SECONDS ?? 86_400);
 // Cookie attribute constants
 const COOKIE_NAME = 'session';
 const COOKIE_PATH = '/';
-const COOKIE_SAMESITE = 'Strict';
+// In dev (http://localhost) cookies must be lax AND non-secure to round-trip
+// between the Vite origin (where the browser is) and the proxied API origin
+// (where Set-Cookie is emitted). SameSite=Strict would drop them entirely.
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const COOKIE_SAMESITE: 'Strict' | 'Lax' = IS_PRODUCTION ? 'Strict' : 'Lax';
+const COOKIE_SECURE = IS_PRODUCTION;
 
 /** What is embedded in the JWT payload. */
 interface SessionPayload extends JWTPayload {
@@ -72,14 +77,14 @@ export async function createSessionCookie(user: User): Promise<string> {
     .sign(SECRET);
 
   const maxAge = TTL_SECONDS;
-  return (
-    `${COOKIE_NAME}=${token}; ` +
-    `HttpOnly; ` +
-    `SameSite=${COOKIE_SAMESITE}; ` +
-    `Secure; ` +
-    `Path=${COOKIE_PATH}; ` +
-    `Max-Age=${maxAge}`
-  );
+  const flags = [
+    `HttpOnly`,
+    `SameSite=${COOKIE_SAMESITE}`,
+    `Path=${COOKIE_PATH}`,
+    `Max-Age=${maxAge}`,
+  ];
+  if (COOKIE_SECURE) flags.push('Secure');
+  return `${COOKIE_NAME}=${token}; ${flags.join('; ')}`;
 }
 
 // ─── Read & Verify ──────────────────────────────────────────────────────────────

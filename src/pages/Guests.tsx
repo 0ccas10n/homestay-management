@@ -13,6 +13,12 @@ import type { Customer, Booking } from '@/types/index';
 import Modal from '@/components/Modal';
 import StatusBadge from '@/components/StatusBadge';
 
+const vnd = new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
+  maximumFractionDigits: 0,
+});
+
 export default function Guests() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
   const { customers, loading: customersLoading, refetch } = useCustomers();
@@ -96,7 +102,7 @@ export default function Guests() {
             const totalSpent = gBookings.reduce((s, b) => s + b.totalAmount, 0);
             const totalBookings = gBookings.length;
             const initials = g.name.split(' ').map(n => n[0] ?? '').join('').slice(0, 2).toUpperCase();
-            const flag = nationalityFlags[g.nationality ?? ''] ?? '🌐';
+            const flag = nationalityFlags[''] ?? '🌐';
 
             return (
               <div
@@ -123,7 +129,7 @@ export default function Guests() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, color: textPrimary, fontSize: 14 }}>{g.name}</div>
-                    <div style={{ fontSize: 12, color: textMuted }}>{flag} {g.nationality ?? 'Unknown'}</div>
+                    <div style={{ fontSize: 12, color: textMuted }}>{flag} Guest</div>
                   </div>
                   {totalBookings >= 4 && (
                     <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
@@ -139,7 +145,7 @@ export default function Guests() {
                     <div style={{ fontSize: 11, color: textMuted }}>Bookings</div>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#10B981', fontFamily: "'DM Serif Display', serif" }}>${totalSpent.toFixed(0)}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#10B981', fontFamily: "'DM Serif Display', serif" }}>{vnd.format(totalSpent)}</div>
                     <div style={{ fontSize: 11, color: textMuted }}>Total</div>
                   </div>
                 </div>
@@ -192,7 +198,7 @@ export default function Guests() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                     <StatusBadge status={b.status} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: textPrimary }}>${b.totalAmount}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: textPrimary }}>{vnd.format(b.totalAmount)}</span>
                   </div>
                 </div>
               ))}

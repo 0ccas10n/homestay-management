@@ -21,6 +21,9 @@ export interface DashboardData {
     expectedCheckOutAt: string;
     status: string;
   }[];
+  monthlyRevenue: { month: string; revenue: number; expenses: number }[];
+  weeklyOccupancy: { day: string; rate: number }[];
+  monthlyRevenueTotal: number;
 }
 
 const POLL_INTERVAL_MS = 60_000;

@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       bookingId:   parsed.bookingId,
       scheduledAt: parsed.scheduledAt,
       status:      'pending',
-      priority:    parsed.priority,
+      priority:    parsed.priority!,
       assignedTo:  parsed.assignedTo,
       note:        parsed.note,
     });

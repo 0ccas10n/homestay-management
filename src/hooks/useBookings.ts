@@ -54,9 +54,9 @@ export function useBookings(_options?: UseBookingsOptions): UseBookingsReturn {
   }, []);
 
   const cancelBooking = useCallback(async (id: string) => {
-    await bookingsApi.cancel(id);
+    const res = await bookingsApi.updateStatus(id, 'cancelled');
     setBookings(prev => prev.map(b =>
-      b.bookingId === id ? { ...b, status: 'cancelled' as const } : b,
+      b.bookingId === id ? res.booking : b,
     ));
   }, []);
 

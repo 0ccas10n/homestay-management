@@ -19,6 +19,7 @@ import type {
   Booking,
   CleaningTask,
   RatePlan,
+  RatePlanPrice,
   Location,
   User,
   Expense,
@@ -296,6 +297,42 @@ export function mapRatePlanToRow(p: RatePlan): string[] {
   ];
 }
 
+// ─── RatePlanPrices sheet ─────────────────────────────────────────────────────────
+// Columns: rate_plan_price_id | rate_plan_id | room_id | price_vnd | active |
+//          created_at | updated_at
+//
+// Authoritative price lookup: each row pins a single (ratePlanId, roomId) pair
+// to a VND amount. Missing rows mean the combination is not bookable yet.
+
+export const RATE_PLAN_PRICES_HEADERS = [
+  'rate_plan_price_id', 'rate_plan_id', 'room_id', 'price_vnd', 'active',
+  'created_at', 'updated_at',
+] as const;
+
+export function mapRowToRatePlanPrice(row: string[]): RatePlanPrice {
+  return {
+    ratePlanPriceId: row[0]  ?? '',
+    ratePlanId:       row[1]  ?? '',
+    roomId:           row[2]  ?? '',
+    priceVnd:         row[3]  ? parseFloat(row[3]) : 0,
+    active:           parseBool(row[4]),
+    createdAt:        row[5]  ?? '',
+    updatedAt:        row[6]  ?? '',
+  };
+}
+
+export function mapRatePlanPriceToRow(p: RatePlanPrice): string[] {
+  return [
+    p.ratePlanPriceId,
+    p.ratePlanId,
+    p.roomId,
+    String(p.priceVnd),
+    p.active ? 'TRUE' : 'FALSE',
+    p.createdAt,
+    p.updatedAt,
+  ];
+}
+
 // ─── Users sheet ─────────────────────────────────────────────────────────────────
 // Columns: user_id | name | email | password_hash | role | active | created_at | updated_at
 
@@ -423,6 +460,7 @@ export const SHEETS = {
   Bookings:    'Bookings',
   Cleaning:    'Cleaning',
   RatePlans:   'RatePlans',
+  RatePlanPrices: 'RatePlanPrices',
   Users:       'Users',
   Expenses:    'Expenses',
   Notifications: 'Notifications',

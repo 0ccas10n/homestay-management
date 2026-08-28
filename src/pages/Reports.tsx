@@ -18,6 +18,12 @@ import { useExpenses } from '@/hooks/useExpenses';
 
 const PIE_COLORS = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 
+const vnd = new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
+  maximumFractionDigits: 0,
+});
+
 function toDateLocal(iso: string): string {
   // "2026-08-07T14:00:00+07:00" → "2026-08-07" in local time
   return iso.slice(0, 10);
@@ -139,11 +145,11 @@ export default function Reports() {
     .filter(c => c.value > 0);
 
   const summaryStats = [
-    { label: 'Today',     value: `$${todayRevenue.toLocaleString()}`,    sub: 'Revenue', icon: '📅', color: '#2563EB' },
-    { label: 'This Week', value: `$${weekRevenue.toLocaleString()}`,     sub: 'Revenue', icon: '📆', color: '#10B981' },
-    { label: 'This Month',value: `$${monthRevenue.toLocaleString()}`,  sub: 'Revenue', icon: '🗓', color: '#8B5CF6' },
-    { label: 'Avg Stay',  value: `${avgStay} nights`,                   sub: 'Duration', icon: '🌙', color: '#F59E0B' },
-    { label: 'Occupancy', value: `${occupancyRate}%`,                    sub: 'This month', icon: '🏠', color: '#EC4899' },
+    { label: 'Today',     value: vnd.format(todayRevenue),      sub: 'Revenue', icon: '📅', color: '#2563EB' },
+    { label: 'This Week', value: vnd.format(weekRevenue),      sub: 'Revenue', icon: '📆', color: '#10B981' },
+    { label: 'This Month',value: vnd.format(monthRevenue),     sub: 'Revenue', icon: '🗓', color: '#8B5CF6' },
+    { label: 'Avg Stay',  value: `${avgStay} nights`,          sub: 'Duration', icon: '🌙', color: '#F59E0B' },
+    { label: 'Occupancy', value: `${occupancyRate}%`,           sub: 'This month', icon: '🏠', color: '#EC4899' },
   ];
 
   const bdr = darkMode ? '#334155' : '#E2E8F0';
@@ -196,8 +202,8 @@ export default function Reports() {
             <LineChart data={revenueTrend}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
               <XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false} />
-              <YAxis tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={v => `$${v / 1000}k`} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, '']} />
+              <YAxis tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={v => vnd.format(v as number)} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [vnd.format(v as number), '']} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Line type="monotone" dataKey="revenue"  stroke="#2563EB" strokeWidth={2.5} dot={{ r: 4 }}  name="Revenue" />
               <Line type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 3 }} name="Est. Expenses" />
@@ -273,7 +279,7 @@ export default function Reports() {
                   <Pie data={expenseByCategory} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
                     {expenseByCategory.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`$${(v as number).toFixed(2)}`, '']} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [vnd.format(v as number), '']} />
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -281,7 +287,7 @@ export default function Reports() {
                   <div key={cat.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 10, height: 10, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
                     <div style={{ flex: 1, fontSize: 13, color: textPrimary }}>{cat.name}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>${cat.value.toFixed(2)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>{vnd.format(cat.value)}</div>
                   </div>
                 ))}
               </div>

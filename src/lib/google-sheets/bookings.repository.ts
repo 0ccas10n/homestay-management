@@ -7,6 +7,12 @@
 //   They overlap when: existingStart < requestedEnd && existingEnd > requestedStart
 //
 // Checkout: records actualCheckOutAt, computes overtime, updates totalAmount.
+//
+// Custom hourly bookings:
+//   When ratePlanId === CUSTOM_RATE_PLAN_ID ('custom'), the receptionist has
+//   entered the total amount manually. The repository skips all rate-plan
+//   pricing math and persists the supplied totalAmount verbatim. Overtime on
+//   checkout is also skipped — staff record any extra charges by hand.
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { sheets } from './client';
@@ -20,6 +26,7 @@ import type { Booking, BookingStatus } from '@/types/index';
 import { timestamps, updatedTimestamp, windowsOverlap, diffMinutes, nowIso } from './datetime';
 import { generateId } from './id';
 import { getRatePlan } from '@/utils/pricing';
+import { CUSTOM_RATE_PLAN_ID } from '@/lib/api/validation';
 
 // ─── Read ───────────────────────────────────────────────────────────────────────
 
@@ -119,19 +126,28 @@ export async function hasOverlap(
  * Server responsibilities (mirrors API.md §6):
  *  1. Validate date range
  *  2. Re-check availability
- *  3. Calculate expectedDurationMinutes + baseAmount
+ *  3. Calculate expectedDurationMinutes + baseAmount (skipped for custom hourly)
  *  4. Insert into sheet
  *
- * @throws Error if dates are invalid, overlap detected, or room/customer/rate-plan not found.
+ * For ratePlanId === CUSTOM_RATE_PLAN_ID, the caller MUST supply totalAmount.
+ * The repository persists that value directly without any rate-plan lookup.
+ *
+ * @throws Error if dates are invalid, overlap detected, room not found, or
+ *         a custom booking is missing totalAmount.
  */
 export async function create(
   spreadsheetId: string,
-  input: Omit<Booking, 'bookingId' | 'expectedDurationMinutes' | 'baseAmount' | 'overtimeMinutes' | 'overtimeAmount' | 'totalAmount' | 'createdAt' | 'updatedAt'>,
+  input: Omit<Booking, 'bookingId' | 'expectedDurationMinutes' | 'baseAmount' | 'overtimeMinutes' | 'overtimeAmount' | 'totalAmount' | 'createdAt' | 'updatedAt'> & {
+    /** Required when ratePlanId === CUSTOM_RATE_PLAN_ID; ignored otherwise. */
+    totalAmount?: number;
+  },
 ): Promise<Booking> {
   // 1. Validate range
   if (new Date(input.checkInAt) >= new Date(input.expectedCheckOutAt)) {
     throw new Error('checkInAt must be before expectedCheckOutAt');
   }
+
+  const isCustom = input.ratePlanId === CUSTOM_RATE_PLAN_ID;
 
   // 2. Re-check overlap
   const overlap = await hasOverlap(
@@ -144,12 +160,25 @@ export async function create(
     throw new Error(`Room ${input.roomId} is not available for the requested time`);
   }
 
-  // 3. Calculate pricing
-  const { expectedDurationMinutes, baseAmount } = calculateBasePricing(
-    input.ratePlanId,
-    input.checkInAt,
-    input.expectedCheckOutAt,
-  );
+  // 3. Calculate pricing — branch on custom vs predefined
+  let expectedDurationMinutes: number;
+  let baseAmount: number;
+  let totalAmount: number;
+  if (isCustom) {
+    if (input.totalAmount === undefined || input.totalAmount < 0) {
+      throw new Error('totalAmount is required for custom hourly bookings');
+    }
+    expectedDurationMinutes = diffMinutes(input.checkInAt, input.expectedCheckOutAt);
+    baseAmount = 0;
+    totalAmount = input.totalAmount;
+  } else {
+    ({ expectedDurationMinutes, baseAmount } = calculateBasePricing(
+      input.ratePlanId,
+      input.checkInAt,
+      input.expectedCheckOutAt,
+    ));
+    totalAmount = baseAmount;
+  }
 
   const bookingId = await generateId('BOOK', 'Bookings', spreadsheetId);
   const { createdAt, updatedAt } = timestamps();
@@ -161,7 +190,7 @@ export async function create(
     baseAmount,
     overtimeMinutes: undefined,
     overtimeAmount: undefined,
-    totalAmount: baseAmount,
+    totalAmount,
     createdAt,
     updatedAt,
   };
@@ -181,6 +210,10 @@ export async function create(
 /**
  * Update mutable booking fields.
  * Re-checks overlap if roomId or dates change.
+ *
+ * For custom hourly bookings (ratePlanId === CUSTOM_RATE_PLAN_ID), pricing is
+ * never recomputed — the receptionist-supplied total stays in place regardless
+ * of date or plan changes.
  */
 export async function update(
   spreadsheetId: string,
@@ -193,7 +226,7 @@ export async function update(
     | 'source'
     | 'numGuests'
     | 'note'
-  >> & { ratePlanId?: string },
+  >> & { ratePlanId?: string; totalAmount?: number },
 ): Promise<Booking | null> {
   const all = await readAll(spreadsheetId);
   const idx = all.findIndex(b => b.bookingId === bookingId);
@@ -219,15 +252,27 @@ export async function update(
     }
   }
 
-  // Recalculate pricing if rate plan, check-in, or check-out changed
+  const isCustom = existing.ratePlanId === CUSTOM_RATE_PLAN_ID
+    || patch.ratePlanId === CUSTOM_RATE_PLAN_ID;
+
+  // Recalculate pricing only for predefined plans. Custom bookings keep their
+  // manually-entered total even when dates move.
   let baseAmount = existing.baseAmount;
   let expectedDurationMinutes = existing.expectedDurationMinutes;
-  const ratePlanId = patch.ratePlanId ?? existing.ratePlanId;
+  let totalAmount: number;
 
-  if (patch.checkInAt || patch.expectedCheckOutAt || patch.ratePlanId) {
-    ({ expectedDurationMinutes, baseAmount } = calculateBasePricing(
-      ratePlanId, checkInAt, expectedCheckOutAt,
-    ));
+  if (isCustom) {
+    // If the patch carries a new totalAmount (rare, e.g. receptionist edits the
+    // agreed price after creation), honour it; otherwise keep the stored value.
+    totalAmount = patch.totalAmount ?? existing.totalAmount;
+  } else {
+    const ratePlanId = patch.ratePlanId ?? existing.ratePlanId;
+    if (patch.checkInAt || patch.expectedCheckOutAt || patch.ratePlanId) {
+      ({ expectedDurationMinutes, baseAmount } = calculateBasePricing(
+        ratePlanId, checkInAt, expectedCheckOutAt,
+      ));
+    }
+    totalAmount = baseAmount + (existing.overtimeAmount ?? 0);
   }
 
   const updated: Booking = {
@@ -237,7 +282,7 @@ export async function update(
     customerId: existing.customerId,   // immutable
     expectedDurationMinutes,
     baseAmount,
-    totalAmount: baseAmount + (existing.overtimeAmount ?? 0),
+    totalAmount,
     createdAt: existing.createdAt,     // immutable
     updatedAt: updatedTimestamp(),
   };
@@ -259,6 +304,10 @@ export async function update(
  * - If actualCheckOutAt > expectedCheckOutAt → compute overtime
  * - Set status to 'checked_out'
  * - Return updated booking
+ *
+ * For custom hourly bookings (ratePlanId === CUSTOM_RATE_PLAN_ID), overtime
+ * computation is skipped — the receptionist records any extra charges by hand
+ * via a PATCH /api/bookings/:id with the new totalAmount.
  */
 export async function checkout(
   spreadsheetId: string,
@@ -271,20 +320,27 @@ export async function checkout(
 
   const existing = all[idx]!;
 
-  // Compute overtime
-  const durationMs = new Date(actualCheckOutAt).getTime() - new Date(existing.checkInAt).getTime();
-  const actualMinutes = Math.round(durationMs / 60_000);
-  const overtimeMinutes = Math.max(0, actualMinutes - existing.expectedDurationMinutes);
-  const overtimeHours = Math.ceil(overtimeMinutes / 60);
-  const plan = getRatePlan(existing.ratePlanId);
-  const overtimeAmount = overtimeHours * plan.overtimeMinutePrice;
+  let overtimeMinutes = 0;
+  let overtimeAmount = 0;
+  let totalAmount = existing.totalAmount;
+
+  if (existing.ratePlanId !== CUSTOM_RATE_PLAN_ID) {
+    // Compute overtime against the predefined rate plan.
+    const durationMs = new Date(actualCheckOutAt).getTime() - new Date(existing.checkInAt).getTime();
+    const actualMinutes = Math.round(durationMs / 60_000);
+    overtimeMinutes = Math.max(0, actualMinutes - existing.expectedDurationMinutes);
+    const overtimeHours = Math.ceil(overtimeMinutes / 60);
+    const plan = getRatePlan(existing.ratePlanId);
+    overtimeAmount = overtimeHours * plan.overtimeMinutePrice;
+    totalAmount = existing.baseAmount + overtimeAmount;
+  }
 
   const updated: Booking = {
     ...existing,
     actualCheckOutAt,
     overtimeMinutes: overtimeMinutes > 0 ? overtimeMinutes : undefined,
     overtimeAmount: overtimeAmount > 0 ? overtimeAmount : undefined,
-    totalAmount: existing.baseAmount + overtimeAmount,
+    totalAmount,
     status: 'checked_out',
     updatedAt: updatedTimestamp(),
   };

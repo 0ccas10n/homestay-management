@@ -37,14 +37,14 @@ export const rooms: Room[] = [
 import type { Customer } from '../types/index';
 
 export const customers: Customer[] = [
-  { customerId: 'CUS-0001', name: 'Nadia Okonkwo',     phone: '+1 (415) 820-3341',    email: 'nadia.okonkwo@gmail.com',      nationality: 'Nigerian',        totalBookings: 4, note: 'Prefers high floor rooms', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0002', name: 'Marcus Chen',        phone: '+1 (650) 775-4422',    email: 'marcus.chen@outlook.com',     nationality: 'Chinese-American', totalBookings: 2, createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0003', name: 'Elena Vasquez',       phone: '+34 612 334 891',     email: 'elena.v@gmail.com',           nationality: 'Spanish',          totalBookings: 1, createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0004', name: 'James Whitfield',      phone: '+44 7700 900432',     email: 'j.whitfield@company.com',     nationality: 'British',         totalBookings: 7, note: 'Business traveler, early check-in requested', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0005', name: 'Aisha Rahman',        phone: '+60 12-345-6789',    email: 'aisha.r@yahoo.com',          nationality: 'Malaysian',        totalBookings: 3, createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0006', name: 'Tomás Eriksson',      phone: '+46 70 123 45 67',   email: 'tomas.e@hotmail.com',        nationality: 'Swedish',          totalBookings: 1, createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0007', name: 'Priya Sharma',         phone: '+91 98765 43210',    email: 'priya.s@gmail.com',          nationality: 'Indian',           totalBookings: 2, createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0008', name: 'Carlos Mendes',        phone: '+55 11 9 8765-4321', email: 'carlos.m@gmail.com',        nationality: 'Brazilian',         totalBookings: 5, createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0001', name: 'Nadia Okonkwo',     phone: '+1 (415) 820-3341',    email: 'nadia.okonkwo@gmail.com',      note: 'Prefers high floor rooms', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0002', name: 'Marcus Chen',        phone: '+1 (650) 775-4422',    email: 'marcus.chen@outlook.com',     createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0003', name: 'Elena Vasquez',       phone: '+34 612 334 891',     email: 'elena.v@gmail.com',           createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0004', name: 'James Whitfield',      phone: '+44 7700 900432',     email: 'j.whitfield@company.com',     note: 'Business traveler, early check-in requested', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0005', name: 'Aisha Rahman',        phone: '+60 12-345-6789',    email: 'aisha.r@yahoo.com',          createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0006', name: 'Tomás Eriksson',      phone: '+46 70 123 45 67',   email: 'tomas.e@hotmail.com',        createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0007', name: 'Priya Sharma',         phone: '+91 98765 43210',    email: 'priya.s@gmail.com',          createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0008', name: 'Carlos Mendes',        phone: '+55 11 9 8765-4321', email: 'carlos.m@gmail.com',        createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
 ];
 
 // ─── Bookings (datetime model) ─────────────────────────────────────────────────

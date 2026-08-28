@@ -43,9 +43,10 @@ export async function query(
 ): Promise<Expense[]> {
   let all = await readAll(spreadsheetId);
 
-  if (filters?.from) all = all.filter(e => e.date >= filters.from);
-  if (filters?.to)   all = all.filter(e => e.date <= filters.to);
-  if (filters?.category) all = all.filter(e => e.category === filters.category);
+  const { from, to, category } = filters ?? {};
+  if (from)     all = all.filter(e => e.date >= from);
+  if (to)       all = all.filter(e => e.date <= to);
+  if (category) all = all.filter(e => e.category === category);
 
   return all;
 }

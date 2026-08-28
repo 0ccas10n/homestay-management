@@ -213,7 +213,7 @@ export function hasOverlap(
   roomId: string,
   checkInAt: string,
   expectedCheckOutAt: string,
-  existingBookings: Pick<Booking, 'roomId' | 'checkInAt' | 'expectedCheckOutAt' | 'status'>[],
+  existingBookings: Pick<Booking, 'bookingId' | 'roomId' | 'checkInAt' | 'expectedCheckOutAt' | 'status'>[],
   excludeBookingId?: string,
 ): boolean {
   return existingBookings

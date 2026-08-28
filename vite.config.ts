@@ -34,6 +34,17 @@ export default defineConfig(({ mode }) => {
       port: parseInt(process.env.PORT || '8443'),
       strictPort: true,
       watch: { ignored: ['**/.figma/**'] },
+      proxy: {
+        // Forward API requests to the local Express server started by
+        // `npm run dev:server` (default :8787). Cookies and CORS are
+        // preserved, so the session JWT works end-to-end.
+        '/api': {
+          target: process.env.API_PROXY_TARGET || 'http://localhost:8787',
+          changeOrigin: false,
+          secure: false,
+          ws: false,
+        },
+      },
       allowedHosts: [
         'motorcycles-candle-anchor-guides.trycloudflare.com',
         '.trycloudflare.com',
@@ -89,7 +100,7 @@ function figmaSiteConfiguration(config: FigmaSiteConfiguration): Plugin {
     return html.replace(`<!-- ${slotName} -->`, content)
   }
 
-  const title = config.title ?? "Figma Make App"
+  const title = config.title ?? "HomestayS"
   const description = config.description ?? ''
   const favicon = config.icons?.icon ?? ''
   const socialImage = config.openGraph?.image ?? ''

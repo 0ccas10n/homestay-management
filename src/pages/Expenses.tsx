@@ -13,6 +13,12 @@ import Modal from '@/components/Modal';
 const CATEGORIES = ['Cleaning Supplies', 'Electricity', 'Water', 'Internet', 'Repairs', 'Staff', 'Other'];
 const PIE_COLORS = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 
+const vnd = new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
+  maximumFractionDigits: 0,
+});
+
 export default function Expenses() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
   const { expenses, loading, refetch, createExpense } = useExpenses();
@@ -71,7 +77,7 @@ export default function Expenses() {
       <div style={{ background: bg, borderRadius: 12, border: `1px solid ${border}`, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
         <div>
           <div style={{ fontSize: 13, color: textMuted, fontWeight: 600 }}>Total This Month</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: textPrimary, fontFamily: "'DM Serif Display', serif" }}>${total.toFixed(2)}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: textPrimary, fontFamily: "'DM Serif Display', serif" }}>{vnd.format(total)}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <select value={filterCat} onChange={e => setFilterCat(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>
@@ -108,7 +114,7 @@ export default function Expenses() {
                   </td>
                   <td style={{ padding: '12px 16px', color: textPrimary }}>{e.description}</td>
                   <td style={{ padding: '12px 16px', color: textMuted }}>{e.vendor ?? '—'}</td>
-                  <td style={{ padding: '12px 16px', color: textPrimary, fontWeight: 700 }}>${e.amount.toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px', color: textPrimary, fontWeight: 700 }}>{vnd.format(e.amount)}</td>
                 </tr>
               ))}
             </tbody>
@@ -129,7 +135,7 @@ export default function Expenses() {
                   <Pie data={byCategory} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
                     {byCategory.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: bg, border: `1px solid ${border}` }} formatter={(v: unknown) => [`$${(v as number).toFixed(2)}`, '']} />
+                  <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: bg, border: `1px solid ${border}` }} formatter={(v: unknown) => [vnd.format(v as number), '']} />
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
@@ -137,7 +143,7 @@ export default function Expenses() {
                   <div key={cat.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ width: 8, height: 8, borderRadius: 2, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
                     <div style={{ flex: 1, fontSize: 12, color: textMuted }}>{cat.name}</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: textPrimary }}>${cat.value.toFixed(2)}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: textPrimary }}>{vnd.format(cat.value)}</div>
                   </div>
                 ))}
               </div>
@@ -153,7 +159,7 @@ export default function Expenses() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {[
             { label: 'Category', key: 'category', type: 'select' },
-            { label: 'Amount ($)', key: 'amount', type: 'number' },
+            { label: 'Amount (VND)', key: 'amount', type: 'number' },
             { label: 'Description', key: 'description', type: 'text' },
             { label: 'Vendor (optional)', key: 'vendor', type: 'text' },
             { label: 'Date', key: 'date', type: 'date' },

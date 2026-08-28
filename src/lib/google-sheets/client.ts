@@ -10,7 +10,7 @@
 //
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { google, type GoogleConfigurable } from 'googleapis';
+import { google } from 'googleapis';
 
 // Lazy singleton — client is created on first use, not at import time.
 // This avoids initializing credentials that may not be present during static analysis.
@@ -32,7 +32,7 @@ function createSheetsClient() {
     version: 'v4',
     auth,
     timeout: 15_000,
-  } as GoogleConfigurable);
+  });
 }
 
 /** Returns the shared Google Sheets client. Create once, reuse across requests. */
@@ -102,7 +102,7 @@ export const sheets = {
   ) {
     await this.client.spreadsheets.values.batchUpdate({
       spreadsheetId,
-      resource: {
+      requestBody: {
         valueInputOption: 'USER_ENTERED',
         data: ranges.map((range, i) => ({ range, values: [values[i]] })),
       },
@@ -139,7 +139,7 @@ export const sheets = {
     }
     await this.client.spreadsheets.batchUpdate({
       spreadsheetId,
-      resource: {
+      requestBody: {
         requests: [
           {
             addSheet: {
@@ -170,7 +170,7 @@ export const sheets = {
       }
       await this.client.spreadsheets.batchUpdate({
         spreadsheetId,
-        resource: {
+        requestBody: {
           requests: [{ deleteSheet: { sheetId: sheet.properties.sheetId } }],
         },
       });

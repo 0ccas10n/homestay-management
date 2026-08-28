@@ -1,7 +1,6 @@
 // ─── Dashboard.tsx ────────────────────────────────────────────────────────────────────
 //
-// Uses useDashboard for stat cards and Today's Activity sections.
-// Chart data is preserved from sampleData (not yet backed by an API endpoint).
+// Uses useDashboard for stat cards, Today's Activity sections, and chart data.
 // Modals make real API calls instead of just updating local state.
 //
 // Pages rendered inside AppShell receive darkMode via useOutletContext().
@@ -17,31 +16,22 @@ import type { Booking, CleaningTask } from '@/types/index';
 import { getBookingStatus, getStatusColor, getStatusBg, minutesUntilCheckout, formatMinutes } from '@/utils/pricing';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
-
-const REVENUE_DATA = [
-  { month: 'Mar', revenue: 7840,  expenses: 2100 },
-  { month: 'Apr', revenue: 8620,  expenses: 2300 },
-  { month: 'May', revenue: 9100,  expenses: 2150 },
-  { month: 'Jun', revenue: 11200, expenses: 2400 },
-  { month: 'Jul', revenue: 12450, expenses: 2680 },
-  { month: 'Aug', revenue: 8340,  expenses: 2248 },
-];
-
-const OCCUPANCY_DATA = [
-  { day: 'Mon', rate: 75 },
-  { day: 'Tue', rate: 83 },
-  { day: 'Wed', rate: 92 },
-  { day: 'Thu', rate: 67 },
-  { day: 'Fri', rate: 100 },
-  { day: 'Sat', rate: 100 },
-  { day: 'Sun', rate: 58 },
-];
+import BookingFormModal from '@/components/BookingFormModal';
 
 const TODAY_DATE = new Date().toISOString().slice(0, 10);
+
+const vnd = new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
+  maximumFractionDigits: 0,
+});
 
 export default function Dashboard() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
   const { data: dashboard, loading: dashLoading } = useDashboard();
+  const monthlyRevenue = dashboard?.monthlyRevenue ?? [];
+  const weeklyOccupancy = dashboard?.weeklyOccupancy ?? [];
+  const monthlyRevenueTotal = dashboard?.monthlyRevenueTotal ?? 0;
   const { bookings, refetch: refetchBookings } = useBookings({ autoFetch: false });
   const [rooms, setRooms] = useState<Awaited<ReturnType<typeof roomsApi.getInternal>>>([]);
   const [cleaningTasks, setCleaningTasks] = useState<CleaningTask[]>([]);
@@ -59,6 +49,11 @@ export default function Dashboard() {
   }, []);
 
   // Fetch rooms + cleaning tasks on mount
+  const refetchLocalRooms = useCallback(() => {
+    roomsApi.getInternal()
+      .then(r => setRooms(r))
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     Promise.all([
       roomsApi.getInternal().catch(() => []),
@@ -68,7 +63,7 @@ export default function Dashboard() {
       setCleaningTasks(c);
     });
     refetchBookings().catch(() => {});
-  }, [refetchBookings]);
+  }, [refetchBookings, refetchLocalRooms]);
 
   const roomMap: Record<string, (typeof rooms)[number] | undefined> = {};
   for (const r of rooms) roomMap[r.roomId] = r;
@@ -89,21 +84,33 @@ export default function Dashboard() {
   const today = TODAY_DATE;
   const checkingIn = bookings.filter(b =>
     b.checkInAt.startsWith(today) &&
+    b.status !== 'cancelled' &&
     (b.status === 'confirmed' || b.status === 'inquiry'),
   );
   const checkingOut = bookings.filter(b =>
     b.expectedCheckOutAt.startsWith(today) &&
+    b.status !== 'cancelled' &&
     b.status === 'checked_in',
   );
 
   const urgentCleaning = cleaningTasks.filter(t => t.priority === 'high' && t.status !== 'completed');
+
+  const prevMonthRevenue = monthlyRevenue.length >= 2
+    ? monthlyRevenue[monthlyRevenue.length - 2]!.revenue
+    : 0;
+  const monthlyDelta = prevMonthRevenue > 0
+    ? Math.round(((monthlyRevenueTotal - prevMonthRevenue) / prevMonthRevenue) * 100)
+    : null;
+  const monthlyDeltaText = monthlyDelta === null
+    ? 'No prior month data'
+    : `${monthlyDelta >= 0 ? '+' : ''}${monthlyDelta}% vs last month`;
 
   const statColors = ['#2563EB', '#10B981', '#F59E0B', '#8B5CF6'];
   const statCards = [
     { label: 'Total Rooms', value: totalRooms || '—', sub: `${available} available`, color: statColors[0], icon: '🛏' },
     { label: 'Occupied', value: occupied || '—', sub: `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}% occupancy`, color: statColors[1], icon: '👤' },
     { label: 'Cleaning Needed', value: needsCleaning || '—', sub: `${urgentCleaning.length} urgent`, color: statColors[2], icon: '🧹' },
-    { label: 'Monthly Revenue', value: '$8,340', sub: '+12% vs last month', color: statColors[3], icon: '💰' },
+    { label: 'Monthly Revenue', value: vnd.format(monthlyRevenueTotal), sub: monthlyDeltaText, color: statColors[3], icon: '💰' },
   ];
 
   const getGuestName = (booking: Booking): string => {
@@ -136,8 +143,9 @@ export default function Dashboard() {
       const now = new Date().toISOString();
       await bookingsApi.update(bookingId, { actualCheckOutAt: now });
       await refetchBookings();
+      refetchLocalRooms(); // room status flips to 'needs_cleaning' on the server
       setModal(null);
-      showToast('Guest checked out successfully');
+      showToast('Guest checked out — room flagged for cleaning');
     } catch {
       showToast('Check-out failed. Please try again.');
     }
@@ -210,7 +218,7 @@ export default function Dashboard() {
               }}>{s.icon}</div>
             </div>
             <div style={{ height: 3, borderRadius: 99, background: borderColor, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: i === 1 ? `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}%` : i === 0 ? '100%' : i === 2 ? `${(needsCleaning / Math.max(totalRooms, 1)) * 100}%` : '62%', background: s.color, borderRadius: 99 }} />
+              <div style={{ height: '100%', width: i === 1 ? `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}%` : i === 0 ? '100%' : i === 2 ? `${(needsCleaning / Math.max(totalRooms, 1)) * 100}%` : `${Math.min(100, Math.round((monthlyRevenueTotal / Math.max(prevMonthRevenue, 1)) * 100))}`, background: s.color, borderRadius: 99 }} />
             </div>
           </div>
         ))}
@@ -251,7 +259,7 @@ export default function Dashboard() {
             <div style={{ fontSize: 12, color: textMuted }}>Last 6 months</div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={REVENUE_DATA}>
+            <AreaChart data={monthlyRevenue}>
               <defs>
                 <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#2563EB" stopOpacity={0.15} />
@@ -264,8 +272,8 @@ export default function Dashboard() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#F1F5F9'} />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={v => `$${v/1000}k`} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }} formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, '']} />
+              <YAxis tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={v => vnd.format(v as number)} />
+              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }} formatter={(v: unknown) => [vnd.format(v as number), '']} />
               <Area type="monotone" dataKey="revenue" stroke="#2563EB" strokeWidth={2} fill="url(#rev)" name="Revenue" />
               <Area type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} fill="url(#exp)" name="Expenses" />
             </AreaChart>
@@ -278,7 +286,7 @@ export default function Dashboard() {
             <div style={{ fontSize: 12, color: textMuted }}>This week %</div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={OCCUPANCY_DATA} barSize={18}>
+            <BarChart data={weeklyOccupancy} barSize={18}>
               <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#F1F5F9'} />
               <XAxis dataKey="day" tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} domain={[0, 100]} />
@@ -323,7 +331,7 @@ export default function Dashboard() {
             <div key={b.bookingId} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${borderColor}` }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>{getGuestName(b)}</div>
-                <div style={{ fontSize: 11, color: textMuted }}>Room {getRoomNumber(b)} · Balance: ${b.totalAmount}</div>
+                <div style={{ fontSize: 11, color: textMuted }}>Room {getRoomNumber(b)} · Balance: {vnd.format(b.totalAmount)}</div>
               </div>
               <StatusBadge status="Checked In" />
             </div>
@@ -364,32 +372,17 @@ export default function Dashboard() {
 
       {/* Modals */}
 
-      <Modal open={modal === 'add-booking'} onClose={() => setModal(null)} title="Add New Booking" darkMode={darkMode}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {[
-            ['Guest Name', 'text', 'e.g. John Smith'],
-            ['Phone', 'tel', '+1 (555) 000-0000'],
-            ['Check-in Date', 'date', ''],
-            ['Check-out Date', 'date', ''],
-          ].map(([label, type, placeholder]) => (
-            <div key={label as string}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#94A3B8' : '#64748B', display: 'block', marginBottom: 4 }}>{label as string}</label>
-              {type === 'select' ? (
-                <select style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`, background: darkMode ? '#0F172A' : '#F8FAFC', color: darkMode ? '#E2E8F0' : '#1E293B', fontSize: 13, fontFamily: "'Outfit', sans-serif" }}>
-                  {rooms.filter(r => r.status === 'available').map(r => <option key={r.roomId}>{r.name}</option>)}
-                </select>
-              ) : (
-                <input type={type as string} placeholder={placeholder as string} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`, background: darkMode ? '#0F172A' : '#F8FAFC', color: darkMode ? '#E2E8F0' : '#1E293B', fontSize: 13, fontFamily: "'Outfit', sans-serif", outline: 'none' }} />
-              )}
-            </div>
-          ))}
-          <button
-            onClick={() => { setModal(null); showToast('Booking form opened — connect to full booking form to create'); }}
-            style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
-            Create Booking
-          </button>
-        </div>
-      </Modal>
+      <BookingFormModal
+        open={modal === 'add-booking'}
+        onClose={() => setModal(null)}
+        darkMode={darkMode}
+        onCreated={async () => {
+          setModal(null);
+          await refetchBookings();
+          showToast('Booking created successfully');
+        }}
+        onError={msg => showToast(msg)}
+      />
 
       <Modal open={modal === 'check-in'} onClose={() => setModal(null)} title="Check In Guest" darkMode={darkMode}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -410,7 +403,7 @@ export default function Dashboard() {
           {checkingOut.map(b => (
             <div key={b.bookingId} style={{ padding: '12px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}` }}>
               <div style={{ fontWeight: 600, color: darkMode ? '#F1F5F9' : '#1E293B' }}>{getGuestName(b)}</div>
-              <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B', marginBottom: 8 }}>Room {getRoomNumber(b)} · ${b.totalAmount}</div>
+              <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B', marginBottom: 8 }}>Room {getRoomNumber(b)} · Balance: {vnd.format(b.totalAmount)}</div>
               <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
                 Process Check-out
               </button>
@@ -472,7 +465,7 @@ function ExpenseForm({ darkMode, onSave }: { darkMode: boolean; onSave: (e: { ca
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {[
         { label: 'Category', el: <select value={category} onChange={e => setCategory(e.target.value)} style={inputStyle}>{EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}</select> },
-        { label: 'Amount ($)', el: <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" style={inputStyle} /> },
+        { label: 'Amount (VND)', el: <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} /> },
         { label: 'Description', el: <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description" style={inputStyle} /> },
         { label: 'Vendor (optional)', el: <input type="text" value={vendor} onChange={e => setVendor(e.target.value)} placeholder="Vendor name" style={inputStyle} /> },
         { label: 'Date', el: <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} /> },

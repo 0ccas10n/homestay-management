@@ -2,7 +2,7 @@
 // Transition a cleaning task through its lifecycle.
 
 import { readOne, transition } from '@/lib/google-sheets/cleaning.repository';
-import { updateRoom } from '@/lib/google-sheets/rooms.repository';
+import { update as updateRoom } from '@/lib/google-sheets/rooms.repository';
 import { updateCleaningSchema, parseBody } from '@/lib/api/validation';
 import { requireAuth } from '@/lib/auth/middleware';
 import { jsonSuccess, jsonError, jsonServerError } from '@/lib/api/response';
@@ -12,7 +12,7 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
 async function getCleaningId(request: Request): Promise<string | Response> {
   const url = new URL(request.url);
   const segments = url.pathname.split('/');
-  const cleaningId = segments.at(-2) ?? '';
+  const cleaningId = segments.at(-1) ?? ''; // /api/cleaning/{id} → segments[-1]
   if (!cleaningId) return jsonError(400, 'BAD_REQUEST', 'Missing cleaning ID');
   return cleaningId;
 }

@@ -22,6 +22,7 @@ export type RoomStatus =
   | 'available'
   | 'occupied'
   | 'cleaning'
+  | 'needs_cleaning'
   | 'maintenance'
   | 'inactive';
 
@@ -109,6 +110,23 @@ export interface RatePlan {
   /** For overnight plans: window end time, e.g. "10:00" */
   overnightEnd?: string;
   active: boolean;
+}
+
+/**
+ * Per-room, per-rate-plan pricing.
+ * The authoritative source of truth for the VND price of a (room, rate plan)
+ * combination. Overrides the abstract baseAmount / extraMinutePrice on the
+ * RatePlan when this row exists.
+ */
+export interface RatePlanPrice {
+  ratePlanPriceId: string;
+  ratePlanId: string;
+  roomId: string;
+  /** Final price in Vietnamese Dong — never a derived calculation. */
+  priceVnd: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ─── Cleaning ─────────────────────────────────────────────────────────────────

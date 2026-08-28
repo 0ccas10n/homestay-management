@@ -11,6 +11,12 @@ import type { Booking } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 
+const vnd = new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
+  maximumFractionDigits: 0,
+});
+
 const SOURCES = ['All', 'phone', 'walk_in', 'online', 'partner', 'other'];
 const STATUSES = ['All', 'inquiry', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'];
 
@@ -21,6 +27,7 @@ export default function Bookings() {
   const [filterSource, setFilterSource] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [selected, setSelected] = useState<Booking | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState<Booking | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => { refetch(); }, [refetch]);
@@ -38,11 +45,17 @@ export default function Bookings() {
     return matchQ && matchSource && matchStatus;
   });
 
+  // True when the booking is in a state where it can still be cancelled.
+  // Cancelled / checked_out / no_show are terminal and not user-cancellable.
+  const canCancel = (b: Booking) =>
+    b.status !== 'cancelled' && b.status !== 'checked_out' && b.status !== 'no_show';
+
   const handleCancel = async (id: string) => {
     try {
       await cancelBooking(id);
       setSelected(null);
-      showToast('Booking cancelled');
+      setConfirmCancel(null);
+      showToast('Booking cancelled — room is now available');
     } catch {
       showToast('Failed to cancel booking');
     }
@@ -105,11 +118,11 @@ export default function Bookings() {
                   <td style={{ padding: '12px 16px', color: textPrimary, whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{b.expectedCheckOutAt.slice(0, 16).replace('T', ' ')}</td>
                   <td style={{ padding: '12px 16px', color: textMuted }}>{b.source}</td>
                   <td style={{ padding: '12px 16px' }}><StatusBadge status={b.status} /></td>
-                  <td style={{ padding: '12px 16px', color: textPrimary, fontWeight: 600, whiteSpace: 'nowrap' }}>${b.totalAmount}</td>
+                  <td style={{ padding: '12px 16px', color: textPrimary, fontWeight: 600, whiteSpace: 'nowrap' }}>{vnd.format(b.totalAmount)}</td>
                   <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                     <button onClick={() => setSelected(b)} style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: textMuted, marginRight: 4 }}>View</button>
-                    {b.status !== 'cancelled' && b.status !== 'checked_out' && (
-                      <button onClick={() => handleCancel(b.bookingId)} style={{ background: 'none', border: '1px solid #FCA5A5', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#EF4444' }}>Cancel</button>
+                    {canCancel(b) && (
+                      <button onClick={() => setConfirmCancel(b)} style={{ background: 'none', border: '1px solid #FCA5A5', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#EF4444' }}>Cancel</button>
                     )}
                   </td>
                 </tr>
@@ -134,9 +147,9 @@ export default function Bookings() {
               ['Check-out', selected.expectedCheckOutAt],
               ['Source', selected.source],
               ['Duration', `${selected.expectedDurationMinutes} min`],
-              ['Base Amount', `$${selected.baseAmount}`],
-              ['Overtime', selected.overtimeAmount != null ? `$${selected.overtimeAmount} (${selected.overtimeMinutes} min)` : 'None'],
-              ['Total', `$${selected.totalAmount}`],
+              ['Base Amount', vnd.format(selected.baseAmount)],
+              ['Overtime', selected.overtimeAmount != null ? `${vnd.format(selected.overtimeAmount)} (${selected.overtimeMinutes} min)` : 'None'],
+              ['Total', vnd.format(selected.totalAmount)],
               ['Guests', `${selected.numGuests ?? 1}`],
             ].map(([k, v]) => (
               <div key={k as string} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: `1px solid ${border}` }}>
@@ -147,6 +160,58 @@ export default function Bookings() {
               </div>
             ))}
             <StatusBadge status={selected.status} />
+            {canCancel(selected) && (
+              <button
+                onClick={() => { setConfirmCancel(selected); }}
+                style={{
+                  marginTop: 4,
+                  background: '#FEE2E2', color: '#991B1B',
+                  border: '1px solid #FCA5A5', borderRadius: 8,
+                  padding: '10px 14px', fontWeight: 600, fontSize: 13,
+                  cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                }}>
+                Cancel Booking
+              </button>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Cancel-confirmation modal — guards the destructive action. */}
+      <Modal
+        open={!!confirmCancel}
+        onClose={() => setConfirmCancel(null)}
+        title="Cancel booking?"
+        darkMode={darkMode}
+      >
+        {confirmCancel && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <p style={{ margin: 0, fontSize: 13, color: darkMode ? '#94A3B8' : '#475569' }}>
+              This will mark booking <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{confirmCancel.bookingId}</strong> as cancelled and free the room immediately.
+              Any linked pending cleaning task will also be cancelled.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setConfirmCancel(null)}
+                style={{
+                  background: 'transparent',
+                  border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
+                  borderRadius: 8, padding: '9px 16px', fontWeight: 600, fontSize: 13,
+                  cursor: 'pointer', color: darkMode ? '#94A3B8' : '#64748B',
+                  fontFamily: "'Outfit', sans-serif",
+                }}>
+                Keep booking
+              </button>
+              <button
+                onClick={() => handleCancel(confirmCancel.bookingId)}
+                style={{
+                  background: '#EF4444', color: '#fff', border: 'none',
+                  borderRadius: 8, padding: '9px 16px', fontWeight: 600, fontSize: 13,
+                  cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                }}>
+                Cancel booking
+              </button>
+            </div>
           </div>
         )}
       </Modal>

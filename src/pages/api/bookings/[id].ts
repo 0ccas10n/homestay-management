@@ -5,7 +5,7 @@
 
 import { readOne, update, checkout } from '@/lib/google-sheets/bookings.repository';
 import { readOne as readCustomer } from '@/lib/google-sheets/customers.repository';
-import { updateRoom } from '@/lib/google-sheets/rooms.repository';
+import { update as updateRoom } from '@/lib/google-sheets/rooms.repository';
 import { transition } from '@/lib/google-sheets/cleaning.repository';
 import { updateBookingSchema, parseBody } from '@/lib/api/validation';
 import { requireAuth } from '@/lib/auth/middleware';
@@ -18,7 +18,7 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
 async function getBookingId(request: Request): Promise<string | Response> {
   const url = new URL(request.url);
   const segments = url.pathname.split('/');
-  const bookingId = segments.at(-2) ?? ''; // /api/bookings/{id} → segments[-2]
+  const bookingId = segments.at(-1) ?? ''; // /api/bookings/{id} → segments[-1]
   if (!bookingId) return jsonError(400, 'BAD_REQUEST', 'Missing booking ID');
   return bookingId;
 }
@@ -86,8 +86,8 @@ export async function PATCH(request: Request) {
 
       const { booking, overtimeMinutes, overtimeAmount } = result;
 
-      // Update room status → 'cleaning'
-      await updateRoom(SPREADSHEET_ID, booking.roomId, { status: 'cleaning' });
+      // Update room status → 'needs_cleaning' (checkout just finished, awaiting housekeeping)
+      await updateRoom(SPREADSHEET_ID, booking.roomId, { status: 'needs_cleaning' });
 
       // Auto-complete the linked cleaning task
       const { query: queryCleaning } = await import('@/lib/google-sheets/cleaning.repository');

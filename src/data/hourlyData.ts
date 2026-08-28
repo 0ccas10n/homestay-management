@@ -88,7 +88,7 @@ function makeSamples(): HourlyBookingView[] {
     const extraMin = Math.max(0, bookedMin - plan.baseMinutes);
     const extraCharge = extraMin * plan.extraMinutePrice;
     const overtimeCharge = overtimeMin * plan.overtimeMinutePrice;
-    return { base, overtimeMinutes: overtimeMin, overtimeAmount: overtimeCharge, total: base + extraCharge + overtimeCharge };
+    return { baseAmount: base, overtimeMinutes: overtimeMin, overtimeAmount: overtimeCharge, totalAmount: base + extraCharge + overtimeCharge };
   }
 
   return [

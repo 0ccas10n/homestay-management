@@ -8,20 +8,23 @@ import {
   SHEETS,
   NOTIFICATIONS_HEADERS,
   mapRowToNotification,
-  mapNotificationToRow,
 } from './types';
 import type { Notification } from '@/types/index';
-import { timestamps, updatedTimestamp } from './datetime';
 import { generateId } from './id';
 
-export async function readAll(spreadsheetId: string): Promise<Notification[]> {
+/** Read raw sheet rows (includes createdAt/updatedAt columns) for read-back. */
+async function readRawRows(spreadsheetId: string): Promise<string[][]> {
   const range = `${SHEETS.Notifications}!A2:${String.fromCharCode(64 + NOTIFICATIONS_HEADERS.length)}`;
-  const rows = await sheets.getValues(spreadsheetId, range);
+  return sheets.getValues(spreadsheetId, range);
+}
+
+export async function readAll(spreadsheetId: string): Promise<Notification[]> {
+  const rows = await readRawRows(spreadsheetId);
   return rows.map(row => {
     const r = mapRowToNotification(row);
     return {
       notificationId:   r.notificationId,
-      type:             r.type as Notification['type'],
+      type:             r.type     as Notification['type'],
       title:            r.title,
       message:          r.message,
       time:             r.time,
@@ -29,39 +32,35 @@ export async function readAll(spreadsheetId: string): Promise<Notification[]> {
       priority:         r.priority as Notification['priority'],
       relatedBookingId: r.relatedBookingId,
       relatedRoomId:    r.relatedRoomId,
-      createdAt:        r.createdAt,
-      updatedAt:        r.updatedAt,
     };
   });
 }
 
 export async function create(
   spreadsheetId: string,
-  input: Omit<Notification, 'notificationId' | 'createdAt' | 'updatedAt'>,
+  input: Omit<Notification, 'notificationId'>,
 ): Promise<Notification> {
   const notificationId = await generateId('NOTIF', 'Notifications', spreadsheetId);
+  const { timestamps } = await import('./datetime');
   const { createdAt, updatedAt } = timestamps();
 
   const notification: Notification = {
     ...input,
     notificationId,
-    createdAt,
-    updatedAt,
   };
 
   const existing = await sheets.getValues(spreadsheetId, `${SHEETS.Notifications}!A:A`);
   const nextRow = existing.length + 2;
 
-  const r = mapRowToNotification([
-    notificationId, input.type, input.title, input.message,
-    input.time, input.read ? 'TRUE' : 'FALSE', input.priority,
-    input.relatedBookingId ?? '', input.relatedRoomId ?? '',
-    createdAt, updatedAt,
-  ]);
   await sheets.appendRow(
     spreadsheetId,
     `${SHEETS.Notifications}!A${nextRow}`,
-    mapNotificationToRow(r),
+    [
+      notificationId, input.type, input.title, input.message,
+      input.time, input.read ? 'TRUE' : 'FALSE', input.priority,
+      input.relatedBookingId ?? '', input.relatedRoomId ?? '',
+      createdAt, updatedAt,
+    ],
   );
 
   return notification;
@@ -71,51 +70,61 @@ export async function markRead(
   spreadsheetId: string,
   notificationId: string,
 ): Promise<Notification | null> {
-  const all = await readAll(spreadsheetId);
-  const idx = all.findIndex(n => n.notificationId === notificationId);
+  const { updatedTimestamp } = await import('./datetime');
+  const rows = await readRawRows(spreadsheetId);
+  const idx = rows.findIndex(row => row[0] === notificationId);
   if (idx === -1) return null;
 
+  const original = rows[idx]!;
+  const originalCreatedAt = original[9] ?? '';
+
   const updated: Notification = {
-    ...all[idx]!,
-    read: true,
-    updatedAt: updatedTimestamp(),
+    notificationId:   original[0]!,
+    type:             (original[1] ?? 'check_in') as Notification['type'],
+    title:            original[2] ?? '',
+    message:          original[3] ?? '',
+    time:             original[4] ?? '',
+    read:             true,
+    priority:         (original[6] ?? 'medium') as Notification['priority'],
+    relatedBookingId: original[7] || undefined,
+    relatedRoomId:    original[8] || undefined,
   };
 
   const sheetRow = idx + 2;
   const col = String.fromCharCode(64 + NOTIFICATIONS_HEADERS.length);
-  const r = mapRowToNotification([
-    updated.notificationId, updated.type, updated.title, updated.message,
-    updated.time, 'TRUE', updated.priority,
-    updated.relatedBookingId ?? '', updated.relatedRoomId ?? '',
-    updated.createdAt, updated.updatedAt,
-  ]);
   await sheets.setValues(
     spreadsheetId,
     `${SHEETS.Notifications}!A${sheetRow}:${col}`,
-    [mapNotificationToRow(r)],
+    [
+      [
+        updated.notificationId, updated.type, updated.title, updated.message,
+        updated.time, 'TRUE', updated.priority,
+        updated.relatedBookingId ?? '', updated.relatedRoomId ?? '',
+        originalCreatedAt, updatedTimestamp(),
+      ],
+    ],
   );
 
   return updated;
 }
 
 export async function markAllRead(spreadsheetId: string): Promise<void> {
-  const all = await readAll(spreadsheetId);
+  const { updatedTimestamp } = await import('./datetime');
+  const rows = await readRawRows(spreadsheetId);
   const col = String.fromCharCode(64 + NOTIFICATIONS_HEADERS.length);
 
   await Promise.all(
-    all.map(async (n, idx) => {
-      if (!n.read) {
+    rows.map(async (row, idx) => {
+      const isRead = (row[5] ?? '').toUpperCase() === 'TRUE';
+      if (!isRead) {
         const sheetRow = idx + 2;
-        const r = mapRowToNotification([
-          n.notificationId, n.type, n.title, n.message,
-          n.time, 'TRUE', n.priority,
-          n.relatedBookingId ?? '', n.relatedRoomId ?? '',
-          n.createdAt, updatedTimestamp(),
-        ]);
+        const newRow = [...row];
+        newRow[5] = 'TRUE';
+        newRow[10] = updatedTimestamp();
         await sheets.setValues(
           spreadsheetId,
           `${SHEETS.Notifications}!A${sheetRow}:${col}`,
-          [mapNotificationToRow(r)],
+          [newRow],
         );
       }
     }),

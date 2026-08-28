@@ -4,8 +4,8 @@
 
 import { query, create, byCustomer } from '@/lib/google-sheets/bookings.repository';
 import { readOne as readRoom } from '@/lib/google-sheets/rooms.repository';
-import { getRatePlan } from '@/utils/pricing';
-import { createBookingSchema, parseBody } from '@/lib/api/validation';
+import { createBookingSchema, parseBody, CUSTOM_RATE_PLAN_ID } from '@/lib/api/validation';
+import type { Booking } from '@/types/index';
 import { requireAuth } from '@/lib/auth/middleware';
 import { jsonSuccess, jsonCreated, jsonError, jsonServerError } from '@/lib/api/response';
 
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
       : bookings;
 
     // Strip any fields that shouldn't reach the client
-    const safe = finalBookings.map(safeBooking);
+    const safe = finalBookings.map((b: Booking) => safeBooking(b));
 
     return jsonSuccess(safe);
   } catch (err) {
@@ -59,15 +59,25 @@ export async function POST(request: Request) {
   const parsed = await parseBody(request, createBookingSchema);
   if (parsed instanceof Response) return parsed;
 
-  const { customer, roomId, checkInAt, expectedCheckOutAt, status, source, ratePlanId, numGuests, note } = parsed;
+  const { customer, roomId, checkInAt, expectedCheckOutAt, status, source, ratePlanId, totalAmount, numGuests, note } = parsed;
 
   try {
     // 1. Validate room exists
     const room = await readRoom(SPREADSHEET_ID, roomId);
     if (!room) return jsonError(400, 'VALIDATION_ERROR', `Room ${roomId} does not exist`);
 
-    // 2. Validate rate plan exists
-    const plan = getRatePlan(ratePlanId);
+    // 2. Rate plan: only resolve from the sheet for predefined plans.
+    //    Custom hourly bookings skip the rate-plan lookup entirely.
+    if (ratePlanId !== CUSTOM_RATE_PLAN_ID) {
+      // getRatePlan returns the first plan on miss — this guards against typos.
+      // Throwing here would surface a 500, so we only call it for the side effect
+      // of validating that the id exists in the sheet (via active()).
+      const { active } = await import('@/lib/google-sheets/ratePlans.repository');
+      const matched = await active(SPREADSHEET_ID);
+      if (!matched.some(p => p.ratePlanId === ratePlanId)) {
+        return jsonError(400, 'VALIDATION_ERROR', `Rate plan ${ratePlanId} does not exist`);
+      }
+    }
 
     // 3. Create or find customer
     const { findOrCreate } = await import('@/lib/google-sheets/customers.repository');
@@ -87,6 +97,7 @@ export async function POST(request: Request) {
       status:      status ?? 'confirmed',
       source:      source ?? 'phone',
       ratePlanId,
+      totalAmount: ratePlanId === CUSTOM_RATE_PLAN_ID ? totalAmount : undefined,
       numGuests,
       note,
       createdBy: session.userId,
@@ -117,7 +128,7 @@ async function filterByLocation(
 }
 
 /** Strip sensitive fields before sending to client. */
-function safeBooking(b: ReturnType<typeof query> extends Promise<infer T> ? T : never): object {
+function safeBooking(b: Booking): object {
   return {
     bookingId:               b.bookingId,
     roomId:                  b.roomId,

@@ -153,6 +153,17 @@ export const bookingsApi = {
     api.post<import('@/types/index').Booking>('/api/bookings', data),
   update: (id: string, data: Parameters<typeof api.patch>[1]) =>
     api.patch<import('@/types/index').Booking>(`/api/bookings/${id}`, data),
+  /** Lifecycle-only update — used for cancel, check-in, confirm, etc. */
+  updateStatus: (id: string, status: import('@/types/index').BookingStatus) =>
+    api.patch<{ booking: import('@/types/index').Booking; changed: boolean; message: string }>(
+      `/api/bookings/${id}/status`,
+      { status },
+    ),
+  /**
+   * @deprecated Prefer `updateStatus(id, 'cancelled')` — it goes through the
+   * dedicated lifecycle endpoint which also frees the room and cancels any
+   * linked cleaning task. Kept for backward compatibility.
+   */
   cancel: (id: string) =>
     api.delete<void>(`/api/bookings/${id}`),
 };
@@ -179,6 +190,20 @@ export const ratePlansApi = {
   getAll: () => api.get<import('@/types/index').RatePlan[]>('/api/rate-plans'),
 };
 
+export const ratePlanPricesApi = {
+  getAll: () =>
+    api.get<import('@/types/index').RatePlanPrice[]>('/api/rate-plan-prices'),
+  /**
+   * Find the configured VND price for a single (ratePlanId, roomId) pair.
+   * Returns null when no active row exists — the form should then fall back
+   * to manual entry.
+   */
+  find: (ratePlanId: string, roomId: string) =>
+    api.get<import('@/types/index').RatePlanPrice | null>(
+      `/api/rate-plan-prices?ratePlanId=${encodeURIComponent(ratePlanId)}&roomId=${encodeURIComponent(roomId)}`,
+    ),
+};
+
 export const expensesApi = {
   get: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -197,6 +222,9 @@ export const dashboardApi = {
       occupiedRooms: number;
       roomsToClean: number;
       upcomingBookings: { bookingId: string; roomId: string; checkInAt: string; expectedCheckOutAt: string; status: string }[];
+      monthlyRevenue: { month: string; revenue: number; expenses: number }[];
+      weeklyOccupancy: { day: string; rate: number }[];
+      monthlyRevenueTotal: number;
     }>('/api/dashboard'),
 };
 

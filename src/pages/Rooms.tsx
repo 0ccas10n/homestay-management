@@ -11,14 +11,16 @@ import type { Room, RoomStatus } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 
-const STATUS_FILTERS = ['All', 'available', 'occupied', 'cleaning', 'maintenance', 'inactive'] as const;
+const STATUS_FILTERS = ['All', 'available', 'occupied', 'cleaning', 'needs_cleaning', 'maintenance', 'inactive'] as const;
 type FilterTab = typeof STATUS_FILTERS[number];
 
 const STATUS_COLOR: Record<string, string> = {
-  available: '#10B981', occupied: '#2563EB', cleaning: '#F59E0B', maintenance: '#EF4444',
+  available: '#10B981', occupied: '#2563EB', cleaning: '#F59E0B',
+  needs_cleaning: '#EA580C', maintenance: '#EF4444',
 };
 const STATUS_BG: Record<string, string> = {
-  available: '#ECFDF5', occupied: '#EFF6FF', cleaning: '#FFFBEB', maintenance: '#FEF2F2',
+  available: '#ECFDF5', occupied: '#EFF6FF', cleaning: '#FFFBEB',
+  needs_cleaning: '#FFF7ED', maintenance: '#FEF2F2',
 };
 
 export default function Rooms() {
@@ -58,6 +60,7 @@ export default function Rooms() {
     available: rooms.filter(r => r.status === 'available' && r.active).length,
     occupied: rooms.filter(r => r.status === 'occupied' && r.active).length,
     cleaning: rooms.filter(r => r.status === 'cleaning' && r.active).length,
+    needs_cleaning: rooms.filter(r => r.status === 'needs_cleaning' && r.active).length,
     maintenance: rooms.filter(r => r.status === 'maintenance' && r.active).length,
     inactive: rooms.filter(r => !r.active).length,
   };
@@ -376,7 +379,7 @@ function RoomFormModal({ onClose, onSave, initial, darkMode, inputStyle, textMut
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: textMuted, display: 'block', marginBottom: 5 }}>Price Display</label>
-              <input value={form.priceDisplay} onChange={e => set('priceDisplay', e.target.value)} placeholder="$65/night" style={inputStyle()} />
+              <input value={form.priceDisplay} onChange={e => set('priceDisplay', e.target.value)} placeholder="e.g. 250.000 VND/đêm" style={inputStyle()} />
             </div>
           </div>
           <div>

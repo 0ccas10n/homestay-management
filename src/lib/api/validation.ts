@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import type { BookingStatus, CleaningStatus, RoomStatus, RatePlanType } from '@/types/index';
+import { jsonValidationError } from './response';
 
 // ─── Common primitives ───────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ export const updateRoomSchema = z.object({
   description:  z.string().max(500).optional(),
   capacity:     z.number().int().min(1).max(50).optional(),
   priceDisplay: z.string().max(50).optional(),
-  status:       z.enum(['available', 'occupied', 'maintenance', 'cleaning', 'inactive']).optional(),
+  status:       z.enum(['available', 'occupied', 'maintenance', 'cleaning', 'needs_cleaning', 'inactive']).optional(),
   active:       z.boolean().optional(),
   floor:        z.number().int().min(0).max(100).optional(),
   amenities:    z.array(z.string().max(50)).max(20).optional(),
@@ -81,6 +82,9 @@ export const upsertCustomerSchema = z.object({
 
 // ─── Bookings ────────────────────────────────────────────────────────────────────
 
+/** Sentinel ratePlanId used when the receptionist enters a custom hourly price. */
+export const CUSTOM_RATE_PLAN_ID = 'custom';
+
 export const createBookingSchema = z.object({
   roomId:              z.string().min(1, 'roomId is required'),
   customer:             upsertCustomerSchema,
@@ -89,11 +93,17 @@ export const createBookingSchema = z.object({
   status:              z.enum(['inquiry', 'confirmed', 'cancelled', 'checked_in', 'checked_out']).default('confirmed'),
   source:              z.enum(['phone', 'walk_in', 'online', 'partner', 'other']).default('phone'),
   ratePlanId:          z.string().min(1, 'ratePlanId is required'),
+  /** Required when ratePlanId === CUSTOM_RATE_PLAN_ID; ignored otherwise. */
+  totalAmount:         z.number().nonnegative('totalAmount must be ≥ 0').optional(),
   numGuests:           z.number().int().min(1).max(20).optional(),
   note:                z.string().max(1000).optional(),
 }).refine(
   data => new Date(data.checkInAt) < new Date(data.expectedCheckOutAt),
   { message: 'checkInAt must be before expectedCheckOutAt', path: ['expectedCheckOutAt'] },
+).refine(
+  data => data.ratePlanId !== CUSTOM_RATE_PLAN_ID
+    || (data.totalAmount !== undefined && data.totalAmount > 0),
+  { message: 'totalAmount is required for custom hourly bookings', path: ['totalAmount'] },
 );
 
 export const updateBookingSchema = z.object({
@@ -106,6 +116,15 @@ export const updateBookingSchema = z.object({
   numGuests:           z.number().int().min(1).max(20).optional(),
   actualCheckOutAt:    isoDateTimeSchema.optional(),
   note:                z.string().max(1000).optional(),
+});
+
+/**
+ * Body schema for PATCH /api/bookings/:id/status — the dedicated lifecycle
+ * transition endpoint. Limited to a single `status` field so callers can't
+ * accidentally mutate dates or pricing at the same time.
+ */
+export const updateBookingStatusSchema = z.object({
+  status: z.enum(['inquiry', 'confirmed', 'cancelled', 'checked_in', 'checked_out', 'no_show']),
 });
 
 // ─── Availability ────────────────────────────────────────────────────────────────
