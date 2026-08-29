@@ -162,7 +162,55 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', fontSize: 12, color: '#94A3B8', marginTop: 24 }}>
+        <div style={{ marginTop: 24, padding: '12px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#64748B', marginBottom: 8 }}>
+            Quick Demo Logins:
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('admin@homestay.local');
+                setPassword('admin123');
+              }}
+              style={{
+                flex: 1,
+                padding: '6px 8px',
+                fontSize: 12,
+                fontWeight: 600,
+                background: '#EFF6FF',
+                color: '#1D4ED8',
+                border: '1px solid #BFDBFE',
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              Admin Demo
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('staff@homestay.local');
+                setPassword('staff123');
+              }}
+              style={{
+                flex: 1,
+                padding: '6px 8px',
+                fontSize: 12,
+                fontWeight: 600,
+                background: '#F0FDF4',
+                color: '#15803D',
+                border: '1px solid #BBF7D0',
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              Staff Demo
+            </button>
+          </div>
+        </div>
+
+        <p style={{ textAlign: 'center', fontSize: 12, color: '#94A3B8', marginTop: 16 }}>
           Staff accounts are managed by your administrator.
         </p>
       </div>

@@ -1,0 +1,6 @@
+{
+  "name": "Homestay Management",
+  "description": "Comprehensive homestay and boutique hotel management system featuring room bookings, live availability calendar, housekeeping workflows, guest CRM, and revenue tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
