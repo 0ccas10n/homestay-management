@@ -55,17 +55,12 @@ export interface Session {
 // ─── Create ─────────────────────────────────────────────────────────────────────
 
 /**
- * Create a signed JWT for a user and return the full Set-Cookie header value.
- * Call this after a successful login.
- *
- * @example
- * const cookie = await createSessionCookie(user);
- * return new Response(null, { headers: { 'Set-Cookie': cookie } });
+ * Generate a signed JWT token string for a user.
  */
-export async function createSessionCookie(user: User): Promise<string> {
+export async function createSessionToken(user: User): Promise<string> {
   const expiresAt = Math.floor(Date.now() / 1000) + TTL_SECONDS;
 
-  const token = await new SignJWT({
+  return new SignJWT({
     name: user.name,
     email: user.email,
     role: user.role,
@@ -75,7 +70,14 @@ export async function createSessionCookie(user: User): Promise<string> {
     .setIssuedAt()
     .setExpirationTime(expiresAt)
     .sign(SECRET);
+}
 
+/**
+ * Create a signed JWT for a user and return the full Set-Cookie header value.
+ * Call this after a successful login.
+ */
+export async function createSessionCookie(user: User): Promise<string> {
+  const token = await createSessionToken(user);
   const maxAge = TTL_SECONDS;
   const flags = [
     `HttpOnly`,
@@ -89,15 +91,32 @@ export async function createSessionCookie(user: User): Promise<string> {
 
 // ─── Read & Verify ──────────────────────────────────────────────────────────────
 
-/** Parse and verify the session cookie from a Request. Returns null if missing/invalid/expired. */
+/**
+ * Parse and verify the session from Authorization header or cookie.
+ * Returns null if missing/invalid/expired.
+ */
 export async function getSession(request: Request): Promise<Session | null> {
+  // 1. Check Authorization: Bearer <token>
+  const authHeader = request.headers.get('authorization');
+  if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      const session = await verifyToken(token);
+      if (session) return session;
+    }
+  }
+
+  // 2. Check Cookie
   const cookieHeader = request.headers.get('cookie');
-  if (!cookieHeader) return null;
+  if (cookieHeader) {
+    const raw = parseCookie(cookieHeader)[COOKIE_NAME];
+    if (raw) {
+      const session = await verifyToken(raw);
+      if (session) return session;
+    }
+  }
 
-  const raw = parseCookie(cookieHeader)[COOKIE_NAME];
-  if (!raw) return null;
-
-  return verifyToken(raw);
+  return null;
 }
 
 /**

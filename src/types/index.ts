@@ -199,6 +199,8 @@ export interface Notification {
   priority: NotificationPriority;
   relatedBookingId?: string;
   relatedRoomId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ─── API response envelope ─────────────────────────────────────────────────────

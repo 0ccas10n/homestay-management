@@ -1,7 +1,7 @@
 // ─── POST /api/auth/login ────────────────────────────────────────────────────────
 
 import { verifyCredentials } from '@/lib/google-sheets/users.repository';
-import { createSessionCookie } from '@/lib/auth/session';
+import { createSessionCookie, createSessionToken } from '@/lib/auth/session';
 import { loginSchema, parseBody } from '@/lib/api/validation';
 import { jsonSuccess, jsonError } from '@/lib/api/response';
 
@@ -18,7 +18,9 @@ export async function POST(request: Request) {
     return jsonError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
   }
 
+  const token = await createSessionToken(user);
   const cookie = await createSessionCookie(user);
+
   return jsonSuccess(
     {
       user: {
@@ -27,6 +29,7 @@ export async function POST(request: Request) {
         email: user.email,
         role: user.role,
       },
+      token,
     },
     { headers: { 'Set-Cookie': cookie } },
   );

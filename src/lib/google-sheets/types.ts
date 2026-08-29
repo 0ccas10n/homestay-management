@@ -23,6 +23,7 @@ import type {
   Location,
   User,
   Expense,
+  Notification,
 } from '@/types/index';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -429,12 +430,7 @@ export function mapRowToNotification(row: string[]): {
   };
 }
 
-export function mapNotificationToRow(n: {
-  notificationId: string; type: string; title: string; message: string;
-  time: string; read: boolean; priority: string;
-  relatedBookingId?: string; relatedRoomId?: string;
-  createdAt: string; updatedAt: string;
-}): string[] {
+export function mapNotificationToRow(n: Notification): string[] {
   return [
     n.notificationId,
     n.type,
@@ -445,8 +441,8 @@ export function mapNotificationToRow(n: {
     n.priority,
     n.relatedBookingId ?? '',
     n.relatedRoomId ?? '',
-    n.createdAt,
-    n.updatedAt,
+    n.createdAt ?? new Date().toISOString(),
+    n.updatedAt ?? new Date().toISOString(),
   ];
 }
 

@@ -67,6 +67,11 @@ function buildFetchRequest(req: ExpressRequest, originalUrl: string): Request {
  * Set-Cookie headers must be split because fetch's Headers joins them
  * with commas, which breaks cookie semantics.
  */
+/**
+ * Copy a Fetch API Response back into Express's res object.
+ * Set-Cookie headers must be split because fetch's Headers joins them
+ * with commas, which breaks cookie semantics.
+ */
 async function sendFetchResponse(fetchRes: Response, expressRes: ExpressResponse): Promise<void> {
   expressRes.status(fetchRes.status);
   fetchRes.headers.forEach((value, key) => {
@@ -79,8 +84,13 @@ async function sendFetchResponse(fetchRes: Response, expressRes: ExpressResponse
   });
 
   const contentType = fetchRes.headers.get('content-type') ?? '';
-  if (contentType.includes('application/json') || contentType.includes('text/')) {
-    expressRes.send(await fetchRes.text());
+  if (contentType.includes('application/json')) {
+    expressRes.setHeader('Content-Type', 'application/json; charset=utf-8');
+    const text = await fetchRes.text();
+    expressRes.end(text);
+  } else if (contentType.includes('text/')) {
+    expressRes.setHeader('Content-Type', contentType);
+    expressRes.end(await fetchRes.text());
   } else {
     expressRes.end(Buffer.from(await fetchRes.arrayBuffer()));
   }
@@ -146,12 +156,20 @@ export async function scanRoutes(apiRoot: string): Promise<MountedRoute[]> {
  * preflights for the entire /api/* tree.
  */
 export async function mountApiRoutes(app: Express, apiRoot: string): Promise<MountedRoute[]> {
-  app.options('/api/*', (_req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  app.use('/api', (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS, PUT, HEAD');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.sendStatus(204);
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    next();
   });
 
   const routes = await scanRoutes(apiRoot);

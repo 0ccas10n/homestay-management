@@ -13,14 +13,8 @@
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
-  // Allow the Vercel deployment domain and localhost in dev
-  'Access-Control-Allow-Origin': process.env.NODE_ENV === 'development'
-    ? 'http://localhost:5173'
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS, PUT',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
   'Access-Control-Allow-Credentials': 'true',
 } as const;
 

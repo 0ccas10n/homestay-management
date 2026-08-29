@@ -56,12 +56,23 @@ async function request<T>(
 ): Promise<T> {
   const url = resolveUrl(path);
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  try {
+    const token = localStorage.getItem('homestay_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch {
+    // localStorage not accessible
+  }
+
   const init: RequestInit = {
     method,
     credentials: 'include', // send + receive HTTP-only cookies
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
   };
 
   if (body !== undefined) {
