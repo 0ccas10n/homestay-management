@@ -178,10 +178,12 @@ async function seedBookings() {
   console.log('\n[6/10] Bookings (headers only)...');
   await createSheet('Bookings');
   await writeSheet('Bookings', [
+    // 21 columns — must match mapBookingToRow() and BOOKINGS_HEADERS exactly
     'booking_id', 'room_id', 'customer_id', 'checkInAt', 'expectedCheckOutAt',
-    'actualCheckOutAt', 'status', 'source', 'ratePlanId', 'expectedDurationMinutes',
-    'baseAmount', 'overtimeMinutes', 'overtimeAmount', 'totalAmount', 'numGuests',
-    'note', 'created_by', 'created_at', 'updated_at',
+    'actualCheckOutAt', 'status', 'ratePlanId', 'bookingType',
+    'expectedDurationMinutes', 'baseAmount', 'overtimeMinutes', 'overtimeAmount',
+    'totalAmount', 'unitPriceAtBooking', 'numGuests', 'note', 'guestName',
+    'created_by', 'created_at', 'updated_at',
   ], []);
 }
 
@@ -199,9 +201,11 @@ async function seedCustomers() {
   console.log('\n[8/10] Customers (headers only)...');
   await createSheet('Customers');
   await writeSheet('Customers', [
-    'customer_id', 'name', 'phone', 'email', 'note', 'created_at', 'updated_at',
+    // 7 columns — must match mapCustomerToRow() and CUSTOMERS_HEADERS exactly
+    'customer_id', 'name', 'source', 'email', 'note', 'created_at', 'updated_at',
   ], []);
 }
+
 
 async function seedNotifications() {
   console.log('\n[9/10] Notifications (headers only)...');

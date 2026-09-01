@@ -5,18 +5,23 @@
 // The existing Timeline page depends on time-of-day logic for live countdowns.
 // To preserve that UX, we generate real-time "HH:MM" strings anchored to today's
 // wall-clock date. The actual data model uses full datetimes.
+//
+// All monetary values are in Vietnamese Dong (VND).
 // ──────────────────────────────────────────────────────────────────────────────
 
 import type { RatePlan, Booking } from '../types/index';
 
 // ─── Rate plans ─────────────────────────────────────────────────────────────────
+//
+// 4 standard rate plans — must stay in sync with scripts/seedData.ts and
+// src/data/sampleData.ts. Pricing is stored per-room in the RatePlanPrices
+// sheet; the baseAmount here is a fallback display value for the UI.
 
 export const ratePlans: RatePlan[] = [
-  { ratePlanId: 'RP-0001', name: 'Quick Stay', type: 'hourly',   baseMinutes: 120,  baseAmount: 25,  extraMinutePrice: 0.20, overtimeMinutePrice: 0.20, active: true },
-  { ratePlanId: 'RP-0002', name: 'Short Stay', type: 'hourly',   baseMinutes: 180,  baseAmount: 35,  extraMinutePrice: 0.17, overtimeMinutePrice: 0.17, active: true },
-  { ratePlanId: 'RP-0003', name: 'Half Day',    type: 'hourly',   baseMinutes: 360,  baseAmount: 55,  extraMinutePrice: 0.15, overtimeMinutePrice: 0.15, active: true },
-  { ratePlanId: 'RP-0004', name: 'Overnight',  type: 'overnight', baseMinutes: 720,  baseAmount: 55,  extraMinutePrice: 0.15, overtimeMinutePrice: 0.15, overnightStart: '22:00', overnightEnd: '10:00', active: true },
-  { ratePlanId: 'RP-0005', name: 'Full Day',   type: 'daily',     baseMinutes: 1440, baseAmount: 65,  extraMinutePrice: 0.10, overtimeMinutePrice: 0.10, active: true },
+  { ratePlanId: 'RP-0001', name: 'Combo 4H',  type: 'hourly',    baseMinutes: 240,  baseAmount: 250_000, extraMinutePrice: 0, overtimeMinutePrice: 0, active: true },
+  { ratePlanId: 'RP-0002', name: 'Combo 6H',  type: 'hourly',    baseMinutes: 360,  baseAmount: 350_000, extraMinutePrice: 0, overtimeMinutePrice: 0, active: true },
+  { ratePlanId: 'RP-0003', name: 'Overnight', type: 'overnight', baseMinutes: 780,  baseAmount: 400_000, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: '21:00', overnightEnd: '10:00', active: true },
+  { ratePlanId: 'RP-0004', name: 'Full Day',  type: 'daily',     baseMinutes: 1320, baseAmount: 550_000, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: '14:00', overnightEnd: '12:00', active: true },
 ];
 
 // ─── Hourly booking status (UI classification) ────────────────────────────────────
@@ -71,6 +76,13 @@ export function minToTime(totalMin: number): string {
 
 // ─── sample data generator (anchored to today's wall-clock date) ─────────────────
 // Uses the same real-time approach as the original so "now" comparisons work.
+//
+// Prices below are illustrative VND amounts per the 4 rate plans:
+//   Combo 4H   (RP-0001): 250k–350k base, ~5k / extra minute
+//   Combo 6H   (RP-0002): 350k–450k base, ~4k / extra minute
+//   Overnight  (RP-0003): 400k–500k flat
+//   Full Day   (RP-0004): 550k–650k base, ~3k / extra minute
+// Overtime is computed at the per-minute rate from the plan.
 
 function makeSamples(): HourlyBookingView[] {
   const now = new Date();
@@ -85,10 +97,13 @@ function makeSamples(): HourlyBookingView[] {
   function price(planId: string, bookedMin: number, overtimeMin = 0) {
     const plan = ratePlans.find(p => p.ratePlanId === planId)!;
     const base = plan.baseAmount;
+    // Per-minute cost derived from baseAmount / baseMinutes so the demo prices
+    // remain self-consistent without needing the RatePlanPrices sheet.
+    const perMin = base / Math.max(1, plan.baseMinutes);
     const extraMin = Math.max(0, bookedMin - plan.baseMinutes);
-    const extraCharge = extraMin * plan.extraMinutePrice;
-    const overtimeCharge = overtimeMin * plan.overtimeMinutePrice;
-    return { baseAmount: base, overtimeMinutes: overtimeMin, overtimeAmount: overtimeCharge, totalAmount: base + extraCharge + overtimeCharge };
+    const extraCharge = extraMin * perMin;
+    const overtimeCharge = overtimeMin * perMin;
+    return { baseAmount: base, overtimeMinutes: overtimeMin, overtimeAmount: Math.round(overtimeCharge), totalAmount: Math.round(base + extraCharge + overtimeCharge) };
   }
 
   return [
@@ -98,8 +113,8 @@ function makeSamples(): HourlyBookingView[] {
       roomNumber: '101', date: today,
       checkInTime: t(-112), checkOutTime: t(8),
       actualCheckInTime: t(-112),
-      ratePlanId: 'RP-0001', bookedMinutes: 120,
-      ...price('RP-0001', 120),
+      ratePlanId: 'RP-0001', bookedMinutes: 240,
+      ...price('RP-0001', 240),
       notes: 'Walk-in, paid cash',
     },
     // 2 — Warning: ends in ~22 min
@@ -108,8 +123,8 @@ function makeSamples(): HourlyBookingView[] {
       roomNumber: '102', date: today,
       checkInTime: t(-158), checkOutTime: t(22),
       actualCheckInTime: t(-155),
-      ratePlanId: 'RP-0002', bookedMinutes: 180,
-      ...price('RP-0002', 180),
+      ratePlanId: 'RP-0002', bookedMinutes: 360,
+      ...price('RP-0002', 360),
       notes: 'Business traveler',
     },
     // 3 — Overtime: should have checked out 18 min ago
@@ -118,33 +133,33 @@ function makeSamples(): HourlyBookingView[] {
       roomNumber: '204', date: today,
       checkInTime: t(-198), checkOutTime: t(-18),
       actualCheckInTime: t(-196),
-      ratePlanId: 'RP-0002', bookedMinutes: 180,
-      ...price('RP-0002', 180, 18),
+      ratePlanId: 'RP-0002', bookedMinutes: 360,
+      ...price('RP-0002', 360, 18),
     },
-    // 4 — Active with plenty of time
+    // 4 — Active with plenty of time (Full Day)
     {
       id: 'HB-0004', guestName: 'Amara Diallo', phone: '+221 77 456 7890', numGuests: 2,
       roomNumber: '201', date: today,
       checkInTime: t(-90), checkOutTime: t(90),
       actualCheckInTime: t(-88),
-      ratePlanId: 'RP-0003', bookedMinutes: 360,
-      ...price('RP-0003', 360),
+      ratePlanId: 'RP-0004', bookedMinutes: 360,
+      ...price('RP-0004', 360),
     },
     // 5 — Upcoming in 45 min
     {
       id: 'HB-0005', guestName: 'Priya Sharma', phone: '+91 98765 43210', numGuests: 2,
       roomNumber: '103', date: today,
       checkInTime: t(45), checkOutTime: t(165),
-      ratePlanId: 'RP-0001', bookedMinutes: 120,
-      ...price('RP-0001', 120),
+      ratePlanId: 'RP-0001', bookedMinutes: 240,
+      ...price('RP-0001', 240),
     },
-    // 6 — Upcoming in 2h
+    // 6 — Upcoming in 2h (Full Day)
     {
       id: 'HB-0006', guestName: 'Carlos Mendes', phone: '+55 11 9 8765-4321', numGuests: 4,
       roomNumber: '301', date: today,
       checkInTime: t(120), checkOutTime: t(480),
-      ratePlanId: 'RP-0005', bookedMinutes: 360,
-      ...price('RP-0005', 360),
+      ratePlanId: 'RP-0004', bookedMinutes: 360,
+      ...price('RP-0004', 360),
     },
     // 7 — Completed (ended 3h ago)
     {
@@ -152,8 +167,8 @@ function makeSamples(): HourlyBookingView[] {
       roomNumber: '101', date: today,
       checkInTime: t(-300), checkOutTime: t(-180),
       actualCheckInTime: t(-300), actualCheckOutTime: t(-181),
-      ratePlanId: 'RP-0001', bookedMinutes: 120,
-      ...price('RP-0001', 120, 0),
+      ratePlanId: 'RP-0001', bookedMinutes: 240,
+      ...price('RP-0001', 240, 0),
     },
     // 8 — Completed (ended 5h ago)
     {
@@ -161,25 +176,25 @@ function makeSamples(): HourlyBookingView[] {
       roomNumber: '302', date: today,
       checkInTime: t(-420), checkOutTime: t(-240),
       actualCheckInTime: t(-420), actualCheckOutTime: t(-235),
-      ratePlanId: 'RP-0002', bookedMinutes: 180,
-      ...price('RP-0002', 180, 5),
+      ratePlanId: 'RP-0002', bookedMinutes: 360,
+      ...price('RP-0002', 360, 5),
     },
-    // 9 — Overnight (22:00 → 10:00)
+    // 9 — Overnight (21:00 → 10:00)
     {
       id: 'HB-0009', guestName: 'Elena Vasquez', phone: '+34 612 334 891', numGuests: 2,
       roomNumber: '202', date: today,
-      checkInTime: '22:00', checkOutTime: '10:00',
-      ratePlanId: 'RP-0004', bookedMinutes: 720,
-      ...price('RP-0004', 720),
+      checkInTime: '21:00', checkOutTime: '10:00',
+      ratePlanId: 'RP-0003', bookedMinutes: 780,
+      ...price('RP-0003', 780),
     },
-    // 10 — Active full day
+    // 10 — Active Full Day booking
     {
       id: 'HB-0010', guestName: 'Marcus Chen', phone: '+1 (650) 775-4422', numGuests: 3,
       roomNumber: '304', date: today,
       checkInTime: t(-240), checkOutTime: t(240),
       actualCheckInTime: t(-238),
-      ratePlanId: 'RP-0005', bookedMinutes: 480,
-      ...price('RP-0005', 480),
+      ratePlanId: 'RP-0004', bookedMinutes: 480,
+      ...price('RP-0004', 480),
     },
     // 11 — Warning: ends in ~28 min
     {
@@ -187,8 +202,8 @@ function makeSamples(): HourlyBookingView[] {
       roomNumber: '303', date: today,
       checkInTime: t(-152), checkOutTime: t(28),
       actualCheckInTime: t(-150),
-      ratePlanId: 'RP-0002', bookedMinutes: 180,
-      ...price('RP-0002', 180),
+      ratePlanId: 'RP-0002', bookedMinutes: 360,
+      ...price('RP-0002', 360),
     },
   ];
 }

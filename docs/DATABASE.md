@@ -160,13 +160,13 @@ Columns:
 | expectedCheckOutAt | datetime | Yes | Expected check-out timestamp (set at booking time) |
 | actualCheckOutAt | datetime | No | Recorded at check-out; empty until guest departs |
 | status | enum | Yes | Booking status |
-| source | enum | Yes | Booking source |
 | ratePlanId | string | Yes | Associated rate plan |
 | expectedDurationMinutes | number | Yes | Calculated: minutes between checkInAt and expectedCheckOutAt |
 | baseAmount | number | Yes | Base charge for expectedDurationMinutes |
 | overtimeMinutes | number | No | Minutes past expectedCheckOutAt at actual departure |
 | overtimeAmount | number | No | Charge for overtimeMinutes |
 | totalAmount | number | Yes | baseAmount + overtimeAmount |
+| numGuests | number | No | Number of guests |
 | note | string | No | Internal note |
 | created_by | string | Yes | Staff user ID |
 | created_at | datetime | Yes | Creation time |

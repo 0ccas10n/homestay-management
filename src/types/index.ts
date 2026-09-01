@@ -45,11 +45,18 @@ export interface Room {
 
 // ─── Customer ─────────────────────────────────────────────────────────────────
 
+export type BookingSource = 'INSTAGRAM' | 'TIKTOK' | 'ZALO' | 'FACEBOOK' | 'KHÁC';
+
+
 export interface Customer {
   customerId: string;
-  name: string;
-  phone?: string;
+  /** Guest display name. Captured from the booking form's Guest Name field. */
+  name?: string;
+  source?: BookingSource;
   email?: string;
+  /** Optional contact phone. Stored in the same Notes column for now until a
+   * dedicated phone column is added to the Customers sheet. */
+  phone?: string;
   note?: string;
   createdAt: string;
   updatedAt: string;
@@ -65,23 +72,40 @@ export type BookingStatus =
   | 'cancelled'
   | 'no_show';
 
-export type BookingSource = 'phone' | 'walk_in' | 'online' | 'partner' | 'other';
+/**
+ * Booking cadence selected by the receptionist at creation time.
+ *
+ *  - 'daily'  → price comes from RatePlanPrices (auto-calculated by the server).
+ *  - 'hourly' → price is supplied manually in the `totalAmount` field and the
+ *               server bypasses RatePlanPrices for this booking.
+ */
+export type BookingType = 'daily' | 'hourly';
 
 export interface Booking {
   bookingId: string;
   roomId: string;
   customerId: string;
+  guestName: string;
   checkInAt: string;          // ISO 8601, e.g. "2026-08-28T14:00:00+07:00"
   expectedCheckOutAt: string; // ISO 8601
   actualCheckOutAt?: string;  // Recorded at departure; undefined until checked out
   status: BookingStatus;
-  source: BookingSource;
   ratePlanId: string;
+  /** Cadence selected at creation: 'daily' (auto-priced) or 'hourly' (manual price). */
+  bookingType: BookingType;
   expectedDurationMinutes: number;
   baseAmount: number;
   overtimeMinutes?: number;
   overtimeAmount?: number;
   totalAmount: number;
+  /**
+   * Snapshot of the per-night VND price (from RatePlanPrices.priceVnd) at the
+   * moment this booking was created. Stored on the row so historical reports
+   * stay accurate even if RatePlanPrices changes later. For hourly bookings
+   * this stores the manual totalAmount as the snapshot (it's the only price
+   * that applies to the entire stay).
+   */
+  unitPriceAtBooking?: number;
   numGuests?: number;
   note?: string;
   createdBy: string;

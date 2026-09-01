@@ -33,9 +33,14 @@ function emptyToUndefined(v: string | undefined): string | undefined {
   return v === '' || v === undefined ? undefined : v;
 }
 
-/** Parse a Google Sheets "TRUE"/"FALSE" string to boolean. */
-function parseBool(v: string | undefined): boolean {
-  return v?.toUpperCase() === 'TRUE';
+/** Parse a Google Sheets "TRUE"/"FALSE" string to boolean. Defaults to true unless explicitly false. */
+function parseBool(v: any): boolean {
+  if (v === false || v === 0 || v === '0') return false;
+  if (typeof v === 'string') {
+    const s = v.trim().toUpperCase();
+    if (s === 'FALSE' || s === '0' || s === 'NO') return false;
+  }
+  return true;
 }
 
 // ─── Locations sheet ────────────────────────────────────────────────────────────
@@ -122,50 +127,210 @@ export function mapRoomToRow(room: Room): string[] {
 }
 
 // ─── Customers sheet ─────────────────────────────────────────────────────────────
-// Columns: customer_id | name | phone | email | note | created_at | updated_at
+// Columns: customer_id | name | source | email | note | created_at | updated_at
+// IMPORTANT: layout is 7 columns. `name` is the guest's display name captured
+// from the booking form's "Guest Name" field. Each booking creates / reuses a
+// Customer row identified by the (name, source) pair — see customers.repository
+// findOrCreate.
 
 export const CUSTOMERS_HEADERS = [
-  'customer_id', 'name', 'phone', 'email', 'note', 'created_at', 'updated_at',
+  'customer_id',
+  'name',
+  'source',
+  'email',
+  'note',
+  'created_at',
+  'updated_at',
 ] as const;
 
+// Known booking source values for legacy-layout detection
+const BOOKING_SOURCE_VALUES = new Set(['INSTAGRAM', 'TIKTOK', 'ZALO', 'FACEBOOK', 'KHÁC']);
+
 export function mapRowToCustomer(row: string[]): Customer {
+  // Detect legacy 6-column layout (no `name` column) vs new 7-column layout.
+  //
+  // We CANNOT rely on row.length alone because Google Sheets API trims trailing
+  // empty cells — a new-layout row with no email/note/updatedAt will be returned
+  // with length < 7, making it look "legacy" and wiping out the guest name.
+  //
+  // Instead: if row[1] is a known source enum value (INSTAGRAM, TIKTOK, etc.)
+  // then row[1] IS the source column → legacy layout (customer_id | source | …).
+  // If row[1] is anything else (a name string, or empty), it's the new layout
+  // (customer_id | name | source | …).
+  const isLegacy = BOOKING_SOURCE_VALUES.has((row[1] ?? '').trim().toUpperCase());
+
   return {
     customerId:  row[0] ?? '',
-    name:        row[1] ?? '',
-    phone:       emptyToUndefined(row[2]),
-    email:       emptyToUndefined(row[3]),
-    note:        emptyToUndefined(row[4]),
-    createdAt:   row[5] ?? '',
-    updatedAt:   row[6] ?? '',
+    name:        isLegacy ? '' : (emptyToUndefined(row[1]) ?? ''),
+    source:      (isLegacy ? emptyToUndefined(row[1]) : emptyToUndefined(row[2])) as Customer['source'],
+    email:       emptyToUndefined(isLegacy ? row[2] : row[3]) ?? undefined,
+    note:        emptyToUndefined(isLegacy ? row[3] : row[4]) ?? undefined,
+    createdAt:   row[isLegacy ? 4 : 5] ?? '',
+    updatedAt:   row[isLegacy ? 5 : 6] ?? '',
   };
 }
 
 export function mapCustomerToRow(c: Customer): string[] {
   return [
     c.customerId,
-    c.name,
-    c.phone ?? '',
-    c.email ?? '',
-    c.note ?? '',
-    c.createdAt,
-    c.updatedAt,
+    c.name ?? '',        // B (1): guest display name
+    c.source ?? '',      // C (2)
+    c.email ?? '',       // D (3)
+    c.note ?? '',        // E (4)
+    c.createdAt,         // F (5)
+    c.updatedAt,         // G (6)
   ];
 }
 
 // ─── Bookings sheet ──────────────────────────────────────────────────────────────
-// Columns: booking_id | room_id | customer_id | checkInAt | expectedCheckOutAt |
-//          actualCheckOutAt | status | source | ratePlanId | expectedDurationMinutes |
-//          baseAmount | overtimeMinutes | overtimeAmount | totalAmount | numGuests |
-//          note | created_by | created_at | updated_at
+// Columns in Google Sheets:
+// A (0):  booking_id
+// B (1):  room_id
+// C (2):  customer_id
+// D (3):  checkInAt
+// E (4):  expectedCheckOutAt
+// F (5):  actualCheckOutAt
+// G (6):  status
+// H (7):  ratePlanId
+// I (8):  bookingType
+// J (9):  expectedDurationMinutes
+// K (10): baseAmount
+// L (11): overtimeMinutes
+// M (12): overtimeAmount
+// N (13): totalAmount
+// O (14): unitPriceAtBooking
+// P (15): numGuests
+// Q (16): note
+// R (17): guestName
+// S (18): created_by
+// T (19): created_at
+// U (20): updated_at
 
 export const BOOKINGS_HEADERS = [
-  'booking_id', 'room_id', 'customer_id', 'checkInAt', 'expectedCheckOutAt',
-  'actualCheckOutAt', 'status', 'source', 'ratePlanId', 'expectedDurationMinutes',
-  'baseAmount', 'overtimeMinutes', 'overtimeAmount', 'totalAmount', 'numGuests',
-  'note', 'created_by', 'created_at', 'updated_at',
+  'booking_id',
+  'room_id',
+  'customer_id',
+  'checkInAt',
+  'expectedCheckOutAt',
+  'actualCheckOutAt',
+  'status',
+  'ratePlanId',
+  'bookingType',
+  'expectedDurationMinutes',
+  'baseAmount',
+  'overtimeMinutes',
+  'overtimeAmount',
+  'totalAmount',
+  'unitPriceAtBooking',
+  'numGuests',
+  'note',
+  'guestName',
+  'created_by',
+  'created_at',
+  'updated_at',
 ] as const;
 
 export function mapRowToBooking(row: string[]): Booking {
+  // ── Layout detection ─────────────────────────────────────────────────────────
+  //
+  // New 21-col layout (current):
+  //   A(0)  booking_id
+  //   B(1)  room_id
+  //   C(2)  customer_id
+  //   D(3)  checkInAt
+  //   E(4)  expectedCheckOutAt
+  //   F(5)  actualCheckOutAt
+  //   G(6)  status
+  //   H(7)  ratePlanId
+  //   I(8)  bookingType          ← added in v2
+  //   J(9)  expectedDurationMinutes
+  //   K(10) baseAmount
+  //   L(11) overtimeMinutes
+  //   M(12) overtimeAmount
+  //   N(13) totalAmount
+  //   O(14) unitPriceAtBooking   ← added in v2
+  //   P(15) numGuests
+  //   Q(16) note
+  //   R(17) guestName            ← added in v2
+  //   S(18) created_by
+  //   T(19) created_at
+  //   U(20) updated_at
+  //
+  // Old 18-col layout (seed.ts initial):
+  //   Columns 0–7 same, then:
+  //   J(8)  expectedDurationMinutes (no bookingType col!)
+  //   K(9)  baseAmount
+  //   L(10) overtimeMinutes
+  //   M(11) overtimeAmount
+  //   N(12) totalAmount
+  //   O(13) numGuests             (no unitPriceAtBooking col!)
+  //   P(14) note
+  //   Q(15) created_by            (no guestName col!)
+  //   R(16) created_at
+  //   S(17) updated_at
+  //
+  // Detect: col 8 holds an RP-XXXX id or 'custom' → old layout (no bookingType col)
+  const isOldLayout = row[8]?.startsWith('RP-') || row[8] === 'custom' || (row.length <= 18 && !row[8]?.match(/^(daily|hourly)$/));
+
+  const ratePlanId = row[7] ?? '';
+
+  // bookingType: col I(8) in new layout; derive from ratePlanId in old layout
+  const rawBookingType: string = isOldLayout
+    ? (ratePlanId.startsWith('RP-') ? 'daily' : 'hourly')
+    : (row[8] ?? 'daily');
+
+  // Numeric fields — use fixed indices for new layout, shifted for old layout
+  const durationMinutes = isOldLayout
+    ? (row[8] ? parseInt(row[8], 10) : 0)
+    : (row[9] ? parseInt(row[9], 10) : 0);
+  let baseAmount = isOldLayout
+    ? (row[9] ? parseFloat(row[9]) : 0)
+    : (row[10] ? parseFloat(row[10]) : 0);
+  const rawOvertimeMinutes = isOldLayout
+    ? (row[10] ? parseInt(row[10], 10) : undefined)
+    : (row[11] ? parseInt(row[11], 10) : undefined);
+  const rawOvertimeAmount = isOldLayout
+    ? (row[11] ? parseFloat(row[11]) : undefined)
+    : (row[12] ? parseFloat(row[12]) : undefined);
+  const overtimeAmount = (rawOvertimeAmount && rawOvertimeAmount >= 1000) ? rawOvertimeAmount : undefined;
+  let totalAmount = isOldLayout
+    ? (row[12] ? parseFloat(row[12]) : 0)
+    : (row[13] ? parseFloat(row[13]) : 0);
+
+  // unitPriceAtBooking: col O(14) in new layout — absent in old layout
+  const unitPriceAtBooking = isOldLayout
+    ? undefined
+    : (row[14] ? parseFloat(row[14]) : undefined);
+
+  // numGuests: col P(15) new / col O(13) old
+  const numGuests = isOldLayout
+    ? (row[13] ? parseInt(row[13], 10) : undefined)
+    : (row[15] ? parseInt(row[15], 10) : undefined);
+
+  // note: col Q(16) new / col P(14) old
+  const note = isOldLayout
+    ? emptyToUndefined(row[14])
+    : emptyToUndefined(row[16]);
+
+  // guestName: col R(17) in new layout — absent in old layout
+  const guestName = isOldLayout
+    ? ''
+    : (emptyToUndefined(row[17]) ?? '');
+
+  // created_by: col S(18) new / col Q(15) old
+  const createdBy = isOldLayout ? (row[15] ?? '') : (row[18] ?? '');
+
+  // created_at: col T(19) new / col R(16) old
+  const createdAt = isOldLayout ? (row[16] ?? '') : (row[19] ?? '');
+
+  // updated_at: col U(20) new / col S(17) old
+  const updatedAt = isOldLayout ? (row[17] ?? '') : (row[20] ?? '');
+
+  // Auto-fix: if totalAmount is suspiciously small but baseAmount is valid, use baseAmount
+  if (totalAmount <= 10 && baseAmount >= 1000) {
+    totalAmount = baseAmount + (overtimeAmount || 0);
+  }
+
   return {
     bookingId:                row[0]  ?? '',
     roomId:                   row[1]  ?? '',
@@ -174,42 +339,46 @@ export function mapRowToBooking(row: string[]): Booking {
     expectedCheckOutAt:        row[4]  ?? '',
     actualCheckOutAt:         emptyToUndefined(row[5]),
     status:                   (row[6]  ?? 'inquiry') as Booking['status'],
-    source:                   (row[7]  ?? 'other') as Booking['source'],
-    ratePlanId:               row[8]  ?? '',
-    expectedDurationMinutes: row[9]  ? parseInt(row[9], 10) : 0,
-    baseAmount:               row[10] ? parseFloat(row[10]) : 0,
-    overtimeMinutes:          row[11] ? parseInt(row[11], 10) : undefined,
-    overtimeAmount:            row[12] ? parseFloat(row[12]) : undefined,
-    totalAmount:              row[13] ? parseFloat(row[13]) : 0,
-    numGuests:                row[14] ? parseInt(row[14], 10) : undefined,
-    note:                     emptyToUndefined(row[15]),
-    createdBy:                row[16] ?? '',
-    createdAt:                row[17] ?? '',
-    updatedAt:                row[18] ?? '',
+    ratePlanId:               ratePlanId,
+    bookingType:              (rawBookingType as Booking['bookingType']) || 'daily',
+    expectedDurationMinutes:  durationMinutes,
+    baseAmount:               baseAmount,
+    overtimeMinutes:          rawOvertimeMinutes,
+    overtimeAmount:           overtimeAmount,
+    totalAmount:              totalAmount,
+    unitPriceAtBooking:       unitPriceAtBooking,
+    numGuests:                numGuests,
+    note:                     note,
+    guestName:                guestName,
+    createdBy:                createdBy,
+    createdAt:                createdAt,
+    updatedAt:                updatedAt,
   };
 }
 
 export function mapBookingToRow(b: Booking): string[] {
   return [
-    b.bookingId,
-    b.roomId,
-    b.customerId,
-    b.checkInAt,
-    b.expectedCheckOutAt,
-    b.actualCheckOutAt ?? '',
-    b.status,
-    b.source,
-    b.ratePlanId,
-    String(b.expectedDurationMinutes),
-    String(b.baseAmount),
-    b.overtimeMinutes !== undefined ? String(b.overtimeMinutes) : '',
-    b.overtimeAmount  !== undefined ? String(b.overtimeAmount)  : '',
-    String(b.totalAmount),
-    b.numGuests !== undefined ? String(b.numGuests) : '',
-    b.note ?? '',
-    b.createdBy,
-    b.createdAt,
-    b.updatedAt,
+    b.bookingId,                               // A (0):  booking_id
+    b.roomId,                                  // B (1):  room_id
+    b.customerId,                              // C (2):  customer_id
+    b.checkInAt,                               // D (3):  checkInAt
+    b.expectedCheckOutAt,                      // E (4):  expectedCheckOutAt
+    b.actualCheckOutAt ?? '',                  // F (5):  actualCheckOutAt
+    b.status,                                  // G (6):  status
+    b.ratePlanId ?? '',                        // H (7):  ratePlanId
+    b.bookingType,                             // I (8):  bookingType
+    String(b.expectedDurationMinutes ?? 0),    // J (9):  expectedDurationMinutes
+    String(b.baseAmount ?? 0),                 // K (10): baseAmount
+    b.overtimeMinutes !== undefined ? String(b.overtimeMinutes) : '', // L (11): overtimeMinutes
+    b.overtimeAmount  !== undefined ? String(b.overtimeAmount)  : '', // M (12): overtimeAmount
+    String(b.totalAmount ?? 0),                // N (13): totalAmount
+    b.unitPriceAtBooking !== undefined ? String(b.unitPriceAtBooking) : '', // O (14): unitPriceAtBooking
+    b.numGuests !== undefined ? String(b.numGuests) : '',        // P (15): numGuests
+    b.note ?? '',                              // Q (16): note
+    b.guestName ?? '',                         // R (17): guestName
+    b.createdBy || 'USR-0001',                 // S (18): created_by
+    b.createdAt,                               // T (19): created_at
+    b.updatedAt,                               // U (20): updated_at
   ];
 }
 
@@ -269,6 +438,25 @@ export const RATE_PLANS_HEADERS = [
 ] as const;
 
 export function mapRowToRatePlan(row: string[]): RatePlan {
+  // Check if 8-column format (as in the active Google Sheets):
+  // [0: rate_plan_id, 1: name, 2: type, 3: base_minutes, 4: overtime_minute, 5: overnight_start, 6: overnight_end, 7: active]
+  const is8Col = row.length <= 8 || (row[5] && row[5].includes(':')) || (row[7] !== undefined && (row[7].toUpperCase() === 'TRUE' || row[7].toUpperCase() === 'FALSE' || row[7] === ''));
+
+  if (is8Col) {
+    return {
+      ratePlanId:            row[0]  ?? '',
+      name:                   row[1]  ?? '',
+      type:                  (row[2]  ?? 'hourly') as RatePlan['type'],
+      baseMinutes:           row[3]  ? parseInt(row[3], 10) : 0,
+      baseAmount:             0,
+      extraMinutePrice:       0,
+      overtimeMinutePrice:    row[4]  ? parseFloat(row[4]) : 0,
+      overnightStart:        emptyToUndefined(row[5]),
+      overnightEnd:         emptyToUndefined(row[6]),
+      active:                 parseBool(row[7]),
+    };
+  }
+
   return {
     ratePlanId:            row[0]  ?? '',
     name:                   row[1]  ?? '',

@@ -209,7 +209,11 @@ export async function GET(request: Request) {
     // Monthly revenue/expenses for the trailing 6 calendar months
     const monthKeys = trailingMonthKeys(now);
     const monthlyRevenue = buildMonthlyRevenue(allBookings, allExpenses, monthKeys);
-    const monthlyRevenueTotal = monthlyRevenue[monthlyRevenue.length - 1]?.revenue ?? 0;
+
+    // Current-month revenue total for the stat card. Derived from the last entry
+    // of the already-computed `monthlyRevenue` array (both use the same
+    // COUNTED_STATUSES filter and current-month key), so they stay in lock-step.
+    const monthlyRevenueTotal = monthlyRevenue[monthlyRevenue.length - 1]!.revenue;
 
     // Weekly occupancy for the current ISO week (Mon–Sun in +07:00)
     const totalActiveRooms = rooms.filter(r => r.active).length;

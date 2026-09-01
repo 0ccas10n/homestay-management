@@ -17,14 +17,9 @@ import { getBookingStatus, getStatusColor, getStatusBg, minutesUntilCheckout, fo
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import BookingFormModal from '@/components/BookingFormModal';
+import { formatVnd, getBookingTotal } from '@/utils/format';
 
 const TODAY_DATE = new Date().toISOString().slice(0, 10);
-
-const vnd = new Intl.NumberFormat('vi-VN', {
-  style: 'currency',
-  currency: 'VND',
-  maximumFractionDigits: 0,
-});
 
 export default function Dashboard() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
@@ -98,9 +93,14 @@ export default function Dashboard() {
   const prevMonthRevenue = monthlyRevenue.length >= 2
     ? monthlyRevenue[monthlyRevenue.length - 2]!.revenue
     : 0;
-  const monthlyDelta = prevMonthRevenue > 0
-    ? Math.round(((monthlyRevenueTotal - prevMonthRevenue) / prevMonthRevenue) * 100)
-    : null;
+  // Month-over-month delta percentage. Guards against both division by zero
+  // and NaN so the UI never renders "NaN% vs last month".
+  let monthlyDelta: number | null = null;
+  const safeMonthlyTotal = Number.isFinite(monthlyRevenueTotal) ? monthlyRevenueTotal : 0;
+  const safePrev = Number.isFinite(prevMonthRevenue) && prevMonthRevenue > 0 ? prevMonthRevenue : 0;
+  if (safePrev > 0) {
+    monthlyDelta = Math.round(((safeMonthlyTotal - safePrev) / safePrev) * 100);
+  }
   const monthlyDeltaText = monthlyDelta === null
     ? 'No prior month data'
     : `${monthlyDelta >= 0 ? '+' : ''}${monthlyDelta}% vs last month`;
@@ -110,7 +110,7 @@ export default function Dashboard() {
     { label: 'Total Rooms', value: totalRooms || '—', sub: `${available} available`, color: statColors[0], icon: '🛏' },
     { label: 'Occupied', value: occupied || '—', sub: `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}% occupancy`, color: statColors[1], icon: '👤' },
     { label: 'Cleaning Needed', value: needsCleaning || '—', sub: `${urgentCleaning.length} urgent`, color: statColors[2], icon: '🧹' },
-    { label: 'Monthly Revenue', value: vnd.format(monthlyRevenueTotal), sub: monthlyDeltaText, color: statColors[3], icon: '💰' },
+    { label: 'Monthly Revenue', value: formatVnd(monthlyRevenueTotal), sub: monthlyDeltaText, color: statColors[3], icon: '💰' },
   ];
 
   const getGuestName = (booking: Booking): string => {
@@ -218,7 +218,7 @@ export default function Dashboard() {
               }}>{s.icon}</div>
             </div>
             <div style={{ height: 3, borderRadius: 99, background: borderColor, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: i === 1 ? `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}%` : i === 0 ? '100%' : i === 2 ? `${(needsCleaning / Math.max(totalRooms, 1)) * 100}%` : `${Math.min(100, Math.round((monthlyRevenueTotal / Math.max(prevMonthRevenue, 1)) * 100))}`, background: s.color, borderRadius: 99 }} />
+              <div style={{ height: '100%', width: i === 1 ? `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}%` : i === 0 ? '100%' : i === 2 ? `${(needsCleaning / Math.max(totalRooms, 1)) * 100}%` : `${Math.min(100, (safeMonthlyTotal / Math.max(safePrev, 1)) * 100)}%`, background: s.color, borderRadius: 99 }} />
             </div>
           </div>
         ))}
@@ -272,8 +272,11 @@ export default function Dashboard() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#F1F5F9'} />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={v => vnd.format(v as number)} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }} formatter={(v: unknown) => [vnd.format(v as number), '']} />
+              {/* Y-axis ticks and tooltip both render values through formatVnd
+                  so the scale shows formatted VND (e.g. "15.000.000 ₫") rather
+                  than raw numeric magnitudes. */}
+              <YAxis tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={v => formatVnd(v as number)} />
+              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }} formatter={(v: unknown) => [formatVnd(v as number), '']} />
               <Area type="monotone" dataKey="revenue" stroke="#2563EB" strokeWidth={2} fill="url(#rev)" name="Revenue" />
               <Area type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} fill="url(#exp)" name="Expenses" />
             </AreaChart>
@@ -331,7 +334,7 @@ export default function Dashboard() {
             <div key={b.bookingId} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${borderColor}` }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>{getGuestName(b)}</div>
-                <div style={{ fontSize: 11, color: textMuted }}>Room {getRoomNumber(b)} · Balance: {vnd.format(b.totalAmount)}</div>
+                <div style={{ fontSize: 11, color: textMuted }}>Room {getRoomNumber(b)} · Balance: {formatVnd(getBookingTotal(b))}</div>
               </div>
               <StatusBadge status="Checked In" />
             </div>
@@ -403,7 +406,7 @@ export default function Dashboard() {
           {checkingOut.map(b => (
             <div key={b.bookingId} style={{ padding: '12px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}` }}>
               <div style={{ fontWeight: 600, color: darkMode ? '#F1F5F9' : '#1E293B' }}>{getGuestName(b)}</div>
-              <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B', marginBottom: 8 }}>Room {getRoomNumber(b)} · Balance: {vnd.format(b.totalAmount)}</div>
+              <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B', marginBottom: 8 }}>Room {getRoomNumber(b)} · Balance: {formatVnd(getBookingTotal(b))}</div>
               <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
                 Process Check-out
               </button>

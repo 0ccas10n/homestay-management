@@ -8,26 +8,24 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useCustomers } from '@/hooks/useCustomers';
+import { useBookings } from '@/hooks/useBookings';
 import { bookingsApi } from '@/services/api';
 import type { Customer, Booking } from '@/types/index';
 import Modal from '@/components/Modal';
 import StatusBadge from '@/components/StatusBadge';
-
-const vnd = new Intl.NumberFormat('vi-VN', {
-  style: 'currency',
-  currency: 'VND',
-  maximumFractionDigits: 0,
-});
+import { formatVnd, getBookingTotal } from '@/utils/format';
 
 export default function Guests() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
   const { customers, loading: customersLoading, refetch } = useCustomers();
+  const { bookings: allBookings, refetch: refetchBookings } = useBookings({ autoFetch: true });
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Customer | null>(null);
   const [guestBookings, setGuestBookings] = useState<Booking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
 
   useEffect(() => { refetch(); }, [refetch]);
+  useEffect(() => { refetchBookings(); }, [refetchBookings]);
 
   // When a guest is selected, fetch their bookings
   useEffect(() => {
@@ -43,7 +41,7 @@ export default function Guests() {
     const q = search.toLowerCase();
     return (
       !q ||
-      g.name.toLowerCase().includes(q) ||
+      (g.name ?? '').toLowerCase().includes(q) ||
       (g.email?.toLowerCase().includes(q) ?? false) ||
       (g.phone?.toLowerCase().includes(q) ?? false)
     );
@@ -98,10 +96,11 @@ export default function Guests() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
           {filtered.map(g => {
-            const gBookings = guestBookings.filter(b => b.customerId === g.customerId);
-            const totalSpent = gBookings.reduce((s, b) => s + b.totalAmount, 0);
+            const gBookings = allBookings.filter(b => b.customerId === g.customerId);
+            const totalSpent = gBookings.reduce((s, b) => s + getBookingTotal(b), 0);
             const totalBookings = gBookings.length;
-            const initials = g.name.split(' ').map(n => n[0] ?? '').join('').slice(0, 2).toUpperCase();
+            const displayName = g.name ?? '(chưa đặt tên)';
+            const initials = displayName.split(' ').map(n => n[0] ?? '').join('').slice(0, 2).toUpperCase();
             const flag = nationalityFlags[''] ?? '🌐';
 
             return (
@@ -121,14 +120,14 @@ export default function Guests() {
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
                   <div style={{
                     width: 44, height: 44, borderRadius: 99, flexShrink: 0,
-                    background: `hsl(${g.name.charCodeAt(0) * 37 % 360}, 65%, 55%)`,
+                    background: `hsl(${displayName.charCodeAt(0) * 37 % 360}, 65%, 55%)`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: '#fff', fontSize: 15, fontWeight: 700,
                   }}>
                     {initials}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, color: textPrimary, fontSize: 14 }}>{g.name}</div>
+                    <div style={{ fontWeight: 700, color: textPrimary, fontSize: 14 }}>{displayName}</div>
                     <div style={{ fontSize: 12, color: textMuted }}>{flag} Guest</div>
                   </div>
                   {totalBookings >= 4 && (
@@ -145,7 +144,7 @@ export default function Guests() {
                     <div style={{ fontSize: 11, color: textMuted }}>Bookings</div>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#10B981', fontFamily: "'DM Serif Display', serif" }}>{vnd.format(totalSpent)}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#10B981', fontFamily: "'DM Serif Display', serif" }}>{formatVnd(totalSpent)}</div>
                     <div style={{ fontSize: 11, color: textMuted }}>Total</div>
                   </div>
                 </div>
@@ -159,7 +158,7 @@ export default function Guests() {
       <Modal
         open={!!selected}
         onClose={() => setSelected(null)}
-        title={selected?.name ?? ''}
+        title={selected?.name ?? selected?.customerId ?? ''}
         width={560}
         darkMode={darkMode}
       >
@@ -190,7 +189,7 @@ export default function Guests() {
                 <div key={b.bookingId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${border}` }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>
-                      Room {b.roomId.slice(-3)} · {b.source}
+                      Room {b.roomId.slice(-3)}
                     </div>
                     <div style={{ fontSize: 11, color: textMuted, fontFamily: "'JetBrains Mono', monospace" }}>
                       {b.checkInAt.slice(0, 10)} → {b.expectedCheckOutAt.slice(0, 10)}
@@ -198,7 +197,7 @@ export default function Guests() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                     <StatusBadge status={b.status} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: textPrimary }}>{vnd.format(b.totalAmount)}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: textPrimary }}>{formatVnd(getBookingTotal(b))}</span>
                   </div>
                 </div>
               ))}

@@ -4,12 +4,15 @@
 // darkMode is sourced from useOutletContext.
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useBookings } from '@/hooks/useBookings';
+import { useRooms } from '@/hooks/useRooms';
 import type { Booking } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
+import { formatVnd, getBookingTotal } from '@/utils/format';
+import { bookingBlock } from '@/utils/timelineGeometry';
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
 }
@@ -21,17 +24,13 @@ function getFirstDayOfWeek(year: number, month: number) {
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const vnd = new Intl.NumberFormat('vi-VN', {
-  style: 'currency',
-  currency: 'VND',
-  maximumFractionDigits: 0,
-});
-
 export default function CalendarView() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
   const { bookings, loading, refetch, cancelBooking } = useBookings();
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(7);
+  const { rooms } = useRooms();
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth());
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<Booking | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -61,21 +60,27 @@ export default function CalendarView() {
   const bg          = darkMode ? '#1E293B' : '#fff';
   const cellBg     = darkMode ? '#0F172A' : '#F8FAFC';
 
+  const activeRooms = useMemo(() => rooms.filter(r => r.status !== 'inactive'), [rooms]);
+
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay   = getFirstDayOfWeek(year, month);
   const today      = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
 
-  const getBookingsForDay = (day: number) => {
-    const dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
+  // Bookings intersecting this month, after the room filter. Used for block geometry.
+  const monthBookings = useMemo(() => {
+    const monthStart = `${year}-${pad(month + 1)}-01`;
+    const monthEnd   = `${year}-${pad(month + 1)}-${pad(daysInMonth)}`;
+    const wStart = new Date(`${monthStart}T00:00:00`).getTime();
+    const wEnd   = new Date(`${monthEnd}T00:00:00`).getTime() + 24 * 60 * 60 * 1000; // exclusive next-day midnight
     return bookings.filter(b => {
-      // Cancelled bookings free the room — never show them on the calendar.
       if (b.status === 'cancelled') return false;
-      const cin  = b.checkInAt.slice(0, 10);
-      const cout = b.expectedCheckOutAt.slice(0, 10);
-      return dateStr >= cin && dateStr < cout;
+      if (selectedRoomId !== 'all' && b.roomId !== selectedRoomId) return false;
+      const cin  = new Date(b.checkInAt).getTime();
+      const cout = new Date(b.expectedCheckOutAt).getTime();
+      return cin < wEnd && cout > wStart;
     });
-  };
+  }, [bookings, selectedRoomId, year, month, daysInMonth]);
 
   const prev = () => {
     if (month === 0) { setMonth(11); setYear(y => y - 1); }
@@ -110,7 +115,28 @@ export default function CalendarView() {
           {MONTHS[month]} {year}
         </h2>
         <button onClick={next} style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: textPrimary, fontSize: 14 }}>→</button>
-        <button onClick={() => { setMonth(7); setYear(2026); }} style={{ marginLeft: 'auto', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Today</button>
+        <select
+          value={selectedRoomId}
+          onChange={e => setSelectedRoomId(e.target.value)}
+          aria-label="Filter by room"
+          style={{
+            background: 'transparent',
+            border: `1px solid ${border}`,
+            borderRadius: 8,
+            padding: '7px 10px',
+            fontSize: 12, fontWeight: 600,
+            color: textPrimary,
+            cursor: 'pointer',
+            fontFamily: "'Outfit', sans-serif",
+            minWidth: 160,
+          }}
+        >
+          <option value="all">All rooms ({activeRooms.length})</option>
+          {activeRooms.map(r => (
+            <option key={r.roomId} value={r.roomId}>{r.name}</option>
+          ))}
+        </select>
+        <button onClick={() => { setMonth(today.getMonth()); setYear(today.getFullYear()); }} style={{ marginLeft: 'auto', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Today</button>
       </div>
 
       {/* Legend */}
@@ -135,53 +161,115 @@ export default function CalendarView() {
           <div style={{ padding: 40, textAlign: 'center', color: textMuted }}>Loading…</div>
         )}
 
-        {Array.from({ length: cells.length / 7 }, (_, wi) => (
-          <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: wi < cells.length / 7 - 1 ? `1px solid ${border}` : 'none' }}>
-            {cells.slice(wi * 7, wi * 7 + 7).map((day, di) => {
-              const isToday = day !== null && year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
-              const dayBookings = day ? getBookingsForDay(day) : [];
-              return (
-                <div
-                  key={di}
-                  style={{ minHeight: 90, padding: '8px 10px', borderRight: di < 6 ? `1px solid ${border}` : 'none', background: day ? bg : cellBg, position: 'relative' }}
-                >
-                  {day && (
-                    <>
-                      <div style={{
-                        width: 24, height: 24, borderRadius: 99,
-                        background: isToday ? '#2563EB' : 'transparent',
-                        color: isToday ? '#fff' : textMuted,
-                        fontSize: 12, fontWeight: isToday ? 700 : 400,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        marginBottom: 4,
-                      }}>
-                        {day}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {dayBookings.slice(0, 2).map(b => (
-                          <div key={b.bookingId} onClick={() => setSelectedBooking(b)}
-                            style={{
-                              background: `${bookingColors[b.status] ?? '#94A3B8'}18`,
-                              color: bookingColors[b.status] ?? '#94A3B8',
-                              borderLeft: `2px solid ${bookingColors[b.status] ?? '#94A3B8'}`,
-                              padding: '2px 5px', borderRadius: '0 4px 4px 0',
-                              fontSize: 10, fontWeight: 600, cursor: 'pointer',
-                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                            }}>
-                            {b.customerId.slice(-4)} · R{b.roomId.slice(-3)} · {b.checkInAt.slice(11, 16)}
-                          </div>
-                        ))}
-                        {dayBookings.length > 2 && (
-                          <div style={{ fontSize: 10, color: textMuted }}>+{dayBookings.length - 2} more</div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
+        {Array.from({ length: cells.length / 7 }, (_, wi) => {
+          const week = cells.slice(wi * 7, wi * 7 + 7);
+          const firstDayNum = week.find(d => d !== null);
+          // Date string for the leftmost rendered day of this ISO week (Sunday).
+          const weekStartStr = firstDayNum
+            ? `${year}-${pad(month + 1)}-${pad(firstDayNum)}`
+            : null;
+          const weekEndStr = firstDayNum
+            ? `${year}-${pad(month + 1)}-${pad(Math.min(firstDayNum + 6, daysInMonth))}`
+            : null;
+
+          // Bookings that intersect this week — laid out as minute-precise blocks.
+          const weekBlocks = (weekStartStr && weekEndStr)
+            ? monthBookings
+                .map(b => ({ b, geom: bookingBlock(b, weekStartStr, weekEndStr) }))
+                .filter((x): x is { b: Booking; geom: { leftPct: number; widthPct: number } } => x.geom !== null)
+            : [];
+
+          // Assign each block to a vertical lane so overlapping bookings stack
+          // instead of overdrawing each other.
+          const laneCount = (() => {
+            const lanes: number[] = []; // lane end-times (ms)
+            const blockLanes = new Map<string, number>();
+            for (const { b } of weekBlocks) {
+              const start = new Date(b.checkInAt).getTime();
+              const end   = new Date(b.expectedCheckOutAt).getTime();
+              let lane = lanes.findIndex(endTime => endTime <= start);
+              if (lane === -1) { lane = lanes.length; lanes.push(end); }
+              else { lanes[lane] = end; }
+              blockLanes.set(b.bookingId, lane);
+            }
+            return { total: Math.max(1, lanes.length), blockLanes };
+          })();
+
+          const weekHasToday = week.some(d =>
+            d !== null && year === today.getFullYear() && month === today.getMonth() && d === today.getDate()
+          );
+          const ROW_MIN_H = 90;
+          const BLOCK_H   = 18;
+          const BLOCK_GAP = 2;
+          const dayNumReserve = 28; // space reserved for day numbers row
+          const dynamicH = dayNumReserve + Math.max(0, laneCount.total) * (BLOCK_H + BLOCK_GAP) + 8;
+          const rowMinH = Math.max(ROW_MIN_H, dynamicH);
+
+          return (
+            <div key={wi} style={{ position: 'relative', borderBottom: wi < cells.length / 7 - 1 ? `1px solid ${border}` : 'none', background: weekHasToday ? (darkMode ? 'rgba(37,99,235,0.06)' : 'rgba(37,99,235,0.04)') : 'transparent', minHeight: rowMinH }}>
+              {/* Background day-number grid (kept so columns align with the header). */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', position: 'absolute', inset: 0 }}>
+                {week.map((day, di) => {
+                  const isToday = day !== null && year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
+                  return (
+                    <div
+                      key={di}
+                      style={{ borderRight: di < 6 ? `1px solid ${border}` : 'none', background: day ? bg : cellBg, position: 'relative', minHeight: rowMinH }}
+                    >
+                      {day && (
+                        <div style={{
+                          position: 'absolute', top: 8, left: 8,
+                          width: 24, height: 24, borderRadius: 99,
+                          background: isToday ? '#2563EB' : 'transparent',
+                          color: isToday ? '#fff' : textMuted,
+                          fontSize: 12, fontWeight: isToday ? 700 : 400,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          zIndex: 1,
+                        }}>
+                          {day}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Spanning booking blocks for this week. */}
+              {weekBlocks.map(({ b, geom }) => {
+                const color = bookingColors[b.status] ?? '#94A3B8';
+                const lane = laneCount.blockLanes.get(b.bookingId) ?? 0;
+                const top = dayNumReserve + lane * (BLOCK_H + BLOCK_GAP);
+                return (
+                  <div
+                    key={b.bookingId}
+                    onClick={() => setSelectedBooking(b)}
+                    title={`${b.status} · ${b.checkInAt} → ${b.expectedCheckOutAt}`}
+                    style={{
+                      position: 'absolute',
+                      left: `${geom.leftPct}%`,
+                      width: `calc(${geom.widthPct}% - 4px)`,
+                      marginLeft: 2,
+                      top,
+                      height: BLOCK_H,
+                      background: `${color}18`,
+                      color,
+                      borderLeft: `2px solid ${color}`,
+                      borderRadius: '0 4px 4px 0',
+                      padding: '0 6px',
+                      fontSize: 10, fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      lineHeight: `${BLOCK_H}px`,
+                      zIndex: 2,
+                    }}
+                  >
+                    {b.customerId.slice(-4)} · R{b.roomId.slice(-3)} · {b.checkInAt.slice(11, 16)}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
 
       {/* Booking detail modal */}
@@ -195,8 +283,7 @@ export default function CalendarView() {
               ['Check-in', `${selectedBooking.checkInAt.slice(0, 10)} ${selectedBooking.checkInAt.slice(11, 16)}`],
               ['Check-out', `${selectedBooking.expectedCheckOutAt.slice(0, 10)} ${selectedBooking.expectedCheckOutAt.slice(11, 16)}`],
               ['Guests', `${selectedBooking.numGuests ?? 1}`],
-              ['Source', selectedBooking.source],
-              ['Total', vnd.format(selectedBooking.totalAmount)],
+              ['Total', formatVnd(getBookingTotal(selectedBooking))],
             ].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: `1px solid ${border}` }}>
                 <span style={{ fontSize: 12, color: textMuted, fontWeight: 600 }}>{k}</span>

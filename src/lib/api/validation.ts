@@ -74,10 +74,10 @@ export const updateRoomSchema = z.object({
 // ─── Customers ───────────────────────────────────────────────────────────────────
 
 export const upsertCustomerSchema = z.object({
-  name:  z.string().min(1, 'name is required').max(100),
-  phone: z.string().max(20).optional(),
-  email: z.string().email().max(255).optional().or(z.literal('')),
-  note:  z.string().max(1000).optional(),
+  name:   z.string().min(1, 'customer.name is required').max(200).optional(),
+  source: z.enum(['INSTAGRAM', 'TIKTOK', 'ZALO', 'FACEBOOK', 'KHÁC']).optional(),
+  email:  z.string().email().max(200).optional().or(z.literal('')),
+  note:   z.string().max(1000).optional(),
 });
 
 // ─── Bookings ────────────────────────────────────────────────────────────────────
@@ -87,13 +87,22 @@ export const CUSTOM_RATE_PLAN_ID = 'custom';
 
 export const createBookingSchema = z.object({
   roomId:              z.string().min(1, 'roomId is required'),
+  guestName:           z.string().min(1, 'guestName is required').max(200),
   customer:             upsertCustomerSchema,
   checkInAt:           isoDateTimeSchema,
   expectedCheckOutAt:  isoDateTimeSchema,
   status:              z.enum(['inquiry', 'confirmed', 'cancelled', 'checked_in', 'checked_out']).default('confirmed'),
-  source:              z.enum(['phone', 'walk_in', 'online', 'partner', 'other']).default('phone'),
   ratePlanId:          z.string().min(1, 'ratePlanId is required'),
-  /** Required when ratePlanId === CUSTOM_RATE_PLAN_ID; ignored otherwise. */
+  /**
+   * Cadence selected by the receptionist.
+   *  - 'daily'  → server looks up RatePlanPrices (or the rate plan's base amount).
+   *  - 'hourly' → server stores the supplied totalAmount verbatim and skips
+   *               the RatePlanPrices lookup. totalAmount is required in this case.
+   *
+   * Defaults to 'daily' for backwards compatibility with older clients.
+   */
+  bookingType:         z.enum(['daily', 'hourly']).default('daily'),
+  /** Required when bookingType === 'hourly'; ignored otherwise. */
   totalAmount:         z.number().nonnegative('totalAmount must be ≥ 0').optional(),
   numGuests:           z.number().int().min(1).max(20).optional(),
   note:                z.string().max(1000).optional(),
@@ -101,19 +110,18 @@ export const createBookingSchema = z.object({
   data => new Date(data.checkInAt) < new Date(data.expectedCheckOutAt),
   { message: 'checkInAt must be before expectedCheckOutAt', path: ['expectedCheckOutAt'] },
 ).refine(
-  data => data.ratePlanId !== CUSTOM_RATE_PLAN_ID
+  data => data.bookingType !== 'hourly'
     || (data.totalAmount !== undefined && data.totalAmount > 0),
-  { message: 'totalAmount is required for custom hourly bookings', path: ['totalAmount'] },
+  { message: 'totalAmount is required for hourly bookings', path: ['totalAmount'] },
 );
 
 export const updateBookingSchema = z.object({
   status:              z.enum(['inquiry', 'confirmed', 'cancelled', 'checked_in', 'checked_out']).optional(),
-  source:              z.enum(['phone', 'walk_in', 'online', 'partner', 'other']).optional(),
   roomId:              z.string().min(1).optional(),
   checkInAt:           isoDateTimeSchema.optional(),
   expectedCheckOutAt:  isoDateTimeSchema.optional(),
   ratePlanId:          z.string().min(1).optional(),
-  numGuests:           z.number().int().min(1).max(20).optional(),
+  numGuests:           z.number().int().min(1).max(4).optional(),
   actualCheckOutAt:    isoDateTimeSchema.optional(),
   note:                z.string().max(1000).optional(),
 });

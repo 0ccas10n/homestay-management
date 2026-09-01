@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useRooms } from '@/hooks/useRooms';
 
-const TABS = ['Business Info', 'Rooms', 'Room Types', 'Booking Sources', 'Staff', 'Pricing'];
+const TABS = ['Business Info', 'Rooms', 'Room Types', 'Staff', 'Pricing'];
 
 export default function Settings() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
@@ -18,14 +18,14 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('Business Info');
   const [toast, setToast] = useState<string | null>(null);
   const [bizInfo, setBizInfo] = useState({
-    name: 'The Garden Homestay',
-    address: '12 Blossom Lane, Chiang Mai, Thailand 50200',
-    phone: '+66 81 234 5678',
-    email: 'hello@gardenhomestay.com',
+    name: 'Homestay Bình Lợi Trung',
+    address: 'Bình Lợi Trung, Bình Chánh, Hồ Chí Minh',
+    phone: '+84 28 0000 0001',
+    email: 'hello@binhloitrung.vn',
     checkInTime: '14:00',
-    checkOutTime: '11:00',
-    currency: 'USD',
-    website: 'www.gardenhomestay.com',
+    checkOutTime: '12:00',
+    currency: 'VND',
+    website: 'www.binhloitrung.vn',
   });
 
   useEffect(() => { refetch(); }, [refetch]);
@@ -164,9 +164,9 @@ export default function Settings() {
           <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, marginBottom: 20 }}>Room Types & Base Pricing</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
-              { type: 'Standard', basePrice: 65,  desc: '2 guests, basic amenities' },
-              { type: 'Deluxe',   basePrice: 95,  desc: '3 guests, premium amenities + bathtub' },
-              { type: 'Suite',    basePrice: 145, desc: '4 guests, full kitchen, balcony, jacuzzi' },
+              { type: 'Hiên (Standard)', basePrice: 350_000, desc: 'Tối đa 4 khách, tiện nghi cơ bản' },
+              { type: 'Yên (Deluxe)',    basePrice: 450_000, desc: 'Tối đa 5 khách, bồn tắm + ban công' },
+              { type: 'Yên Jacuzzi',      basePrice: 650_000, desc: 'Tối đa 5 khách, bếp + jacuzzi' },
             ].map(rt => (
               <div key={rt.type} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 18px', borderRadius: 10, border: `1px solid ${border}` }}>
                 <div style={{ flex: 1 }}>
@@ -174,9 +174,8 @@ export default function Settings() {
                   <div style={{ fontSize: 12, color: textMuted }}>{rt.desc}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, color: textMuted }}>$</span>
-                  <input defaultValue={rt.basePrice} type="number" style={{ ...inputStyle, width: 80, textAlign: 'right' as const }} />
-                  <span style={{ fontSize: 12, color: textMuted }}>/night</span>
+                  <input defaultValue={rt.basePrice} type="number" style={{ ...inputStyle, width: 120, textAlign: 'right' as const }} />
+                  <span style={{ fontSize: 12, color: textMuted }}>₫/đêm</span>
                   <button onClick={() => showToast(`${rt.type} pricing updated (local)`)} style={{
                     background: '#10B981', color: '#fff', border: 'none', borderRadius: 7,
                     padding: '7px 14px', fontSize: 12, fontWeight: 600,
@@ -185,21 +184,6 @@ export default function Settings() {
                     Save
                   </button>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Booking Sources tab */}
-      {activeTab === 'Booking Sources' && (
-        <div style={{ background: bg, borderRadius: 12, border: `1px solid ${border}`, padding: 24 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, marginBottom: 20 }}>Booking Sources</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {['Walk-in', 'Airbnb', 'Booking.com', 'Direct', 'Phone'].map(s => (
-              <div key={s} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1px solid ${border}` }}>
-                <span style={{ fontWeight: 600, color: textPrimary }}>{s}</span>
-                <span style={{ background: '#D1FAE5', color: '#065F46', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99 }}>Active</span>
               </div>
             ))}
           </div>
@@ -221,9 +205,9 @@ export default function Settings() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
-              { name: 'Admin (You)', role: 'Owner', email: 'admin@gardenhomestay.com' },
-              { name: 'Maria Santos', role: 'Housekeeper', email: 'maria@gardenhomestay.com' },
-              { name: 'John Dao', role: 'Receptionist', email: 'john@gardenhomestay.com' },
+              { name: 'Admin (Bạn)', role: 'Chủ homestay', email: 'admin@binhloitrung.vn' },
+              { name: 'Maria Santos', role: 'Nhân viên vệ sinh', email: 'maria@binhloitrung.vn' },
+              { name: 'John Dao', role: 'Lễ tân', email: 'john@binhloitrung.vn' },
             ].map(staff => (
               <div key={staff.name} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderRadius: 10, border: `1px solid ${border}` }}>
                 <div style={{
@@ -240,8 +224,8 @@ export default function Settings() {
                 </div>
                 <span style={{
                   fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99,
-                  background: staff.role === 'Owner' ? '#DBEAFE' : (darkMode ? '#1E293B' : '#F1F5F9'),
-                  color: staff.role === 'Owner' ? '#1E40AF' : textMuted,
+                  background: staff.role === 'Chủ homestay' ? '#DBEAFE' : (darkMode ? '#1E293B' : '#F1F5F9'),
+                  color: staff.role === 'Chủ homestay' ? '#1E40AF' : textMuted,
                 }}>
                   {staff.role}
                 </span>

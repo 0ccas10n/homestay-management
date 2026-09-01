@@ -12,8 +12,8 @@ export default function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('admin@homestay.local');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -24,13 +24,13 @@ export default function LoginPage() {
     }
   }, [user, navigate]);
 
-  const handleSubmit = useCallback(async (e?: React.FormEvent, customEmail?: string, customPass?: string) => {
-    if (e) e.preventDefault();
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const loginEmail = (customEmail !== undefined ? customEmail : email).trim();
-    const loginPassword = (customPass !== undefined ? customPass : password).trim();
+    const loginEmail = email.trim();
+    const loginPassword = password.trim();
 
     if (!loginEmail || !loginPassword) {
       setError('Please enter your email and password');
@@ -47,12 +47,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   }, [email, password, login, navigate]);
-
-  const handleDemoLogin = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    handleSubmit(undefined, demoEmail, demoPass);
-  };
 
   return (
     <div style={{
@@ -202,51 +196,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ marginTop: 22, padding: '14px', background: '#F8FAFC', borderRadius: 12, border: '1px solid #E2E8F0' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Quick 1-Click Demo Login:
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => handleDemoLogin('admin@homestay.local', 'admin123')}
-              style={{
-                padding: '9px 10px',
-                fontSize: 13,
-                fontWeight: 700,
-                background: '#EFF6FF',
-                color: '#1D4ED8',
-                border: '1px solid #BFDBFE',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontFamily: "'Outfit', sans-serif",
-                transition: 'background 0.15s',
-              }}
-            >
-              👑 Admin Demo
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDemoLogin('staff@homestay.local', 'staff123')}
-              style={{
-                padding: '9px 10px',
-                fontSize: 13,
-                fontWeight: 700,
-                background: '#F0FDF4',
-                color: '#15803D',
-                border: '1px solid #BBF7D0',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontFamily: "'Outfit', sans-serif",
-                transition: 'background 0.15s',
-              }}
-            >
-              💼 Staff Demo
-            </button>
-          </div>
-        </div>
-
-        <p style={{ textAlign: 'center', fontSize: 12, color: '#94A3B8', marginTop: 18, marginBottom: 0 }}>
+        <p style={{ textAlign: 'center', fontSize: 12, color: '#94A3B8', marginTop: 24, marginBottom: 0 }}>
           Protected administrative area · Homestay Management System
         </p>
       </div>

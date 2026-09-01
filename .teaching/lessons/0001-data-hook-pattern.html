@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 0001 — Custom hook dữ liệu: pattern useBookings</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<a class="mission-link" href="../MISSION.md">← Mission: React Patterns trong Homestay Management</a>
+
+<h1>Pattern của useBookings</h1>
+<p class="subtitle">Lesson 0001 · 15 phút · Custom hooks cho data fetching</p>
+
+<h2>Pattern là gì?</h2>
+<p>
+Mỗi resource trong app (<code>Booking</code>, <code>Room</code>, <code>Customer</code>, <code>CleaningTask</code>...)
+đều có một hook riêng: <code>useBookings</code>, <code>useRooms</code>, <code>useCustomers</code>, <code>useCleaning</code>...
+Tất cả đều tuân theo cùng một "hình dạng" — một <em>data hook pattern</em>.
+</p>
+
+<p>Mở <a href="../../../src/hooks/useBookings.ts"><code>src/hooks/useBookings.ts</code></a> và đọc lướt. Bạn sẽ thấy nó luôn trả về cùng 5 thứ:</p>
+
+<pre><code>{ bookings, loading, error, refetch, ...mutations }</code></pre>
+
+<ul>
+  <li><code>bookings</code> — mảng dữ liệu hiện tại</li>
+  <li><code>loading</code> — true khi đang fetch</li>
+  <li><code>error</code> — thông báo lỗi, hoặc <code>null</code></li>
+  <li><code>refetch</code> — hàm gọi lại để tải dữ liệu mới</li>
+  <li>Mutations: <code>createBooking</code>, <code>updateBooking</code>, <code>cancelBooking</code></li>
+</ul>
+
+<div class="callout">
+  <p class="callout-title">Tại sao pattern này tốt?</p>
+  <p>Khi bạn mở bất kỳ page nào (như <a href="../../../src/pages/Bookings.tsx"><code>Bookings.tsx</code></a>),
+  bạn <em>biết chính xác</em> cần gọi hook nào, destructure cái gì, và dùng <code>refetch</code> khi nào.
+  Component chỉ tập trung vào render — fetch + state nằm hết trong hook.</p>
+  <p>Đây chính là triết lý của React docs: <em>"hide the gnarly details of how you deal with some external system so your components express intent, not implementation."</em>
+  (<a href="https://react.dev/learn/reusing-logic-with-custom-hooks">Reusing Logic with Custom Hooks</a>)</p>
+</div>
+
+<h2>Ba quyết định thiết kế quan trọng nhất</h2>
+
+<h3>1. Trả về object, không phải array</h3>
+<p>Hook trả về object có tên, không phải tuple:</p>
+
+<pre><code>// Cách viết của codebase:
+const { bookings, loading, refetch } = useBookings();
+
+// (Một số codebase khác dùng array — tuple — để ép thứ tự:
+const [bookings, loading, refetch] = useBookings();</code></pre>
+
+<p>Object tốt hơn vì khi thêm field mới (ví dụ <code>error</code>) sẽ không phá code cũ. Tuple sẽ vỡ.</p>
+
+<h3>2. Optimistic update — sửa local ngay, không refetch</h3>
+<p>Trong <a href="../../../src/hooks/useBookings.ts"><code>useBookings.ts</code></a>, hàm <code>cancelBooking</code> làm việc này:</p>
+
+<pre><code>const cancelBooking = useCallback(async (id: string) =&gt; {
+  const res = await bookingsApi.updateStatus(id, 'cancelled');
+  setBookings(prev =&gt; prev.map(b =&gt;
+    b.bookingId === id ? res.booking : b,
+  ));
+}, []);</code></pre>
+
+<p>Thay vì gọi lại <code>refetch()</code> để tải toàn bộ danh sách, hook <em>sửa đúng một dòng</em> trong state. Hai lợi ích:</p>
+<ul>
+  <li>UI cập nhật <strong>tức thì</strong> — không có flash "Loading…"</li>
+  <li>Tiết kiệm 1 round-trip tới server</li>
+</ul>
+
+<div class="callout">
+  <p class="callout-title">Đánh đổi</p>
+  <p>Nếu mutation thất bại phía server (rất hiết), UI sẽ hiển thị trạng thái sai. Trong codebase, mutation thất bại sẽ <em>ném exception</em> để component bắt (<code>catch</code>) — nhưng state thì <strong>đã được sửa</strong>. Đây là "happy path" optimistic. Hãy để ý khi đọc <a href="../../../src/pages/Bookings.tsx"><code>Bookings.tsx</code></a> dòng 76–85.</p>
+</div>
+
+<h3>3. <code>useCallback</code> cho mọi hàm trả về</h3>
+<p>Tất cả hàm trong hook đều bọc trong <code>useCallback</code> với dependency <code>[]</code>:</p>
+
+<pre><code>const refetch = useCallback(async () =&gt; { ... }, []);</code></pre>
+
+<p>Mục đích: <strong>ổn định identity</strong>. Khi component cha gọi <code>refetch()</code> trong <code>useEffect</code>, identity không đổi → effect không bị chạy lại. Nếu quên <code>useCallback</code>, mỗi render sẽ tạo hàm mới → effect loop vô tận.</p>
+
+<h2>Luồng dữ liệu khi mở Bookings page</h2>
+<p>Khi user mở <code>/bookings</code>, dữ liệu chảy như sau:</p>
+
+<pre><code>Browser load /bookings
+       ↓
+Bookings.tsx render
+       ↓
+useEffect → refetch() / refetchRooms() / refetchCustomers()
+       ↓
+useBookings → bookingsApi.get() → fetch('/api/bookings')
+       ↓
+API route → bookings.repository.ts → Google Sheets API
+       ↓
+Response envelope: { success: true, data: Booking[] }
+       ↓
+api.ts unwrap → return data
+       ↓
+setBookings(data) → re-render → bảng hiện ra</code></pre>
+
+<p>Mỗi tầng có một trách nhiệm duy nhất. Hook <em>không biết</em> Google Sheets. Repository <em>không biết</em> React. API route <em>không biết</em> validation Zod (xem <a href="../../../src/lib/api/validation.ts"><code>lib/api/validation.ts</code></a>).</p>
+
+<h2>Quiz</h2>
+
+<div class="quiz" id="q1">
+  <p class="quiz-q">1. Trong <code>useBookings</code>, sau khi <code>cancelBooking</code> thành công, state được cập nhật bằng cách nào?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt" data-correct="false">Gọi lại refetch() để tải toàn bộ danh sách từ server</button>
+    <button class="quiz-opt" data-correct="true">setBookings(prev =&gt; prev.map(b =&gt; b.bookingId === id ? res.booking : b))</button>
+    <button class="quiz-opt" data-correct="false">setBookings(res.booking) — chỉ thay 1 phần tử</button>
+    <button class="quiz-opt" data-correct="false">window.location.reload() để force refresh</button>
+  </div>
+  <div class="quiz-feedback"></div>
+</div>
+
+<div class="quiz" id="q2">
+  <p class="quiz-q">2. Tại sao các hàm trong hook đều bọc trong <code>useCallback(... , [])</code>?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt" data-correct="false">Để React không báo warning trong console</button>
+    <button class="quiz-opt" data-correct="false">Để tăng tốc độ — useCallback chạy nhanh hơn</button>
+    <button class="quiz-opt" data-correct="true">Để ổn định identity — tránh useEffect chạy lại vô tận</button>
+    <button class="quiz-opt" data-correct="false">Để TypeScript kiểm tra kiểu chặt hơn</button>
+  </div>
+  <div class="quiz-feedback"></div>
+</div>
+
+<div class="quiz" id="q3">
+  <p class="quiz-q">3. Hook <code>useBookings</code> trả về object có tên thay vì tuple. Lý do chính?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt" data-correct="false">Object chạy nhanh hơn array trong V8</button>
+    <button class="quiz-opt" data-correct="false">Bắt buộc theo quy tắc React</button>
+    <button class="quiz-opt" data-correct="true">Khi hook thêm field mới, code cũ không bị vỡ</button>
+    <button class="quiz-opt" data-correct="false">TypeScript không hỗ trợ tuple trong hook</button>
+  </div>
+  <div class="quiz-feedback"></div>
+</div>
+
+<h2>Exercise (tùy chọn, 5 phút)</h2>
+<p>Mở <code>src/hooks/useRooms.ts</code> và đối chiếu với <code>useBookings.ts</code>. Trong <code>NOTES.md</code> ghi lại:</p>
+<ol>
+  <li>Hook <code>useRooms</code> có mutations nào? Có giống pattern không?</li>
+  <li>Hook nào có nhiều method hơn? Tại sao bạn nghĩ vậy?</li>
+  <li>Có chỗ nào <code>useRooms</code> phá vỡ pattern (trả về field khác hẳn) không?</li>
+</ol>
+
+<h2>Bài đọc thêm</h2>
+<p>Đọc <a href="https://react.dev/learn/reusing-logic-with-custom-hooks">React docs — Reusing Logic with Custom Hooks</a> (15 phút). Tập trung vào phần <em>"Sharing logic between Hooks"</em> — nó giải thích tại sao các hook resource trong codebase đều <em>không</em> gọi nhau.</p>
+
+<h2>Câu hỏi?</h2>
+<p>Đây là lesson đầu tiên nên nhiều thứ có thể chưa rõ. Hãy hỏi agent bất cứ điều gì — từ cú pháp TypeScript đến lý do tại sao codebase chọn pattern này.</p>
+
+<div class="lesson-footer">
+  <p><strong>Sau lesson này</strong>: tôi sẽ viết <code>learning-records/0001-data-hook-pattern.md</code> tóm tắt những gì bạn đã học.</p>
+  <p><strong>Lesson tiếp theo (gợi ý)</strong>: 0002 — Envelope pattern trong <a href="../../../src/services/api.ts"><code>api.ts</code></a>: tại sao mọi response đều là <code>{success, data}</code>.</p>
+</div>
+
+<script>
+// Quiz interaction — answer length is intentionally similar across options
+document.querySelectorAll('.quiz').forEach(quiz => {
+  const opts = quiz.querySelectorAll('.quiz-opt');
+  const fb = quiz.querySelector('.quiz-feedback');
+  const explanations = {
+    q1: 'Đúng. Hook sửa đúng một dòng qua prev.map — optimistic update. Không refetch toàn bộ. Code: useBookings.ts dòng 53-58.',
+    q2: 'Đúng. Nếu không có useCallback, mỗi render tạo hàm mới → useEffect([refetch]) sẽ loop. Code: useBookings.ts dòng 31, 41, 47, 53.',
+    q3: 'Đúng. Object có tên không phá code cũ khi thêm field. Tuple có thứ tự cố định — thêm vào giữa = vỡ. So sánh useState trả về tuple.',
+  };
+  const id = quiz.id;
+  opts.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      opts.forEach(b => b.disabled = true);
+      const correct = btn.dataset.correct === 'true';
+      btn.classList.add(correct ? 'correct' : 'wrong');
+      opts.forEach(b => {
+        if (b.dataset.correct === 'true' && b !== btn) b.classList.add('correct');
+      });
+      fb.classList.add('show', correct ? 'correct' : 'wrong');
+      fb.textContent = (correct ? '✓ Đúng. ' : '✗ Sai. ') + explanations[id];
+    });
+  });
+});
+</script>
+
+</body>
+</html>

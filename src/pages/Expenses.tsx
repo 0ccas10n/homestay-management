@@ -9,15 +9,29 @@ import { useExpenses } from '@/hooks/useExpenses';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import type { Expense } from '@/types/index';
 import Modal from '@/components/Modal';
+import { formatVnd } from '@/utils/format';
 
 const CATEGORIES = ['Cleaning Supplies', 'Electricity', 'Water', 'Internet', 'Repairs', 'Staff', 'Other'];
 const PIE_COLORS = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 
-const vnd = new Intl.NumberFormat('vi-VN', {
-  style: 'currency',
-  currency: 'VND',
-  maximumFractionDigits: 0,
-});
+type FormFieldKey = 'category' | 'amount' | 'description' | 'vendor' | 'date';
+type FormFieldType = 'select' | 'number' | 'text' | 'date';
+
+interface ExpenseFormField {
+  label: string;
+  key: FormFieldKey;
+  type: FormFieldType;
+  step?: number;
+  placeholder?: string;
+}
+
+const fields: ExpenseFormField[] = [
+  { label: 'Category', key: 'category', type: 'select' },
+  { label: 'Amount (VND)', key: 'amount', type: 'number', step: 10000, placeholder: '1500000' },
+  { label: 'Description', key: 'description', type: 'text' },
+  { label: 'Vendor (optional)', key: 'vendor', type: 'text' },
+  { label: 'Date', key: 'date', type: 'date' },
+];
 
 export default function Expenses() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
@@ -31,7 +45,10 @@ export default function Expenses() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  const total = expenses.reduce((s, e) => s + e.amount, 0);
+  const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const total = expenses
+    .filter(e => e.date && e.date.startsWith(currentMonth))
+    .reduce((s, e) => s + e.amount, 0);
   const filtered = filterCat === 'All' ? expenses : expenses.filter(e => e.category === filterCat);
 
   const handleAdd = async () => {
@@ -77,7 +94,7 @@ export default function Expenses() {
       <div style={{ background: bg, borderRadius: 12, border: `1px solid ${border}`, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
         <div>
           <div style={{ fontSize: 13, color: textMuted, fontWeight: 600 }}>Total This Month</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: textPrimary, fontFamily: "'DM Serif Display', serif" }}>{vnd.format(total)}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: textPrimary, fontFamily: "'DM Serif Display', serif" }}>{formatVnd(total)}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <select value={filterCat} onChange={e => setFilterCat(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>
@@ -114,7 +131,7 @@ export default function Expenses() {
                   </td>
                   <td style={{ padding: '12px 16px', color: textPrimary }}>{e.description}</td>
                   <td style={{ padding: '12px 16px', color: textMuted }}>{e.vendor ?? '—'}</td>
-                  <td style={{ padding: '12px 16px', color: textPrimary, fontWeight: 700 }}>{vnd.format(e.amount)}</td>
+                  <td style={{ padding: '12px 16px', color: textPrimary, fontWeight: 700 }}>{formatVnd(e.amount)}</td>
                 </tr>
               ))}
             </tbody>
@@ -135,7 +152,7 @@ export default function Expenses() {
                   <Pie data={byCategory} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
                     {byCategory.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: bg, border: `1px solid ${border}` }} formatter={(v: unknown) => [vnd.format(v as number), '']} />
+                  <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: bg, border: `1px solid ${border}` }} formatter={(v: unknown) => [formatVnd(v as number), '']} />
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
@@ -143,7 +160,7 @@ export default function Expenses() {
                   <div key={cat.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ width: 8, height: 8, borderRadius: 2, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
                     <div style={{ flex: 1, fontSize: 12, color: textMuted }}>{cat.name}</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: textPrimary }}>{vnd.format(cat.value)}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: textPrimary }}>{formatVnd(cat.value)}</div>
                   </div>
                 ))}
               </div>
@@ -157,21 +174,22 @@ export default function Expenses() {
       {/* Add Expense Modal */}
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Expense" darkMode={darkMode}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {[
-            { label: 'Category', key: 'category', type: 'select' },
-            { label: 'Amount (VND)', key: 'amount', type: 'number' },
-            { label: 'Description', key: 'description', type: 'text' },
-            { label: 'Vendor (optional)', key: 'vendor', type: 'text' },
-            { label: 'Date', key: 'date', type: 'date' },
-          ].map(f => (
+          {fields.map(f => (
             <div key={f.key}>
               <label style={{ fontSize: 12, fontWeight: 600, color: textMuted, display: 'block', marginBottom: 4 }}>{f.label}</label>
               {f.type === 'select' ? (
-                <select value={(form as Record<string, string>)[f.key]} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} style={inputStyle}>
+                <select value={form[f.key]} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} style={inputStyle}>
                   {CATEGORIES.map(c => <option key={c}>{c}</option>)}
                 </select>
               ) : (
-                <input type={f.type} value={(form as Record<string, string>)[f.key]} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} style={inputStyle} />
+                <input
+                  type={f.type}
+                  step={f.step}
+                  placeholder={f.placeholder}
+                  value={form[f.key]}
+                  onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                  style={inputStyle}
+                />
               )}
             </div>
           ))}

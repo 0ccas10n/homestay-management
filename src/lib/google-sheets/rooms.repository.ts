@@ -58,16 +58,12 @@ export async function create(
     updatedAt,
   };
 
-  const headerRange = `${SHEETS.Rooms}!A1:${String.fromCharCode(64 + ROOMS_HEADERS.length)}`;
-  const dataStartRange = `${SHEETS.Rooms}!A2:${String.fromCharCode(64 + ROOMS_HEADERS.length)}`;
-
-  // Read current row count to append after last row
-  const existing = await sheets.getValues(spreadsheetId, `${SHEETS.Rooms}!A:A`);
-  const nextRow = existing.length + 2; // +1 for header, +1 for 1-indexing
-
+  // Pass a column-shaped range (Rooms!A:A) so Google Sheets `values.append`
+  // does a pure append at the table's trailing edge instead of inserting a
+  // phantom empty row above the new one. (See client.ts for context.)
   await sheets.appendRow(
     spreadsheetId,
-    `${SHEETS.Rooms}!A${nextRow}`,
+    `${SHEETS.Rooms}!A:A`,
     mapRoomToRow(room),
   );
 

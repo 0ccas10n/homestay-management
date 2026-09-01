@@ -11,6 +11,9 @@
 import type { RatePlan, Booking } from '../types/index';
 import { ratePlans } from '../data/hourlyData';
 
+// ─── Surcharge constants (同步 seedData.ts SURCHARGE_RULES) ───────────────────────
+const OVERTIME_HOURLY_RATE = 70_000; // VND per overtime hour past expected check-out
+
 // ─── 1. Duration helpers (ISO 8601) ─────────────────────────────────────────────
 
 /** Parse an ISO 8601 datetime string to a Date object. */
@@ -83,11 +86,6 @@ export function calculatePrice(
   const plan = ratePlans.find(p => p.ratePlanId === ratePlanId) ?? ratePlans[0];
   const expectedDurationMinutes = diffMinutes(checkInAt, expectedCheckOutAt);
 
-  // Base + extra charge
-  const extraMinutes = Math.max(0, expectedDurationMinutes - plan.baseMinutes);
-  const extraAmount = extraMinutes * plan.extraMinutePrice;
-  const baseAmount = plan.baseAmount;
-
   // Overtime (only if actual check-out is after expected)
   let overtimeMinutes = 0;
   let overtimeHours = 0;
@@ -98,7 +96,23 @@ export function calculatePrice(
     const diff = actualDurationMinutes - expectedDurationMinutes;
     overtimeMinutes = Math.max(0, diff);
     overtimeHours = Math.ceil(overtimeMinutes / 60);
-    overtimeAmount = overtimeHours * plan.overtimeMinutePrice;
+    overtimeAmount = overtimeHours * OVERTIME_HOURLY_RATE;
+  }
+
+  // Base amount — daily plans use nightly rate × nights; others use fixed base + extra per minute
+  let baseAmount: number;
+  let extraMinutes = 0;
+  let extraAmount = 0;
+
+  if (plan.type === 'daily') {
+    // Nights = ceil(total minutes / minutes-in-a-day), base charge = nights × nightly rate
+    const nights = Math.ceil(expectedDurationMinutes / 1440);
+    const nightlyRate = plan.baseAmount; // nightly rate from rate plan definition (VND)
+    baseAmount = nights * nightlyRate;
+  } else {
+    extraMinutes = Math.max(0, expectedDurationMinutes - plan.baseMinutes);
+    extraAmount = extraMinutes * plan.extraMinutePrice;
+    baseAmount = plan.baseAmount;
   }
 
   return {
@@ -159,9 +173,21 @@ export function calculatePriceLegacy(
   const expectedCheckOutAt = dt(checkoutTime, checkoutDayOffset);
 
   const expectedDurationMinutes = diffMinutes(checkInAt, expectedCheckOutAt);
-  const extraMinutes = Math.max(0, expectedDurationMinutes - plan.baseMinutes);
-  const extraAmount = extraMinutes * plan.extraMinutePrice;
-  const baseAmount = plan.baseAmount;
+
+  // Base amount — daily plans use nightly rate × nights; others use fixed base + extra per minute
+  let baseAmount: number;
+  let extraMinutes = 0;
+  let extraAmount = 0;
+
+  if (plan.type === 'daily') {
+    const nights = Math.ceil(expectedDurationMinutes / 1440);
+    const nightlyRate = plan.baseAmount;
+    baseAmount = nights * nightlyRate;
+  } else {
+    extraMinutes = Math.max(0, expectedDurationMinutes - plan.baseMinutes);
+    extraAmount = extraMinutes * plan.extraMinutePrice;
+    baseAmount = plan.baseAmount;
+  }
 
   let overtimeMinutes = 0;
   let overtimeHours = 0;
@@ -176,7 +202,7 @@ export function calculatePriceLegacy(
     const diff = actualDurationMinutes - expectedDurationMinutes;
     overtimeMinutes = Math.max(0, diff);
     overtimeHours = Math.ceil(overtimeMinutes / 60);
-    overtimeAmount = overtimeHours * plan.overtimeMinutePrice;
+    overtimeAmount = overtimeHours * OVERTIME_HOURLY_RATE;
   }
 
   return {

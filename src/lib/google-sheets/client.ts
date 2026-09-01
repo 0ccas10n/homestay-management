@@ -81,10 +81,25 @@ function initInMemoryStore() {
   ]);
 
   // RatePlanPrices
+  // Build one row per (ratePlan, room) combination present in the rooms list
+  // (ROOM-0001..ROOM-0012). Falls back to a 250k/350k/450k/550k ladder when a
+  // room has no explicit pricing in ROOM_RATE_PRICES, so every bookable room
+  // always has a complete RatePlanPrices matrix.
+  const STANDARD_PRICES: Record<string, number> = {
+    'RP-0001': 250_000,
+    'RP-0002': 350_000,
+    'RP-0003': 400_000,
+    'RP-0004': 550_000,
+  };
   let rppCounter = 1;
   const rppRows: string[][] = [];
-  for (const [roomId, prices] of Object.entries(ROOM_RATE_PRICES)) {
-    for (const [ratePlanId, price] of Object.entries(prices)) {
+  const sortedRoomIds = sampleRooms
+    .map(r => r.roomId)
+    .sort();
+  for (const roomId of sortedRoomIds) {
+    const roomPrices = ROOM_RATE_PRICES[roomId];
+    for (const ratePlanId of ['RP-0001', 'RP-0002', 'RP-0003', 'RP-0004']) {
+      const price = roomPrices?.[ratePlanId] ?? STANDARD_PRICES[ratePlanId] ?? 0;
       rppRows.push([
         `RPP-${String(rppCounter++).padStart(4, '0')}`,
         ratePlanId,
@@ -136,10 +151,23 @@ function parseA1Range(range: string): { sheetName: string; startRow?: number; en
     return { sheetName, isFullWithHeader: true };
   }
 
-  const match = cellRange.match(/[A-Z]+(\d+)(?::[A-Z]*(\d*))?/i);
+  // Patterns:
+  //   A2       → startRow=2, endRow=undefined
+  //   A2:J2    → startRow=2, endRow=2
+  //   A2:J     → startRow=2, endRow=undefined (column-only end, treat as row range)
+  //   A:J      → startRow=undefined, endRow=undefined (full column range without row numbers)
+  const match = cellRange.match(/^([A-Z]+)(\d+)?(?::([A-Z]+)(\d+)?)?$/i);
+  console.log('[parseA1Range]', { cellRange, match: match?.slice(1) });
   if (match) {
-    const startRow = parseInt(match[1], 10);
-    const endRow = match[2] ? parseInt(match[2], 10) : undefined;
+    const startRow = match[2] ? parseInt(match[2], 10) : undefined;
+    const endRow   = match[4] ? parseInt(match[4], 10) : undefined;
+    // If startRow is undefined (no row after first column, e.g. "A:J"),
+    // treat as full-with-header to return all rows.
+    if (startRow === undefined) {
+      console.log('[parseA1Range] treating as fullWithHeader');
+      return { sheetName, isFullWithHeader: true };
+    }
+    console.log('[parseA1Range] result:', { startRow, endRow });
     return { sheetName, startRow, endRow };
   }
 
@@ -192,6 +220,7 @@ export const sheets = {
   },
 
   async getValues(spreadsheetId: string, range: string): Promise<string[][]> {
+    console.log('[sheets.getValues]', { hasGoogleCreds, range, sheetName: range.split('!')[0] });
     if (hasGoogleCreds && this.client) {
       try {
         const response = await this.client.spreadsheets.values.get({
@@ -206,7 +235,9 @@ export const sheets = {
 
     // In-memory fallback
     const { sheetName, startRow, endRow, colOnly, isFullWithHeader } = parseA1Range(range);
+    console.log('[sheets.getValues in-memory]', { sheetName, startRow, endRow, colOnly, isFullWithHeader });
     const sheetData = getMemorySheet(sheetName);
+    console.log('[sheets.getValues in-memory] sheetData length:', sheetData.length);
 
     if (colOnly) {
       return sheetData.map(row => [row[0] ?? '']);
@@ -236,7 +267,7 @@ export const sheets = {
         await this.client.spreadsheets.values.update({
           spreadsheetId,
           range,
-          valueInputOption: 'USER_ENTERED',
+          valueInputOption: 'RAW',
           requestBody: { values },
         });
         return;
@@ -261,11 +292,21 @@ export const sheets = {
     row: (string | number | boolean | null)[],
   ): Promise<void> {
     if (hasGoogleCreds && this.client) {
+      // ─── BUG FIX ─────────────────────────────────────────────────────────
+      // The previous implementation called `values.append` with an explicit
+      // single-row range (e.g. `Bookings!A10`). Google Sheets then performed
+      // an INSERT shift and inserted a phantom blank row above the new row
+      // whenever the target row was past the end of existing data, producing
+      // an extra "empty/meaningless" row in the sheet for every booking.
+      //
+      // Repository call sites must now pass a column-shaped range (e.g.
+      // `Bookings!A:A`), so we forward `range` as-is. (See repositories for
+      // the column-shape convention.)
       try {
         await this.client.spreadsheets.values.append({
           spreadsheetId,
           range,
-          valueInputOption: 'USER_ENTERED',
+          valueInputOption: 'RAW',
           requestBody: { values: [row] },
         });
         return;
@@ -289,7 +330,7 @@ export const sheets = {
         await this.client.spreadsheets.values.batchUpdate({
           spreadsheetId,
           requestBody: {
-            valueInputOption: 'USER_ENTERED',
+            valueInputOption: 'RAW',
             data: ranges.map((range, i) => ({ range, values: [values[i]] })),
           },
         });

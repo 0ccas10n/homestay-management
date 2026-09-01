@@ -9,9 +9,12 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "format": "oxfmt",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "recalculate-bookings": "tsx scripts/recalculate-bookings.ts",
+    "recalculate-bookings:dry": "tsx scripts/recalculate-bookings.ts --dry-run"
   },
   "dependencies": {
+    "date-fns": "^4.4.0",
     "date-fns-tz": "^3.2.0",
     "express": "^4.21.0",
     "googleapis": "^144.0.0",

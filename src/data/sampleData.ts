@@ -3,7 +3,6 @@
 export type {
   RoomStatus,
   BookingStatus,
-  BookingSource,
   CleaningStatus,
   CleaningPriority,
   NotificationType,
@@ -17,19 +16,21 @@ export type {
 
 import type { Room, RoomStatus } from '../types/index';
 
+// All monetary values are in Vietnamese Dong (VND).
+// priceDisplay is a Vietnamese-locale string for UI rendering.
 export const rooms: Room[] = [
-  { roomId: 'ROOM-0001', locationId: 'LOC-0001', name: 'Room 101', description: 'Standard room, ground floor', capacity: 2, priceDisplay: '$65/night', status: 'occupied',      active: true, floor: 1, amenities: ['WiFi', 'AC', 'TV'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0002', locationId: 'LOC-0001', name: 'Room 102', description: 'Standard room, ground floor', capacity: 2, priceDisplay: '$65/night', status: 'available',     active: true, floor: 1, amenities: ['WiFi', 'AC', 'TV'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0003', locationId: 'LOC-0001', name: 'Room 103', description: 'Deluxe room with bathtub',    capacity: 3, priceDisplay: '$95/night', status: 'cleaning',      active: true, floor: 1, amenities: ['WiFi', 'AC', 'TV', 'Bathtub'], notes: 'AC unit needs repair', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0004', locationId: 'LOC-0001', name: 'Room 104', description: 'Standard room, ground floor', capacity: 2, priceDisplay: '$65/night', status: 'available',     active: true, floor: 1, amenities: ['WiFi', 'AC', 'TV'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0005', locationId: 'LOC-0001', name: 'Room 201', description: 'Deluxe with balcony',         capacity: 3, priceDisplay: '$95/night', status: 'occupied',      active: true, floor: 2, amenities: ['WiFi', 'AC', 'TV', 'Bathtub', 'Balcony'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0006', locationId: 'LOC-0001', name: 'Room 202', description: 'Suite with kitchen',          capacity: 4, priceDisplay: '$145/night', status: 'occupied',     active: true, floor: 2, amenities: ['WiFi', 'AC', 'TV', 'Bathtub', 'Balcony', 'Kitchen'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0007', locationId: 'LOC-0001', name: 'Room 203', description: 'Standard, under maintenance', capacity: 2, priceDisplay: '$65/night', status: 'maintenance',  active: true, floor: 2, amenities: ['WiFi', 'AC', 'TV'], notes: 'AC unit needs repair', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0008', locationId: 'LOC-0001', name: 'Room 204', description: 'Deluxe with bathtub',        capacity: 3, priceDisplay: '$95/night', status: 'available',     active: true, floor: 2, amenities: ['WiFi', 'AC', 'TV', 'Bathtub'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0009', locationId: 'LOC-0001', name: 'Room 301', description: 'Suite with kitchen',          capacity: 4, priceDisplay: '$145/night', status: 'available',     active: true, floor: 3, amenities: ['WiFi', 'AC', 'TV', 'Bathtub', 'Balcony', 'Kitchen'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0010', locationId: 'LOC-0001', name: 'Room 302', description: 'Deluxe with balcony',         capacity: 3, priceDisplay: '$95/night', status: 'occupied',      active: true, floor: 3, amenities: ['WiFi', 'AC', 'TV', 'Bathtub', 'Balcony'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0011', locationId: 'LOC-0001', name: 'Room 303', description: 'Standard room',              capacity: 2, priceDisplay: '$65/night', status: 'cleaning',      active: true, floor: 3, amenities: ['WiFi', 'AC', 'TV'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { roomId: 'ROOM-0012', locationId: 'LOC-0001', name: 'Room 304', description: 'Suite with jacuzzi',         capacity: 4, priceDisplay: '$145/night', status: 'occupied',      active: true, floor: 3, amenities: ['WiFi', 'AC', 'TV', 'Bathtub', 'Balcony', 'Kitchen', 'Jacuzzi'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0001', locationId: 'LOC-0001', name: 'Hiên 1', description: 'Phòng Standard — 1 giường đôi + 1 giường đơn (tối đa 4 khách)', capacity: 4, priceDisplay: 'Từ 350.000 ₫/đêm', status: 'occupied',     active: true, floor: 1, amenities: ['WiFi', 'AC', 'TV'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0002', locationId: 'LOC-0001', name: 'Hiên 2', description: 'Phòng Standard — 1 giường đôi + 1 giường đơn (tối đa 4 khách)', capacity: 4, priceDisplay: 'Từ 350.000 ₫/đêm', status: 'available',    active: true, floor: 1, amenities: ['WiFi', 'AC', 'TV'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0003', locationId: 'LOC-0001', name: 'Hiên 3', description: 'Phòng Standard — 1 giường đôi + 1 giường đơn (tối đa 4 khách)', capacity: 4, priceDisplay: 'Từ 350.000 ₫/đêm', status: 'cleaning',     active: true, floor: 1, amenities: ['WiFi', 'AC', 'TV', 'Bồn tắm'], notes: 'AC unit needs repair', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0004', locationId: 'LOC-0001', name: 'Yên 1', description: 'Phòng Deluxe — 1 giường đôi + 2 giường đơn (tối đa 5 khách)',  capacity: 5, priceDisplay: 'Từ 450.000 ₫/đêm', status: 'available',    active: true, floor: 1, amenities: ['WiFi', 'AC', 'TV', 'Bồn tắm'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0005', locationId: 'LOC-0001', name: 'Yên 2', description: 'Phòng Deluxe — 1 giường đôi + 2 giường đơn (tối đa 5 khách)',  capacity: 5, priceDisplay: 'Từ 450.000 ₫/đêm', status: 'occupied',     active: true, floor: 2, amenities: ['WiFi', 'AC', 'TV', 'Bồn tắm', 'Ban công'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0006', locationId: 'LOC-0001', name: 'Yên 3', description: 'Phòng Deluxe — 1 giường đôi + 2 giường đơn (tối đa 5 khách)',  capacity: 5, priceDisplay: 'Từ 450.000 ₫/đêm', status: 'occupied',     active: true, floor: 2, amenities: ['WiFi', 'AC', 'TV', 'Bồn tắm', 'Ban công', 'Bếp'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0007', locationId: 'LOC-0001', name: 'Yên 4', description: 'Phòng Deluxe — 1 giường đôi + 2 giường đơn (tối đa 5 khách)',  capacity: 5, priceDisplay: 'Từ 450.000 ₫/đêm', status: 'maintenance',  active: true, floor: 2, amenities: ['WiFi', 'AC', 'TV', 'Bồn tắm'], notes: 'AC unit needs repair', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0008', locationId: 'LOC-0001', name: 'Yên 5', description: 'Phòng Deluxe — 1 giường đôi + 2 giường đơn (tối đa 5 khách)',  capacity: 5, priceDisplay: 'Từ 450.000 ₫/đêm', status: 'available',    active: true, floor: 2, amenities: ['WiFi', 'AC', 'TV', 'Bồn tắm'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0009', locationId: 'LOC-0001', name: 'Yên 6', description: 'Phòng Deluxe — 1 giường đôi + 2 giường đơn (tối đa 5 khách)',  capacity: 5, priceDisplay: 'Từ 450.000 ₫/đêm', status: 'available',    active: true, floor: 3, amenities: ['WiFi', 'AC', 'TV', 'Bồn tắm', 'Ban công', 'Bếp'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0010', locationId: 'LOC-0001', name: 'Yên 7', description: 'Phòng Deluxe — 1 giường đôi + 2 giường đơn (tối đa 5 khách)',  capacity: 5, priceDisplay: 'Từ 450.000 ₫/đêm', status: 'occupied',     active: true, floor: 3, amenities: ['WiFi', 'AC', 'TV', 'Bồn tắm', 'Ban công'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0011', locationId: 'LOC-0001', name: 'Yên 8', description: 'Phòng Deluxe — 1 giường đôi + 2 giường đơn (tối đa 5 khách)',  capacity: 5, priceDisplay: 'Từ 450.000 ₫/đêm', status: 'cleaning',     active: true, floor: 3, amenities: ['WiFi', 'AC', 'TV'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { roomId: 'ROOM-0012', locationId: 'LOC-0001', name: 'Yên 9', description: 'Phòng Deluxe — 1 giường đôi + 2 giường đơn (tối đa 5 khách)',  capacity: 5, priceDisplay: 'Từ 450.000 ₫/đêm', status: 'occupied',     active: true, floor: 3, amenities: ['WiFi', 'AC', 'TV', 'Bồn tắm', 'Ban công', 'Bếp', 'Jacuzzi'], createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
 ];
 
 // ─── Customers ──────────────────────────────────────────────────────────────────
@@ -37,99 +38,120 @@ export const rooms: Room[] = [
 import type { Customer } from '../types/index';
 
 export const customers: Customer[] = [
-  { customerId: 'CUS-0001', name: 'Nadia Okonkwo',     phone: '+1 (415) 820-3341',    email: 'nadia.okonkwo@gmail.com',      note: 'Prefers high floor rooms', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0002', name: 'Marcus Chen',        phone: '+1 (650) 775-4422',    email: 'marcus.chen@outlook.com',     createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0003', name: 'Elena Vasquez',       phone: '+34 612 334 891',     email: 'elena.v@gmail.com',           createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0004', name: 'James Whitfield',      phone: '+44 7700 900432',     email: 'j.whitfield@company.com',     note: 'Business traveler, early check-in requested', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0005', name: 'Aisha Rahman',        phone: '+60 12-345-6789',    email: 'aisha.r@yahoo.com',          createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0006', name: 'Tomás Eriksson',      phone: '+46 70 123 45 67',   email: 'tomas.e@hotmail.com',        createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0007', name: 'Priya Sharma',         phone: '+91 98765 43210',    email: 'priya.s@gmail.com',          createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
-  { customerId: 'CUS-0008', name: 'Carlos Mendes',        phone: '+55 11 9 8765-4321', email: 'carlos.m@gmail.com',        createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0001', name: 'Nadia Okonkwo',     source: 'FACEBOOK',  email: 'nadia.okonkwo@gmail.com',      note: 'Prefers high floor rooms', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0002', name: 'Marcus Chen',        source: 'INSTAGRAM', email: 'marcus.chen@outlook.com',     createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0003', name: 'Elena Vasquez',     source: 'TIKTOK',   email: 'elena.v@gmail.com',           createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0004', name: 'James Whitfield',   source: 'ZALO',     email: 'j.whitfield@company.com',     note: 'Business traveler, early check-in requested', createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0005', name: 'Aisha Rahman',      source: 'FACEBOOK', email: 'aisha.r@yahoo.com',          createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0006', name: 'Tomás Eriksson',    source: 'INSTAGRAM',email: 'tomas.e@hotmail.com',        createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0007', name: 'Priya Sharma',       source: 'TIKTOK',   email: 'priya.s@gmail.com',          createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { customerId: 'CUS-0008', name: 'Carlos Mendes',     source: 'ZALO',     email: 'carlos.m@gmail.com',        createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
 ];
 
 // ─── Bookings (datetime model) ─────────────────────────────────────────────────
 
 import type { Booking } from '../types/index';
 
+// All amounts are in VND.
 export const bookings: Booking[] = [
   {
     bookingId: 'BOOK-0001', roomId: 'ROOM-0001', customerId: 'CUS-0001',
+    guestName: 'Nadia Okonkwo',
     checkInAt: '2026-08-07T14:00:00+07:00', expectedCheckOutAt: '2026-08-10T12:00:00+07:00',
-    status: 'checked_in', source: 'walk_in', ratePlanId: 'RP-0003',
-    expectedDurationMinutes: 4300, baseAmount: 435, totalAmount: 435,
+    status: 'checked_in', ratePlanId: 'RP-0004',
+    bookingType: 'daily',
+    expectedDurationMinutes: 4300, baseAmount: 1_650_000, totalAmount: 1_650_000,
     numGuests: 2, note: '', createdBy: 'USR-0001',
     createdAt: '2026-08-05T10:00:00+07:00', updatedAt: '2026-08-07T14:00:00+07:00',
   },
   {
     bookingId: 'BOOK-0002', roomId: 'ROOM-0005', customerId: 'CUS-0002',
+    guestName: 'Marcus Chen',
     checkInAt: '2026-08-07T15:00:00+07:00', expectedCheckOutAt: '2026-08-09T12:00:00+07:00',
-    status: 'checked_in', source: 'walk_in', ratePlanId: 'RP-0003',
-    expectedDurationMinutes: 2580, baseAmount: 290, totalAmount: 290,
+    status: 'checked_in', ratePlanId: 'RP-0004',
+    bookingType: 'daily',
+    expectedDurationMinutes: 2580, baseAmount: 1_300_000, totalAmount: 1_300_000,
     numGuests: 3, createdBy: 'USR-0001',
     createdAt: '2026-08-04T09:00:00+07:00', updatedAt: '2026-08-07T15:00:00+07:00',
   },
   {
     bookingId: 'BOOK-0003', roomId: 'ROOM-0006', customerId: 'CUS-0003',
+    guestName: 'Elena Vasquez',
     checkInAt: '2026-08-07T14:00:00+07:00', expectedCheckOutAt: '2026-08-12T12:00:00+07:00',
-    status: 'checked_in', source: 'phone', ratePlanId: 'RP-0004',
-    expectedDurationMinutes: 7180, baseAmount: 725, totalAmount: 725,
+    status: 'checked_in', ratePlanId: 'RP-0004',
+    bookingType: 'daily',
+    expectedDurationMinutes: 7180, baseAmount: 2_600_000, totalAmount: 2_600_000,
     numGuests: 2, createdBy: 'USR-0002',
     createdAt: '2026-08-01T08:00:00+07:00', updatedAt: '2026-08-07T14:00:00+07:00',
   },
   {
     bookingId: 'BOOK-0004', roomId: 'ROOM-0010', customerId: 'CUS-0004',
+    guestName: 'James Whitfield',
     checkInAt: '2026-08-07T14:00:00+07:00', expectedCheckOutAt: '2026-08-08T12:00:00+07:00',
-    status: 'checked_in', source: 'phone', ratePlanId: 'RP-0002',
-    expectedDurationMinutes: 1420, baseAmount: 95, totalAmount: 95,
+    status: 'checked_in', ratePlanId: 'RP-0002',
+    bookingType: 'daily',
+    expectedDurationMinutes: 1420, baseAmount: 450_000, totalAmount: 450_000,
     numGuests: 1, createdBy: 'USR-0001',
     createdAt: '2026-08-06T11:00:00+07:00', updatedAt: '2026-08-07T14:00:00+07:00',
   },
   {
     bookingId: 'BOOK-0005', roomId: 'ROOM-0012', customerId: 'CUS-0005',
+    guestName: 'Aisha Rahman',
     checkInAt: '2026-08-07T15:00:00+07:00', expectedCheckOutAt: '2026-08-11T12:00:00+07:00',
-    status: 'checked_in', source: 'walk_in', ratePlanId: 'RP-0004',
-    expectedDurationMinutes: 5700, baseAmount: 580, totalAmount: 580,
+    status: 'checked_in', ratePlanId: 'RP-0004',
+    bookingType: 'daily',
+    expectedDurationMinutes: 5700, baseAmount: 2_300_000, totalAmount: 2_300_000,
     numGuests: 4, createdBy: 'USR-0002',
     createdAt: '2026-08-03T14:00:00+07:00', updatedAt: '2026-08-07T15:00:00+07:00',
   },
   {
     bookingId: 'BOOK-0006', roomId: 'ROOM-0002', customerId: 'CUS-0006',
+    guestName: 'Tomás Eriksson',
     checkInAt: '2026-08-08T14:00:00+07:00', expectedCheckOutAt: '2026-08-11T12:00:00+07:00',
-    status: 'confirmed', source: 'phone', ratePlanId: 'RP-0003',
-    expectedDurationMinutes: 4300, baseAmount: 195, totalAmount: 195,
+    status: 'confirmed', ratePlanId: 'RP-0003',
+    bookingType: 'daily',
+    expectedDurationMinutes: 4300, baseAmount: 800_000, totalAmount: 800_000,
     numGuests: 2, createdBy: 'USR-0001',
     createdAt: '2026-08-06T16:00:00+07:00', updatedAt: '2026-08-06T16:00:00+07:00',
   },
   {
     bookingId: 'BOOK-0007', roomId: 'ROOM-0008', customerId: 'CUS-0007',
+    guestName: 'Priya Sharma',
     checkInAt: '2026-08-09T14:00:00+07:00', expectedCheckOutAt: '2026-08-14T12:00:00+07:00',
-    status: 'confirmed', source: 'walk_in', ratePlanId: 'RP-0004',
-    expectedDurationMinutes: 7180, baseAmount: 475, totalAmount: 475,
+    status: 'confirmed', ratePlanId: 'RP-0004',
+    bookingType: 'daily',
+    expectedDurationMinutes: 7180, baseAmount: 2_475_000, totalAmount: 2_475_000,
     numGuests: 2, createdBy: 'USR-0001',
     createdAt: '2026-08-05T10:30:00+07:00', updatedAt: '2026-08-05T10:30:00+07:00',
   },
   {
     bookingId: 'BOOK-0008', roomId: 'ROOM-0009', customerId: 'CUS-0008',
+    guestName: 'Carlos Mendes',
     checkInAt: '2026-08-10T14:00:00+07:00', expectedCheckOutAt: '2026-08-13T12:00:00+07:00',
-    status: 'confirmed', source: 'phone', ratePlanId: 'RP-0003',
-    expectedDurationMinutes: 4300, baseAmount: 435, totalAmount: 435,
+    status: 'confirmed', ratePlanId: 'RP-0003',
+    bookingType: 'daily',
+    expectedDurationMinutes: 4300, baseAmount: 1_200_000, totalAmount: 1_200_000,
     numGuests: 3, createdBy: 'USR-0002',
     createdAt: '2026-08-04T13:00:00+07:00', updatedAt: '2026-08-04T13:00:00+07:00',
   },
   {
     bookingId: 'BOOK-0009', roomId: 'ROOM-0005', customerId: 'CUS-0001',
+    guestName: 'Nadia Okonkwo',
     checkInAt: '2026-08-14T14:00:00+07:00', expectedCheckOutAt: '2026-08-16T12:00:00+07:00',
-    status: 'confirmed', source: 'walk_in', ratePlanId: 'RP-0003',
-    expectedDurationMinutes: 2860, baseAmount: 190, totalAmount: 190,
+    status: 'confirmed', ratePlanId: 'RP-0003',
+    bookingType: 'daily',
+    expectedDurationMinutes: 2860, baseAmount: 1_000_000, totalAmount: 1_000_000,
     numGuests: 2, createdBy: 'USR-0001',
     createdAt: '2026-08-07T08:00:00+07:00', updatedAt: '2026-08-07T08:00:00+07:00',
   },
   {
     bookingId: 'BOOK-0010', roomId: 'ROOM-0003', customerId: 'CUS-0004',
+    guestName: 'James Whitfield',
     checkInAt: '2026-07-30T14:00:00+07:00', expectedCheckOutAt: '2026-08-02T12:00:00+07:00',
     actualCheckOutAt: '2026-08-02T11:30:00+07:00',
-    status: 'checked_out', source: 'phone', ratePlanId: 'RP-0003',
-    expectedDurationMinutes: 4300, baseAmount: 285, overtimeMinutes: 0, overtimeAmount: 0, totalAmount: 285,
+    status: 'checked_out', ratePlanId: 'RP-0003',
+    bookingType: 'daily',
+    expectedDurationMinutes: 4300, baseAmount: 1_200_000, overtimeMinutes: 0, overtimeAmount: 0, totalAmount: 1_200_000,
     numGuests: 1, createdBy: 'USR-0001',
     createdAt: '2026-07-28T09:00:00+07:00', updatedAt: '2026-08-02T11:30:00+07:00',
   },
@@ -175,15 +197,16 @@ export const cleaningTasks: CleaningTask[] = [
 
 import type { Expense } from '../types/index';
 
+// All amounts in VND. Range targets: 100,000 ₫ – 5,000,000 ₫ per expense.
 export const expenses: Expense[] = [
-  { expenseId: 'EXP-0001', category: 'Cleaning Supplies', amount: 145.50,  date: '2026-08-01', description: 'Monthly cleaning supplies restock',       vendor: 'Clean Pro Supplies', createdAt: '2026-08-01T00:00:00+07:00', updatedAt: '2026-08-01T00:00:00+07:00' },
-  { expenseId: 'EXP-0002', category: 'Electricity',      amount: 380.00,  date: '2026-08-01', description: 'July electricity bill',                    vendor: 'City Power Co.',    createdAt: '2026-08-01T00:00:00+07:00', updatedAt: '2026-08-01T00:00:00+07:00' },
-  { expenseId: 'EXP-0003', category: 'Water',            amount: 95.00,   date: '2026-08-01', description: 'July water bill',                           vendor: 'Municipal Water',  createdAt: '2026-08-01T00:00:00+07:00', updatedAt: '2026-08-01T00:00:00+07:00' },
-  { expenseId: 'EXP-0004', category: 'Internet',         amount: 89.99,   date: '2026-08-01', description: 'Monthly fiber broadband',                  vendor: 'FiberNet ISP',      createdAt: '2026-08-01T00:00:00+07:00', updatedAt: '2026-08-01T00:00:00+07:00' },
-  { expenseId: 'EXP-0005', category: 'Staff',            amount: 1200.00, date: '2026-08-05', description: 'Weekly staff wages',                      vendor: 'Payroll',           createdAt: '2026-08-05T00:00:00+07:00', updatedAt: '2026-08-05T00:00:00+07:00' },
-  { expenseId: 'EXP-0006', category: 'Repairs',          amount: 220.00,  date: '2026-08-06', description: 'AC unit repair — Room 203',              vendor: 'CoolTech HVAC',     createdAt: '2026-08-06T00:00:00+07:00', updatedAt: '2026-08-06T00:00:00+07:00' },
-  { expenseId: 'EXP-0007', category: 'Cleaning Supplies', amount: 62.30,  date: '2026-08-06', description: 'Additional toiletries order',              vendor: 'Clean Pro Supplies', createdAt: '2026-08-06T00:00:00+07:00', updatedAt: '2026-08-06T00:00:00+07:00' },
-  { expenseId: 'EXP-0008', category: 'Other',            amount: 55.00,   date: '2026-08-07', description: 'Welcome fruit baskets',                    vendor: 'Local Market',      createdAt: '2026-08-07T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
+  { expenseId: 'EXP-0001', category: 'Cleaning Supplies', amount: 1_455_000, date: '2026-08-01', description: 'Monthly cleaning supplies restock',       vendor: 'Clean Pro Supplies', createdAt: '2026-08-01T00:00:00+07:00', updatedAt: '2026-08-01T00:00:00+07:00' },
+  { expenseId: 'EXP-0002', category: 'Electricity',      amount: 3_800_000, date: '2026-08-01', description: 'July electricity bill',                    vendor: 'City Power Co.',    createdAt: '2026-08-01T00:00:00+07:00', updatedAt: '2026-08-01T00:00:00+07:00' },
+  { expenseId: 'EXP-0003', category: 'Water',            amount:   950_000, date: '2026-08-01', description: 'July water bill',                          vendor: 'Municipal Water',   createdAt: '2026-08-01T00:00:00+07:00', updatedAt: '2026-08-01T00:00:00+07:00' },
+  { expenseId: 'EXP-0004', category: 'Internet',         amount:   450_000, date: '2026-08-01', description: 'Monthly fiber broadband',                  vendor: 'FiberNet ISP',      createdAt: '2026-08-01T00:00:00+07:00', updatedAt: '2026-08-01T00:00:00+07:00' },
+  { expenseId: 'EXP-0005', category: 'Staff',            amount: 4_800_000, date: '2026-08-05', description: 'Weekly staff wages',                       vendor: 'Payroll',           createdAt: '2026-08-05T00:00:00+07:00', updatedAt: '2026-08-05T00:00:00+07:00' },
+  { expenseId: 'EXP-0006', category: 'Repairs',          amount: 2_200_000, date: '2026-08-06', description: 'AC unit repair — Yên 4',                  vendor: 'CoolTech HVAC',     createdAt: '2026-08-06T00:00:00+07:00', updatedAt: '2026-08-06T00:00:00+07:00' },
+  { expenseId: 'EXP-0007', category: 'Cleaning Supplies', amount:   623_000, date: '2026-08-06', description: 'Additional toiletries order',              vendor: 'Clean Pro Supplies', createdAt: '2026-08-06T00:00:00+07:00', updatedAt: '2026-08-06T00:00:00+07:00' },
+  { expenseId: 'EXP-0008', category: 'Other',            amount:   350_000, date: '2026-08-07', description: 'Welcome fruit baskets',                    vendor: 'Local Market',      createdAt: '2026-08-07T00:00:00+07:00', updatedAt: '2026-08-07T00:00:00+07:00' },
 ];
 
 // ─── Notifications ─────────────────────────────────────────────────────────────
@@ -191,13 +214,13 @@ export const expenses: Expense[] = [
 import type { Notification } from '../types/index';
 
 export const notifications: Notification[] = [
-  { notificationId: 'NOT-0001', type: 'check_in',    title: 'Check-in Today',       message: 'Tomás Eriksson arriving for Room 102 at 2:00 PM',     time: '2026-08-07T12:00:00+07:00', read: false, priority: 'high',   relatedBookingId: 'BOOK-0006', relatedRoomId: 'ROOM-0002' },
-  { notificationId: 'NOT-0002', type: 'check_out',   title: 'Check-out Today',      message: 'James Whitfield (Room 302) checks out today by 11 AM', time: '2026-08-07T08:00:00+07:00', read: false, priority: 'high',   relatedBookingId: 'BOOK-0004', relatedRoomId: 'ROOM-0010' },
-  { notificationId: 'NOT-0003', type: 'cleaning',     title: 'Urgent Cleaning',       message: 'Room 103 needs cleaning — next guest arrives Aug 9',   time: '2026-08-07T07:30:00+07:00', read: false, priority: 'high',   relatedRoomId: 'ROOM-0003' },
-  { notificationId: 'NOT-0004', type: 'payment',     title: 'Payment Pending',       message: 'Nadia Okonkwo has an outstanding balance of $95',     time: '2026-08-07T06:00:00+07:00', read: false, priority: 'medium', relatedBookingId: 'BOOK-0001' },
-  { notificationId: 'NOT-0005', type: 'cleaning',     title: 'Room 303 In Progress', message: 'Maria Santos started cleaning Room 303',              time: '2026-08-07T09:30:00+07:00', read: true,  priority: 'low',    relatedRoomId: 'ROOM-0011' },
-  { notificationId: 'NOT-0006', type: 'check_in',    title: 'Upcoming Check-in',    message: 'Priya Sharma arriving Aug 9 for Room 204',           time: '2026-08-06T10:00:00+07:00', read: true,  priority: 'low',    relatedBookingId: 'BOOK-0007', relatedRoomId: 'ROOM-0008' },
-  { notificationId: 'NOT-0007', type: 'maintenance',  title: 'Maintenance Alert',    message: 'Room 203 AC still out of service',                  time: '2026-08-05T08:00:00+07:00', read: true,  priority: 'medium', relatedRoomId: 'ROOM-0007' },
+  { notificationId: 'NOT-0001', type: 'check_in',    title: 'Check-in Today',       message: 'Tomás Eriksson arriving for Hiên 2 at 2:00 PM',          time: '2026-08-07T12:00:00+07:00', read: false, priority: 'high',   relatedBookingId: 'BOOK-0006', relatedRoomId: 'ROOM-0002' },
+  { notificationId: 'NOT-0002', type: 'check_out',   title: 'Check-out Today',      message: 'James Whitfield (Yên 7) checks out today by 11 AM',       time: '2026-08-07T08:00:00+07:00', read: false, priority: 'high',   relatedBookingId: 'BOOK-0004', relatedRoomId: 'ROOM-0010' },
+  { notificationId: 'NOT-0003', type: 'cleaning',     title: 'Urgent Cleaning',       message: 'Hiên 3 needs cleaning — next guest arrives Aug 9',         time: '2026-08-07T07:30:00+07:00', read: false, priority: 'high',   relatedRoomId: 'ROOM-0003' },
+  { notificationId: 'NOT-0004', type: 'payment',     title: 'Payment Pending',       message: 'Nadia Okonkwo has an outstanding balance of 95.000 ₫',    time: '2026-08-07T06:00:00+07:00', read: false, priority: 'medium', relatedBookingId: 'BOOK-0001' },
+  { notificationId: 'NOT-0005', type: 'cleaning',     title: 'Yên 8 In Progress',    message: 'Maria Santos started cleaning Yên 8',                      time: '2026-08-07T09:30:00+07:00', read: true,  priority: 'low',    relatedRoomId: 'ROOM-0011' },
+  { notificationId: 'NOT-0006', type: 'check_in',    title: 'Upcoming Check-in',    message: 'Priya Sharma arriving Aug 9 for Yên 5',                     time: '2026-08-06T10:00:00+07:00', read: true,  priority: 'low',    relatedBookingId: 'BOOK-0007', relatedRoomId: 'ROOM-0008' },
+  { notificationId: 'NOT-0007', type: 'maintenance',  title: 'Maintenance Alert',    message: 'Yên 4 AC still out of service',                            time: '2026-08-05T08:00:00+07:00', read: true,  priority: 'medium', relatedRoomId: 'ROOM-0007' },
 ];
 
 // ─── Locations ─────────────────────────────────────────────────────────────────
@@ -205,30 +228,33 @@ export const notifications: Notification[] = [
 import type { Location } from '../types/index';
 
 export const locations: Location[] = [
-  { locationId: 'LOC-0001', name: 'Downtown', description: 'Main downtown location', publicAddress: '123 Main St, District 1', phone: '+84 28 1234 5678', active: true, createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-01-01T00:00:00+07:00' },
+  { locationId: 'LOC-0001', name: 'Bình Lợi Trung', description: 'Cụm homestay Bình Lợi Trung', publicAddress: 'Bình Lợi Trung, Bình Chánh, Hồ Chí Minh', phone: '+84 28 0000 0001', active: true, createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-01-01T00:00:00+07:00' },
 ];
 
 // ─── Rate Plans ─────────────────────────────────────────────────────────────────
 
 import type { RatePlan } from '../types/index';
 
+// 4 standard rate plans aligned with scripts/seedData.ts and hourlyData.ts.
+// Pricing is stored per-room in the RatePlanPrices sheet (see
+// src/lib/google-sheets/client.ts and scripts/seedData.ts).
 export const ratePlans: RatePlan[] = [
-  { ratePlanId: 'RP-0001', name: 'Quick Stay',  type: 'hourly',   baseMinutes: 120,  baseAmount: 25,  extraMinutePrice: 0.20, overtimeMinutePrice: 0.20, active: true },
-  { ratePlanId: 'RP-0002', name: 'Short Stay',  type: 'hourly',   baseMinutes: 180,  baseAmount: 35,  extraMinutePrice: 0.17, overtimeMinutePrice: 0.17, active: true },
-  { ratePlanId: 'RP-0003', name: 'Half Day',     type: 'hourly',   baseMinutes: 360,  baseAmount: 55,  extraMinutePrice: 0.15, overtimeMinutePrice: 0.15, active: true },
-  { ratePlanId: 'RP-0004', name: 'Overnight',   type: 'overnight', baseMinutes: 720,  baseAmount: 55,  extraMinutePrice: 0.15, overtimeMinutePrice: 0.15, overnightStart: '22:00', overnightEnd: '10:00', active: true },
-  { ratePlanId: 'RP-0005', name: 'Full Day',    type: 'daily',     baseMinutes: 1440, baseAmount: 65,  extraMinutePrice: 0.10, overtimeMinutePrice: 0.10, active: true },
+  { ratePlanId: 'RP-0001', name: 'Combo 4H',   type: 'hourly',    baseMinutes: 240,  baseAmount: 250_000, extraMinutePrice: 0, overtimeMinutePrice: 0, active: true },
+  { ratePlanId: 'RP-0002', name: 'Combo 6H',   type: 'hourly',    baseMinutes: 360,  baseAmount: 350_000, extraMinutePrice: 0, overtimeMinutePrice: 0, active: true },
+  { ratePlanId: 'RP-0003', name: 'Overnight',  type: 'overnight', baseMinutes: 780,  baseAmount: 400_000, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: '21:00', overnightEnd: '10:00', active: true },
+  { ratePlanId: 'RP-0004', name: 'Full Day',   type: 'daily',     baseMinutes: 1320, baseAmount: 550_000, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: '14:00', overnightEnd: '12:00', active: true },
 ];
 
 // ─── Chart / report data ────────────────────────────────────────────────────────
 
+// All values in VND. Range targets: monthly revenue 15,000,000 ₫ – 50,000,000 ₫.
 export const revenueData = [
-  { month: 'Mar', revenue: 7840,  expenses: 2100 },
-  { month: 'Apr', revenue: 8620,  expenses: 2300 },
-  { month: 'May', revenue: 9100,  expenses: 2150 },
-  { month: 'Jun', revenue: 11200, expenses: 2400 },
-  { month: 'Jul', revenue: 12450, expenses: 2680 },
-  { month: 'Aug', revenue: 8340,  expenses: 2248 },
+  { month: 'Mar', revenue: 17_840_000, expenses: 8_100_000 },
+  { month: 'Apr', revenue: 19_620_000, expenses: 8_300_000 },
+  { month: 'May', revenue: 22_100_000, expenses: 8_650_000 },
+  { month: 'Jun', revenue: 28_400_000, expenses: 9_240_000 },
+  { month: 'Jul', revenue: 32_450_000, expenses: 9_680_000 },
+  { month: 'Aug', revenue: 24_340_000, expenses: 9_248_000 },
 ];
 
 export const occupancyData = [
@@ -241,12 +267,13 @@ export const occupancyData = [
   { day: 'Sun', rate: 58 },
 ];
 
+// Expense breakdown in VND.
 export const expenseByCategory = [
-  { name: 'Staff',      value: 1200   },
-  { name: 'Electricity', value: 380    },
-  { name: 'Cleaning',   value: 207.80 },
-  { name: 'Repairs',    value: 220    },
-  { name: 'Water',      value: 95     },
-  { name: 'Internet',   value: 89.99  },
-  { name: 'Other',      value: 55     },
+  { name: 'Staff',       value: 4_800_000 },
+  { name: 'Electricity', value: 3_800_000 },
+  { name: 'Cleaning',    value: 2_078_000 },
+  { name: 'Repairs',     value: 2_200_000 },
+  { name: 'Water',       value:   950_000 },
+  { name: 'Internet',    value:   450_000 },
+  { name: 'Other',       value:   350_000 },
 ];

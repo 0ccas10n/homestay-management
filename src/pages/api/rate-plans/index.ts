@@ -13,6 +13,7 @@ export async function GET(request: Request) {
 
   try {
     const plans = await readAll(SPREADSHEET_ID);
+    console.log('[API /api/rate-plans] count:', plans.length, plans);
     return jsonSuccess(plans);
   } catch (err) {
     return jsonServerError(err, 'GET /api/rate-plans');

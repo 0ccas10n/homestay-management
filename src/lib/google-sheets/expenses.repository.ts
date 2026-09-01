@@ -67,12 +67,11 @@ export async function create(
     updatedAt,
   };
 
-  const existing = await sheets.getValues(spreadsheetId, `${SHEETS.Expenses}!A:A`);
-  const nextRow = existing.length + 2;
-
+  // Pass a column-shaped range (Expenses!A:A) so Google Sheets `values.append`
+  // does a pure append at the table's trailing edge. (See client.ts.)
   await sheets.appendRow(
     spreadsheetId,
-    `${SHEETS.Expenses}!A${nextRow}`,
+    `${SHEETS.Expenses}!A:A`,
     mapExpenseToRow(expense),
   );
 

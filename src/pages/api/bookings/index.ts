@@ -59,45 +59,68 @@ export async function POST(request: Request) {
   const parsed = await parseBody(request, createBookingSchema);
   if (parsed instanceof Response) return parsed;
 
-  const { customer, roomId, checkInAt, expectedCheckOutAt, status, source, ratePlanId, totalAmount, numGuests, note } = parsed;
+  console.log('[API bookings POST] guestName received:', parsed.guestName, 'customer:', parsed.customer);
+
+  const { guestName, customer, roomId, checkInAt, expectedCheckOutAt, status, ratePlanId, bookingType, totalAmount, numGuests, note } = parsed;
+  console.log('[API bookings POST] bookingType:', bookingType, 'ratePlanId:', ratePlanId, 'roomId:', roomId, 'totalAmount:', totalAmount, 'numGuests:', numGuests);
 
   try {
-    // 1. Validate room exists
+    // 1. Validate room exists & capacity
     const room = await readRoom(SPREADSHEET_ID, roomId);
     if (!room) return jsonError(400, 'VALIDATION_ERROR', `Room ${roomId} does not exist`);
 
-    // 2. Rate plan: only resolve from the sheet for predefined plans.
-    //    Custom hourly bookings skip the rate-plan lookup entirely.
-    if (ratePlanId !== CUSTOM_RATE_PLAN_ID) {
-      // getRatePlan returns the first plan on miss — this guards against typos.
-      // Throwing here would surface a 500, so we only call it for the side effect
-      // of validating that the id exists in the sheet (via active()).
-      const { active } = await import('@/lib/google-sheets/ratePlans.repository');
-      const matched = await active(SPREADSHEET_ID);
-      if (!matched.some(p => p.ratePlanId === ratePlanId)) {
+    if (numGuests && room.capacity && numGuests > room.capacity) {
+      return jsonError(
+        400,
+        'VALIDATION_ERROR',
+        `Phòng ${room.name} chỉ chứa tối đa ${room.capacity} khách (bạn đang chọn ${numGuests} khách)`,
+      );
+    }
+
+
+    // 2. Rate plan: only validate against the sheet for daily bookings.
+    //    Hourly bookings store a manual totalAmount and may use the legacy
+    //    `CUSTOM_RATE_PLAN_ID` sentinel — neither needs a sheet lookup.
+    const isHourlyBooking = bookingType === 'hourly';
+    if (!isHourlyBooking && ratePlanId && ratePlanId !== CUSTOM_RATE_PLAN_ID) {
+      const { readAll, active } = await import('@/lib/google-sheets/ratePlans.repository');
+      const allPlans = await readAll(SPREADSHEET_ID);
+      const activePlans = await active(SPREADSHEET_ID);
+      const knownValidPlans = ['RP-0001', 'RP-0002', 'RP-0003', 'RP-0004'];
+      const exists =
+        activePlans.some(p => p.ratePlanId === ratePlanId) ||
+        allPlans.some(p => p.ratePlanId === ratePlanId) ||
+        knownValidPlans.includes(ratePlanId);
+
+      if (!exists) {
         return jsonError(400, 'VALIDATION_ERROR', `Rate plan ${ratePlanId} does not exist`);
       }
     }
 
     // 3. Create or find customer
+    // The guest's display name from the booking form must be stored on the
+    // Customer row so the (name, source) pair can be used to de-duplicate
+    // future bookings. We always forward `guestName` (not `customer.name`)
+    // because the form's "Guest Name" field is the single source of truth.
     const { findOrCreate } = await import('@/lib/google-sheets/customers.repository');
     const { customer: savedCustomer } = await findOrCreate(SPREADSHEET_ID, {
-      name:  customer.name,
-      phone: customer.phone,
-      email: customer.email,
-      note:  customer.note,
+      name:   guestName,
+      source: customer.source,
+      email:  customer.email,
+      note:   customer.note,
     });
 
     // 4. Create booking
     const booking = await create(SPREADSHEET_ID, {
       roomId,
+      guestName,
       customerId: savedCustomer.customerId,
       checkInAt,
       expectedCheckOutAt,
       status:      status ?? 'confirmed',
-      source:      source ?? 'phone',
       ratePlanId,
-      totalAmount: ratePlanId === CUSTOM_RATE_PLAN_ID ? totalAmount : undefined,
+      bookingType: bookingType ?? 'daily',
+      totalAmount: bookingType === 'hourly' ? totalAmount : undefined,
       numGuests,
       note,
       createdBy: session.userId,
@@ -110,6 +133,9 @@ export async function POST(request: Request) {
     }
     if (err?.message?.includes('checkInAt must be before')) {
       return jsonError(400, 'VALIDATION_ERROR', err.message);
+    }
+    if (err?.message?.includes('No price configured')) {
+      return jsonError(400, 'PRICE_NOT_CONFIGURED', err.message);
     }
     return jsonServerError(err, 'POST /api/bookings');
   }
@@ -133,17 +159,19 @@ function safeBooking(b: Booking): object {
     bookingId:               b.bookingId,
     roomId:                  b.roomId,
     customerId:              b.customerId,
+    guestName:               b.guestName,
     checkInAt:               b.checkInAt,
     expectedCheckOutAt:       b.expectedCheckOutAt,
     actualCheckOutAt:        b.actualCheckOutAt,
     status:                  b.status,
-    source:                  b.source,
     ratePlanId:              b.ratePlanId,
+    bookingType:             b.bookingType,
     expectedDurationMinutes: b.expectedDurationMinutes,
     baseAmount:              b.baseAmount,
     overtimeMinutes:         b.overtimeMinutes,
     overtimeAmount:          b.overtimeAmount,
     totalAmount:             b.totalAmount,
+    unitPriceAtBooking:      b.unitPriceAtBooking,
     numGuests:               b.numGuests,
     note:                    b.note,
   };

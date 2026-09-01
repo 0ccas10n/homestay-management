@@ -49,12 +49,11 @@ export async function create(
     notificationId,
   };
 
-  const existing = await sheets.getValues(spreadsheetId, `${SHEETS.Notifications}!A:A`);
-  const nextRow = existing.length + 2;
-
+  // Pass a column-shaped range (Notifications!A:A) so Google Sheets `values.append`
+  // does a pure append at the table's trailing edge. (See client.ts.)
   await sheets.appendRow(
     spreadsheetId,
-    `${SHEETS.Notifications}!A${nextRow}`,
+    `${SHEETS.Notifications}!A:A`,
     [
       notificationId, input.type, input.title, input.message,
       input.time, input.read ? 'TRUE' : 'FALSE', input.priority,
