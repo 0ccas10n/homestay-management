@@ -164,6 +164,16 @@ export const bookingsApi = {
     api.post<import('@/types/index').Booking>('/api/bookings', data),
   update: (id: string, data: Parameters<typeof api.patch>[1]) =>
     api.patch<import('@/types/index').Booking>(`/api/bookings/${id}`, data),
+  /**
+   * Check-out — sends `actualCheckOutAt`, which routes the PATCH handler through
+   * the checkout path (computes overtime) instead of the general update path.
+   * Response shape differs from `update()`, hence the separate method.
+   */
+  checkout: (id: string, actualCheckOutAt: string) =>
+    api.patch<{ booking: import('@/types/index').Booking; overtimeMinutes: number; overtimeAmount: number; message: string }>(
+      `/api/bookings/${id}`,
+      { actualCheckOutAt },
+    ),
   /** Lifecycle-only update — used for cancel, check-in, confirm, etc. */
   updateStatus: (id: string, status: import('@/types/index').BookingStatus) =>
     api.patch<{ booking: import('@/types/index').Booking; changed: boolean; message: string }>(

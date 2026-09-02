@@ -75,3 +75,17 @@ export function getBookingTotal(b: any): number {
   }
   return rate;
 }
+
+/**
+ * Turns a raw snake_case status/priority value into a human-readable label.
+ * Examples: "checked_in" → "Checked In", "no_show" → "No Show", "high" → "High".
+ * Already-formatted input (e.g. "Checked In") passes through unchanged.
+ */
+export function formatStatusLabel(status: string | undefined | null): string {
+  if (!status) return '';
+  return status
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}

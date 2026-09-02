@@ -21,6 +21,10 @@ interface UseBookingsReturn {
   refetch: () => Promise<void>;
   createBooking: (data: Parameters<typeof bookingsApi.create>[0]) => Promise<Booking>;
   updateBooking: (id: string, data: Parameters<typeof bookingsApi.update>[1]) => Promise<void>;
+  /** Generic lifecycle transition — check-in, confirm, no-show, cancel, etc. */
+  updateStatus: (id: string, status: Booking['status']) => Promise<void>;
+  /** Records actualCheckOutAt, computes overtime server-side, and marks the room for cleaning. */
+  checkOutBooking: (id: string, actualCheckOutAt?: string) => Promise<{ overtimeMinutes: number; overtimeAmount: number; message: string }>;
   cancelBooking: (id: string) => Promise<void>;
 }
 
@@ -53,6 +57,21 @@ export function useBookings(_options?: UseBookingsOptions): UseBookingsReturn {
     setBookings(prev => prev.map(b => b.bookingId === id ? updated : b));
   }, []);
 
+  const updateStatus = useCallback(async (id: string, status: Booking['status']) => {
+    const res = await bookingsApi.updateStatus(id, status);
+    setBookings(prev => prev.map(b =>
+      b.bookingId === id ? res.booking : b,
+    ));
+  }, []);
+
+  const checkOutBooking = useCallback(async (id: string, actualCheckOutAt?: string) => {
+    const res = await bookingsApi.checkout(id, actualCheckOutAt ?? new Date().toISOString());
+    setBookings(prev => prev.map(b =>
+      b.bookingId === id ? res.booking : b,
+    ));
+    return { overtimeMinutes: res.overtimeMinutes, overtimeAmount: res.overtimeAmount, message: res.message };
+  }, []);
+
   const cancelBooking = useCallback(async (id: string) => {
     const res = await bookingsApi.updateStatus(id, 'cancelled');
     setBookings(prev => prev.map(b =>
@@ -60,5 +79,5 @@ export function useBookings(_options?: UseBookingsOptions): UseBookingsReturn {
     ));
   }, []);
 
-  return { bookings, loading, error, refetch, createBooking, updateBooking, cancelBooking };
+  return { bookings, loading, error, refetch, createBooking, updateBooking, updateStatus, checkOutBooking, cancelBooking };
 }

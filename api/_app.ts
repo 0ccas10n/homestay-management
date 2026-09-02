@@ -77,7 +77,7 @@ const routeTable = [
   { pattern: /^\/api\/auth\/logout\/?$/, exportName: 'authLogout' },
   { pattern: /^\/api\/auth\/me\/?$/, exportName: 'authMe' },
   { pattern: /^\/api\/bookings\/?$/, exportName: 'bookingsIndex' },
-  { pattern: /^\/api\/bookings\/status\/?$/, exportName: 'bookingsStatus' },
+  { pattern: /^\/api\/bookings\/([^\/]+)\/status\/?$/, exportName: 'bookingsStatus' },
   { pattern: /^\/api\/bookings\/([^\/]+)\/?$/, exportName: 'bookingsId' },
   { pattern: /^\/api\/cleaning\/?$/, exportName: 'cleaningIndex' },
   { pattern: /^\/api\/cleaning\/([^\/]+)\/?$/, exportName: 'cleaningId' },

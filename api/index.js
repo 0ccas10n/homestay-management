@@ -2536,7 +2536,7 @@ function safeBooking(b) {
   };
 }
 
-// src/pages/api/bookings/status.ts
+// src/pages/api/bookings/[id]/status.ts
 var status_exports = {};
 __export(status_exports, {
   PATCH: () => PATCH
@@ -2612,7 +2612,7 @@ async function transition(spreadsheetId, cleaningId, newStatus) {
   return updated;
 }
 
-// src/pages/api/bookings/status.ts
+// src/pages/api/bookings/[id]/status.ts
 var SPREADSHEET_ID7 = process.env.SPREADSHEET_ID;
 async function getBookingId(request) {
   const segments = new URL(request.url).pathname.split("/");
@@ -2659,7 +2659,7 @@ async function PATCH(request) {
   }
 }
 
-// src/pages/api/bookings/[id].ts
+// src/pages/api/bookings/[id]/index.ts
 var id_exports = {};
 __export(id_exports, {
   DELETE: () => DELETE,
@@ -3240,7 +3240,7 @@ var routeTable = [
   { pattern: /^\/api\/auth\/logout\/?$/, exportName: "authLogout" },
   { pattern: /^\/api\/auth\/me\/?$/, exportName: "authMe" },
   { pattern: /^\/api\/bookings\/?$/, exportName: "bookingsIndex" },
-  { pattern: /^\/api\/bookings\/status\/?$/, exportName: "bookingsStatus" },
+  { pattern: /^\/api\/bookings\/([^\/]+)\/status\/?$/, exportName: "bookingsStatus" },
   { pattern: /^\/api\/bookings\/([^\/]+)\/?$/, exportName: "bookingsId" },
   { pattern: /^\/api\/cleaning\/?$/, exportName: "cleaningIndex" },
   { pattern: /^\/api\/cleaning\/([^\/]+)\/?$/, exportName: "cleaningId" },

@@ -23,7 +23,7 @@ import type { Booking, Room } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import { assignLanes, bookingBlock } from '@/utils/timelineGeometry';
-import { formatVnd, getBookingTotal } from '@/utils/format';
+import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 import { bookingsApi } from '@/services/api';
 
 interface TimelineProps { darkMode: boolean; }
@@ -476,7 +476,7 @@ export default function Timeline() {
                   border: `1.5px ${v.dashed ? 'dashed' : 'solid'} ${v.border}`,
                   flexShrink: 0,
                 }} />
-                {status.replace('_', ' ')}
+                {formatStatusLabel(status)}
               </span>
             );
           })}
@@ -705,7 +705,7 @@ function RoomRow({
     ? 'Cần dọn'
     : effectiveRoomStatus === 'maintenance'
     ? 'Bảo trì'
-    : effectiveRoomStatus.replace('_', ' ');
+    : formatStatusLabel(effectiveRoomStatus);
 
   const activeOffset = ROW_PAD;
 
@@ -870,7 +870,7 @@ function BookingBlock({
   return (
     <div
       onClick={onClick}
-      title={`${guestName} · ${b.status}${isStayWindow ? ' (Đang trong giờ lưu trú)' : ''} · ${b.checkInAt} → ${b.expectedCheckOutAt}`}
+      title={`${guestName} · ${formatStatusLabel(b.status)}${isStayWindow ? ' (Đang trong giờ lưu trú)' : ''} · ${b.checkInAt} → ${b.expectedCheckOutAt}`}
       className={`${visual.striped ? 'timeline-stripe' : ''} ${visual.solid ? 'timeline-block-solid' : ''}`}
       style={{
         position: 'absolute',

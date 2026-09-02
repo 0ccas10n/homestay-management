@@ -11,7 +11,7 @@ import { useRooms } from '@/hooks/useRooms';
 import type { Booking } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
-import { formatVnd, getBookingTotal } from '@/utils/format';
+import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 import { bookingBlock } from '@/utils/timelineGeometry';
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -27,7 +27,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export default function CalendarView() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
   const { bookings, loading, refetch, cancelBooking } = useBookings();
-  const { rooms } = useRooms();
+  const { rooms, refetch: refetchRooms } = useRooms();
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
@@ -36,6 +36,7 @@ export default function CalendarView() {
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => { refetch(); }, [refetch]);
+  useEffect(() => { refetchRooms(); }, [refetchRooms]);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -144,7 +145,7 @@ export default function CalendarView() {
         {Object.entries(bookingColors).map(([k, v]) => (
           <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: textMuted }}>
             <div style={{ width: 10, height: 10, borderRadius: 3, background: v }} />
-            {k}
+            {formatStatusLabel(k)}
           </div>
         ))}
       </div>
@@ -163,14 +164,14 @@ export default function CalendarView() {
 
         {Array.from({ length: cells.length / 7 }, (_, wi) => {
           const week = cells.slice(wi * 7, wi * 7 + 7);
-          const firstDayNum = week.find(d => d !== null);
-          // Date string for the leftmost rendered day of this ISO week (Sunday).
-          const weekStartStr = firstDayNum
-            ? `${year}-${pad(month + 1)}-${pad(firstDayNum)}`
-            : null;
-          const weekEndStr = firstDayNum
-            ? `${year}-${pad(month + 1)}-${pad(Math.min(firstDayNum + 6, daysInMonth))}`
-            : null;
+          // Sunday of this row, computed from the grid offset (not from a day-of-month
+          // literal) so partial weeks that start in the previous/next month still
+          // align each booking block with its actual weekday column.
+          const rowStartDate = new Date(year, month, 1 - firstDay + wi * 7);
+          const rowEndDate   = new Date(year, month, 1 - firstDay + wi * 7 + 7);
+          const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+          const weekStartStr = fmt(rowStartDate);
+          const weekEndStr   = fmt(rowEndDate);
 
           // Bookings that intersect this week — laid out as minute-precise blocks.
           const weekBlocks = (weekStartStr && weekEndStr)
@@ -239,11 +240,14 @@ export default function CalendarView() {
                 const color = bookingColors[b.status] ?? '#94A3B8';
                 const lane = laneCount.blockLanes.get(b.bookingId) ?? 0;
                 const top = dayNumReserve + lane * (BLOCK_H + BLOCK_GAP);
+                // Past its expected checkout but staff never checked the guest out/cancelled — flag it.
+                const isOverdue = (b.status === 'confirmed' || b.status === 'checked_in')
+                  && new Date(b.expectedCheckOutAt).getTime() < today.getTime();
                 return (
                   <div
                     key={b.bookingId}
                     onClick={() => setSelectedBooking(b)}
-                    title={`${b.status} · ${b.checkInAt} → ${b.expectedCheckOutAt}`}
+                    title={`${formatStatusLabel(b.status)}${isOverdue ? ' · OVERDUE (not checked out)' : ''} · ${b.checkInAt} → ${b.expectedCheckOutAt}`}
                     style={{
                       position: 'absolute',
                       left: `${geom.leftPct}%`,
@@ -253,7 +257,9 @@ export default function CalendarView() {
                       height: BLOCK_H,
                       background: `${color}18`,
                       color,
-                      borderLeft: `2px solid ${color}`,
+                      borderLeft: `2px solid ${isOverdue ? '#DC2626' : color}`,
+                      outline: isOverdue ? '1px dashed #DC2626' : 'none',
+                      outlineOffset: -1,
                       borderRadius: '0 4px 4px 0',
                       padding: '0 6px',
                       fontSize: 10, fontWeight: 600,
@@ -263,7 +269,7 @@ export default function CalendarView() {
                       zIndex: 2,
                     }}
                   >
-                    {b.customerId.slice(-4)} · R{b.roomId.slice(-3)} · {b.checkInAt.slice(11, 16)}
+                    {isOverdue && '⚠ '}{b.customerId.slice(-4)} · R{b.roomId.slice(-3)} · {b.checkInAt.slice(11, 16)}
                   </div>
                 );
               })}

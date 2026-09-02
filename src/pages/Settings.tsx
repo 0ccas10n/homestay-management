@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useRooms } from '@/hooks/useRooms';
+import { formatStatusLabel } from '@/utils/format';
 
 const TABS = ['Business Info', 'Rooms', 'Room Types', 'Staff', 'Pricing'];
 
@@ -147,7 +148,7 @@ export default function Settings() {
                           r.status === 'cleaning'  ? '#92400E' :
                           r.status === 'maintenance' ? '#92400E' : '#991B1B',
                       }}>
-                        {r.status}
+                        {formatStatusLabel(r.status)}
                       </span>
                     </td>
                   </tr>

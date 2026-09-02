@@ -13,13 +13,13 @@ import { useCustomers } from '@/hooks/useCustomers';
 import type { Booking } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
-import { formatVnd, getBookingTotal } from '@/utils/format';
+import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 
 const STATUSES = ['All', 'inquiry', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'];
 
 export default function Bookings() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
-  const { bookings, loading, refetch, cancelBooking } = useBookings({ autoFetch: false });
+  const { bookings, loading, refetch, updateStatus, checkOutBooking, cancelBooking } = useBookings({ autoFetch: false });
   const { rooms, refetch: refetchRooms } = useRooms();
   const { customers, refetch: refetchCustomers } = useCustomers();
   const [search, setSearch] = useState('');
@@ -75,6 +75,33 @@ export default function Bookings() {
     }
   };
 
+  const handleCheckIn = async (id: string) => {
+    try {
+      await updateStatus(id, 'checked_in');
+      showToast('Đã check-in khách');
+    } catch {
+      showToast('Check-in thất bại');
+    }
+  };
+
+  const handleCheckOut = async (id: string) => {
+    try {
+      const { overtimeAmount } = await checkOutBooking(id);
+      showToast(overtimeAmount > 0 ? `Đã check-out — phụ thu quá giờ ${formatVnd(overtimeAmount)}` : 'Đã check-out');
+    } catch {
+      showToast('Check-out thất bại');
+    }
+  };
+
+  const handleNoShow = async (id: string) => {
+    try {
+      await updateStatus(id, 'no_show');
+      showToast('Đã đánh dấu no-show');
+    } catch {
+      showToast('Cập nhật thất bại');
+    }
+  };
+
   const inputStyle = {
     width: '100%', padding: '8px 12px', borderRadius: 8,
     border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`, background: darkMode ? '#0F172A' : '#F8FAFC',
@@ -101,7 +128,7 @@ export default function Bookings() {
           style={{ ...inputStyle, maxWidth: 280 }}
         />
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...inputStyle, maxWidth: 160 }}>
-          {STATUSES.map(s => <option key={s}>{s}</option>)}
+          {STATUSES.map(s => <option key={s} value={s}>{s === 'All' ? 'All' : formatStatusLabel(s)}</option>)}
         </select>
         <div style={{ marginLeft: 'auto', fontSize: 13, color: textMuted }}>{filtered.length} booking{filtered.length !== 1 ? 's' : ''}</div>
       </div>
@@ -144,6 +171,15 @@ export default function Bookings() {
                   </td>
                   <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                     <button onClick={() => setSelected(b)} style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: textMuted, marginRight: 4 }}>Xem</button>
+                    {(b.status === 'inquiry' || b.status === 'confirmed') && (
+                      <button onClick={() => handleCheckIn(b.bookingId)} style={{ background: 'none', border: '1px solid #93C5FD', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#2563EB', marginRight: 4 }}>Check-in</button>
+                    )}
+                    {b.status === 'checked_in' && (
+                      <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: 'none', border: '1px solid #6EE7B7', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#10B981', marginRight: 4 }}>Check-out</button>
+                    )}
+                    {(b.status === 'inquiry' || b.status === 'confirmed') && (
+                      <button onClick={() => handleNoShow(b.bookingId)} style={{ background: 'none', border: '1px solid #FDE68A', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#B45309', marginRight: 4 }}>No-show</button>
+                    )}
                     {canCancel(b) && (
                       <button onClick={() => setConfirmCancel(b)} style={{ background: 'none', border: '1px solid #FCA5A5', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#EF4444' }}>Huỷ</button>
                     )}
@@ -188,19 +224,29 @@ export default function Bookings() {
                 <span style={{ fontWeight: 600 }}>Ghi chú: </span>{selected.note}
               </div>
             )}
-            {canCancel(selected) && (
-              <button
-                onClick={() => { setConfirmCancel(selected); }}
-                style={{
-                  marginTop: 4,
-                  background: '#FEE2E2', color: '#991B1B',
-                  border: '1px solid #FCA5A5', borderRadius: 8,
-                  padding: '10px 14px', fontWeight: 600, fontSize: 13,
-                  cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
-                }}>
-                Huỷ Booking
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(selected.status === 'inquiry' || selected.status === 'confirmed') && (
+                <button onClick={() => handleCheckIn(selected.bookingId)} style={{ background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #93C5FD', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Check-in</button>
+              )}
+              {selected.status === 'checked_in' && (
+                <button onClick={() => handleCheckOut(selected.bookingId)} style={{ background: '#D1FAE5', color: '#047857', border: '1px solid #6EE7B7', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Check-out</button>
+              )}
+              {(selected.status === 'inquiry' || selected.status === 'confirmed') && (
+                <button onClick={() => handleNoShow(selected.bookingId)} style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>No-show</button>
+              )}
+              {canCancel(selected) && (
+                <button
+                  onClick={() => { setConfirmCancel(selected); }}
+                  style={{
+                    background: '#FEE2E2', color: '#991B1B',
+                    border: '1px solid #FCA5A5', borderRadius: 8,
+                    padding: '10px 14px', fontWeight: 600, fontSize: 13,
+                    cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                  }}>
+                  Huỷ Booking
+                </button>
+              )}
+            </div>
           </div>
         )}
       </Modal>
