@@ -3,7 +3,9 @@
 // POST: create a new booking (findOrCreate for customer, compute amounts).
 
 import { query, create, byCustomer } from '@/lib/google-sheets/bookings.repository';
-import { readOne as readRoom } from '@/lib/google-sheets/rooms.repository';
+import { readOne as readRoom, readAll as readAllRooms } from '@/lib/google-sheets/rooms.repository';
+import { readAll as readAllPlans, active as activePlans } from '@/lib/google-sheets/ratePlans.repository';
+import { findOrCreate } from '@/lib/google-sheets/customers.repository';
 import { createBookingSchema, parseBody, CUSTOM_RATE_PLAN_ID } from '@/lib/api/validation';
 import type { Booking } from '@/types/index';
 import { requireAuth } from '@/lib/auth/middleware';
@@ -83,13 +85,12 @@ export async function POST(request: Request) {
     //    `CUSTOM_RATE_PLAN_ID` sentinel — neither needs a sheet lookup.
     const isHourlyBooking = bookingType === 'hourly';
     if (!isHourlyBooking && ratePlanId && ratePlanId !== CUSTOM_RATE_PLAN_ID) {
-      const { readAll, active } = await import('@/lib/google-sheets/ratePlans.repository');
-      const allPlans = await readAll(SPREADSHEET_ID);
-      const activePlans = await active(SPREADSHEET_ID);
+      const allPlansList = await readAllPlans(SPREADSHEET_ID);
+      const activePlansList = await activePlans(SPREADSHEET_ID);
       const knownValidPlans = ['RP-0001', 'RP-0002', 'RP-0003', 'RP-0004'];
       const exists =
-        activePlans.some(p => p.ratePlanId === ratePlanId) ||
-        allPlans.some(p => p.ratePlanId === ratePlanId) ||
+        activePlansList.some(p => p.ratePlanId === ratePlanId) ||
+        allPlansList.some(p => p.ratePlanId === ratePlanId) ||
         knownValidPlans.includes(ratePlanId);
 
       if (!exists) {
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
     // Customer row so the (name, source) pair can be used to de-duplicate
     // future bookings. We always forward `guestName` (not `customer.name`)
     // because the form's "Guest Name" field is the single source of truth.
-    const { findOrCreate } = await import('@/lib/google-sheets/customers.repository');
+
     const { customer: savedCustomer } = await findOrCreate(SPREADSHEET_ID, {
       name:   guestName,
       source: customer.source,
@@ -147,7 +148,6 @@ async function filterByLocation(
   bookings: Awaited<ReturnType<typeof query>>,
   locationId: string,
 ): Promise<Awaited<ReturnType<typeof query>>> {
-  const { readAll: readAllRooms } = await import('@/lib/google-sheets/rooms.repository');
   const rooms = await readAllRooms(SPREADSHEET_ID);
   const roomIds = new Set(rooms.filter(r => r.locationId === locationId).map(r => r.roomId));
   return bookings.filter(b => roomIds.has(b.roomId));

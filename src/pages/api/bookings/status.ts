@@ -13,7 +13,7 @@
 
 import { readOne, update } from '@/lib/google-sheets/bookings.repository';
 import { readOne as readRoom, update as updateRoom } from '@/lib/google-sheets/rooms.repository';
-import { transition } from '@/lib/google-sheets/cleaning.repository';
+import { transition, query as queryCleaning } from '@/lib/google-sheets/cleaning.repository';
 import { updateBookingStatusSchema, parseBody } from '@/lib/api/validation';
 import { requireAuth } from '@/lib/auth/middleware';
 import { jsonSuccess, jsonError, jsonServerError } from '@/lib/api/response';
@@ -63,9 +63,8 @@ export async function PATCH(request: Request) {
         await updateRoom(SPREADSHEET_ID, updated.roomId, { status: 'available' });
       }
 
-      const { query: queryCleaning } = await import('@/lib/google-sheets/cleaning.repository');
       const tasks = await queryCleaning(SPREADSHEET_ID, {
-        bookingId,
+        bookingId: updated.bookingId,
         status: 'pending',
       });
       for (const task of tasks) {

@@ -6,7 +6,7 @@
 import { readOne, update, checkout } from '@/lib/google-sheets/bookings.repository';
 import { readOne as readCustomer } from '@/lib/google-sheets/customers.repository';
 import { update as updateRoom } from '@/lib/google-sheets/rooms.repository';
-import { transition } from '@/lib/google-sheets/cleaning.repository';
+import { transition, query as queryCleaning } from '@/lib/google-sheets/cleaning.repository';
 import { updateBookingSchema, parseBody } from '@/lib/api/validation';
 import { requireAuth } from '@/lib/auth/middleware';
 import {
@@ -91,7 +91,6 @@ export async function PATCH(request: Request) {
       await updateRoom(SPREADSHEET_ID, booking.roomId, { status: 'needs_cleaning' });
 
       // Auto-complete the linked cleaning task
-      const { query: queryCleaning } = await import('@/lib/google-sheets/cleaning.repository');
       const tasks = await queryCleaning(SPREADSHEET_ID, { bookingId, status: 'pending' });
       for (const task of tasks) {
         await transition(SPREADSHEET_ID, task.cleaningId, 'completed');
