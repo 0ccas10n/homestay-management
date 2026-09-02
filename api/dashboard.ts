@@ -1,4 +1,4 @@
-// ─── Dashboard API for Vercel ────────────────────────────────────────────────────
+// ─── Dashboard API for Vercel ───────────────────────────────────────────────────
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Sample data for fallback
@@ -22,6 +22,65 @@ const SAMPLE_CLEANING = [
   { cleaningId: 'CLN-0004', roomId: 'ROOM-0009', status: 'pending', priority: 'medium' },
 ];
 
+async function getDashboardData(spreadsheetId: string): Promise<{ bookings: any[]; cleaning: any[] }> {
+  if (!spreadsheetId) {
+    return { bookings: SAMPLE_BOOKINGS, cleaning: SAMPLE_CLEANING };
+  }
+
+  try {
+    const { google } = await import('googleapis');
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // Fetch bookings
+    const bookingsResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Bookings!A2:R',
+    });
+    
+    const bookingRows = bookingsResponse.data.values as string[][] || [];
+    const bookings = bookingRows
+      .filter(row => row && row.length > 0 && row[0]?.trim())
+      .map(row => ({
+        bookingId: row[0] || '',
+        roomId: row[1] || '',
+        guestName: row[17] || '',
+        checkInAt: row[3] || '',
+        expectedCheckOutAt: row[4] || '',
+        status: (row[6] || 'inquiry') as string,
+      }));
+
+    // Fetch cleaning tasks
+    const cleaningResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Cleaning!A2:L',
+    });
+    
+    const cleaningRows = cleaningResponse.data.values as string[][] || [];
+    const cleaning = cleaningRows
+      .filter(row => row && row.length > 0 && row[0]?.trim())
+      .map(row => ({
+        cleaningId: row[0] || '',
+        roomId: row[1] || '',
+        status: (row[4] || 'pending') as string,
+        priority: (row[5] || 'medium') as string,
+      }));
+
+    return { bookings, cleaning };
+  } catch (err) {
+    console.error('Error fetching dashboard data:', err);
+    return { bookings: SAMPLE_BOOKINGS, cleaning: SAMPLE_CLEANING };
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -31,12 +90,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(204).send('');
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-  const todayStart = `${today}T00:00:00+07:00`;
-  const todayEnd = `${today}T23:59:59+07:00`;
+  const spreadsheetId = process.env.SPREADSHEET_ID || '';
+  const { bookings, cleaning } = await getDashboardData(spreadsheetId);
 
-  const bookings = SAMPLE_BOOKINGS;
-  const cleaning = SAMPLE_CLEANING;
+  const today = new Date().toISOString().slice(0, 10);
 
   const todayCheckIns = bookings.filter(b => {
     const checkIn = b.checkInAt.slice(0, 10);

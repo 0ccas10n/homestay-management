@@ -33,6 +33,57 @@ function generateRatePlanPrices() {
 
 const SAMPLE_RATES = generateRatePlanPrices();
 
+function parseBool(value: any): boolean {
+  if (value === false || value === 0 || value === '0') return false;
+  if (typeof value === 'string') {
+    const s = value.trim().toUpperCase();
+    if (s === 'FALSE' || s === '0' || s === 'NO') return false;
+  }
+  return true;
+}
+
+async function getRatePlanPrices(spreadsheetId: string): Promise<any[]> {
+  if (!spreadsheetId) {
+    return SAMPLE_RATES;
+  }
+
+  try {
+    const { google } = await import('googleapis');
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'RatePlanPrices!A2:G',
+    });
+
+    const rows = response.data.values as string[][] || [];
+    
+    return rows
+      .filter(row => row && row.length > 0 && row[0]?.trim())
+      .map(row => ({
+        ratePlanPriceId: row[0] || '',
+        ratePlanId: row[1] || '',
+        roomId: row[2] || '',
+        priceVnd: row[3] ? parseFloat(row[3]) : 0,
+        active: parseBool(row[4]),
+        createdAt: row[5] || '',
+        updatedAt: row[6] || '',
+      }));
+  } catch (err) {
+    console.error('Error fetching rate plan prices:', err);
+    return SAMPLE_RATES;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -42,7 +93,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(204).send('');
   }
 
-  let rates = SAMPLE_RATES;
+  const spreadsheetId = process.env.SPREADSHEET_ID || '';
+  let rates = await getRatePlanPrices(spreadsheetId);
   
   // Filter by ratePlanId and roomId if provided
   if (req.query.ratePlanId) {

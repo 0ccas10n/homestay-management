@@ -18,6 +18,46 @@ function windowsOverlap(start1: string, end1: string, start2: string, end2: stri
   return new Date(start1) < new Date(end2) && new Date(end1) > new Date(start2);
 }
 
+async function getBookings(spreadsheetId: string): Promise<any[]> {
+  if (!spreadsheetId) {
+    return SAMPLE_BOOKINGS;
+  }
+
+  try {
+    const { google } = await import('googleapis');
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Bookings!A2:G',
+    });
+
+    const rows = response.data.values as string[][] || [];
+    
+    return rows
+      .filter(row => row && row.length > 0 && row[0]?.trim())
+      .map(row => ({
+        bookingId: row[0] || '',
+        roomId: row[1] || '',
+        checkInAt: row[3] || '',
+        expectedCheckOutAt: row[4] || '',
+        status: row[6] || 'inquiry',
+      }));
+  } catch (err) {
+    console.error('Error fetching bookings for availability:', err);
+    return SAMPLE_BOOKINGS;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -36,8 +76,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
+  const spreadsheetId = process.env.SPREADSHEET_ID || '';
+  const bookings = await getBookings(spreadsheetId);
+
   // Check for overlapping bookings
-  const hasOverlap = SAMPLE_BOOKINGS.some(b => 
+  const hasOverlap = bookings.some(b => 
     b.roomId === roomId &&
     b.status !== 'cancelled' &&
     b.status !== 'checked_out' &&

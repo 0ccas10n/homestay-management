@@ -11,6 +11,61 @@ const SAMPLE_NOTIFICATIONS = [
   { notificationId: 'NOT-0007', type: 'maintenance', title: 'Maintenance Alert', message: 'Yên 4 AC still out of service', time: '2026-08-05T08:00:00+07:00', read: true, priority: 'medium', relatedRoomId: 'ROOM-0007' },
 ];
 
+function parseBool(value: any): boolean {
+  if (value === false || value === 0 || value === '0') return false;
+  if (typeof value === 'string') {
+    const s = value.trim().toUpperCase();
+    if (s === 'FALSE' || s === '0' || s === 'NO') return false;
+  }
+  return true;
+}
+
+async function getNotifications(spreadsheetId: string): Promise<any[]> {
+  if (!spreadsheetId) {
+    return SAMPLE_NOTIFICATIONS;
+  }
+
+  try {
+    const { google } = await import('googleapis');
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Notifications!A2:K',
+    });
+
+    const rows = response.data.values as string[][] || [];
+    
+    return rows
+      .filter(row => row && row.length > 0 && row[0]?.trim())
+      .map(row => ({
+        notificationId: row[0] || '',
+        type: row[1] || 'check_in',
+        title: row[2] || '',
+        message: row[3] || '',
+        time: row[4] || '',
+        read: parseBool(row[5]),
+        priority: row[6] || 'medium',
+        relatedBookingId: row[7] || undefined,
+        relatedRoomId: row[8] || undefined,
+        createdAt: row[9] || '',
+        updatedAt: row[10] || '',
+      }));
+  } catch (err) {
+    console.error('Error fetching notifications:', err);
+    return SAMPLE_NOTIFICATIONS;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
@@ -20,5 +75,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(204).send('');
   }
 
-  return res.json({ success: true, data: SAMPLE_NOTIFICATIONS });
+  const spreadsheetId = process.env.SPREADSHEET_ID || '';
+  const notifications = await getNotifications(spreadsheetId);
+
+  return res.json({ success: true, data: notifications });
 }

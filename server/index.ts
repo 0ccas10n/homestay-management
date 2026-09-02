@@ -46,7 +46,44 @@ async function main() {
   });
 
   console.log('\n  [api] Mounting route handlers…');
-  await mountApiRoutes(app, apiRoot);
+  
+  // Load handler modules dynamically for development
+  const handlerModules: Record<string, Record<string, unknown>> = {};
+  const fs = await import('node:fs/promises');
+  
+  async function walkHandlers(dir: string): Promise<string[]> {
+    const results: string[] = [];
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...await walkHandlers(full));
+      } else if (
+        entry.isFile() &&
+        (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) &&
+        !entry.name.endsWith('.d.ts') &&
+        entry.name !== 'index.ts'
+      ) {
+        results.push(full);
+      }
+    }
+    return results;
+  }
+  
+  const handlerFiles = await walkHandlers(apiRoot);
+  
+  for (const absPath of handlerFiles) {
+    try {
+      const mod = await import(absPath);
+      handlerModules[absPath] = mod;
+      const rel = path.relative(apiRoot, absPath).replace(/\\/g, '/');
+      console.log(`  [api] Loaded handler: ${rel}`);
+    } catch (err) {
+      console.warn(`  [api] Failed to load handler ${absPath}:`, err);
+    }
+  }
+  
+  await mountApiRoutes(app, apiRoot, handlerModules);
 
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (res.headersSent) return;

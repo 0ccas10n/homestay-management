@@ -1,8 +1,8 @@
 // ─── Bookings API for Vercel ────────────────────────────────────────────────────
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Sample bookings data
-const SAMPLE_BOOKINGS = [
+// Sample bookings data for fallback
+const SAMPLE_BOOKINGS: any[] = [
   { bookingId: 'BOOK-0001', roomId: 'ROOM-0001', customerId: 'CUS-0001', guestName: 'Nadia Okonkwo', checkInAt: '2026-08-07T14:00:00+07:00', expectedCheckOutAt: '2026-08-10T12:00:00+07:00', status: 'checked_in', ratePlanId: 'RP-0004', bookingType: 'daily', expectedDurationMinutes: 4300, baseAmount: 1650000, totalAmount: 1650000, numGuests: 2 },
   { bookingId: 'BOOK-0002', roomId: 'ROOM-0005', customerId: 'CUS-0002', guestName: 'Marcus Chen', checkInAt: '2026-08-07T15:00:00+07:00', expectedCheckOutAt: '2026-08-09T12:00:00+07:00', status: 'checked_in', ratePlanId: 'RP-0004', bookingType: 'daily', expectedDurationMinutes: 2580, baseAmount: 1300000, totalAmount: 1300000, numGuests: 3 },
   { bookingId: 'BOOK-0003', roomId: 'ROOM-0006', customerId: 'CUS-0003', guestName: 'Elena Vasquez', checkInAt: '2026-08-07T14:00:00+07:00', expectedCheckOutAt: '2026-08-12T12:00:00+07:00', status: 'checked_in', ratePlanId: 'RP-0004', bookingType: 'daily', expectedDurationMinutes: 7180, baseAmount: 2600000, totalAmount: 2600000, numGuests: 2 },
@@ -15,6 +15,85 @@ const SAMPLE_BOOKINGS = [
   { bookingId: 'BOOK-0010', roomId: 'ROOM-0003', customerId: 'CUS-0004', guestName: 'James Whitfield', checkInAt: '2026-07-30T14:00:00+07:00', expectedCheckOutAt: '2026-08-02T12:00:00+07:00', actualCheckOutAt: '2026-08-02T11:30:00+07:00', status: 'checked_out', ratePlanId: 'RP-0003', bookingType: 'daily', expectedDurationMinutes: 4300, baseAmount: 1200000, totalAmount: 1200000, numGuests: 1 },
 ];
 
+async function getBookings(spreadsheetId: string): Promise<any[]> {
+  if (!spreadsheetId) {
+    return SAMPLE_BOOKINGS;
+  }
+
+  try {
+    const { google } = await import('googleapis');
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Bookings!A2:U',
+    });
+
+    const rows = response.data.values as string[][] || [];
+    
+    // Map rows to booking objects (simplified mapping)
+    return rows
+      .filter(row => row && row.length > 0 && row[0]?.trim())
+      .map(row => {
+        // Check if old or new layout
+        const isOldLayout = row[8]?.startsWith('RP-') || row[8] === 'custom';
+        
+        const booking = {
+          bookingId: row[0] || '',
+          roomId: row[1] || '',
+          customerId: row[2] || '',
+          checkInAt: row[3] || '',
+          expectedCheckOutAt: row[4] || '',
+          actualCheckOutAt: isOldLayout ? undefined : (row[5] || undefined),
+          status: (row[6] || 'inquiry') as string,
+          ratePlanId: row[7] || '',
+          bookingType: isOldLayout 
+            ? (row[7]?.startsWith('RP-') ? 'daily' : 'hourly')
+            : (row[8] || 'daily'),
+          expectedDurationMinutes: isOldLayout 
+            ? (row[8] ? parseInt(row[8]) : 0) 
+            : (row[9] ? parseInt(row[9]) : 0),
+          baseAmount: isOldLayout 
+            ? (row[9] ? parseFloat(row[9]) : 0) 
+            : (row[10] ? parseFloat(row[10]) : 0),
+          overtimeMinutes: isOldLayout 
+            ? (row[10] ? parseInt(row[10]) : undefined) 
+            : (row[11] ? parseInt(row[11]) : undefined),
+          overtimeAmount: isOldLayout 
+            ? (row[11] ? parseFloat(row[11]) : undefined) 
+            : (row[12] ? parseFloat(row[12]) : undefined),
+          totalAmount: isOldLayout 
+            ? (row[12] ? parseFloat(row[12]) : 0) 
+            : (row[13] ? parseFloat(row[13]) : 0),
+          unitPriceAtBooking: isOldLayout ? undefined : (row[14] ? parseFloat(row[14]) : undefined),
+          numGuests: isOldLayout 
+            ? (row[13] ? parseInt(row[13]) : undefined) 
+            : (row[15] ? parseInt(row[15]) : undefined),
+          note: isOldLayout ? (row[14] || '') : (row[16] || ''),
+          guestName: isOldLayout ? '' : (row[17] || ''),
+        };
+        
+        // Fix totalAmount if suspiciously small
+        if (booking.totalAmount <= 10 && booking.baseAmount >= 1000) {
+          booking.totalAmount = booking.baseAmount + (booking.overtimeAmount || 0);
+        }
+        
+        return booking;
+      });
+  } catch (err) {
+    console.error('Error fetching bookings:', err);
+    return SAMPLE_BOOKINGS;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -25,7 +104,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'GET') {
-    let bookings = SAMPLE_BOOKINGS;
+    const spreadsheetId = process.env.SPREADSHEET_ID || '';
+    let bookings = await getBookings(spreadsheetId);
 
     // Apply filters
     if (req.query.roomId) {
@@ -35,8 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       bookings = bookings.filter(b => b.status === req.query.status);
     }
     if (req.query.locationId) {
-      // For simplicity, return all bookings when location filter is needed
-      // In production, this would cross-reference with rooms
+      // Would need to cross-reference with rooms for location filtering
     }
 
     return res.json({ success: true, data: bookings });

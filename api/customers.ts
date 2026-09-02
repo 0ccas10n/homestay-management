@@ -12,6 +12,53 @@ const SAMPLE_CUSTOMERS = [
   { customerId: 'CUS-0008', name: 'Carlos Mendes', source: 'ZALO', email: 'carlos.m@gmail.com' },
 ];
 
+async function getCustomers(spreadsheetId: string): Promise<any[]> {
+  if (!spreadsheetId) {
+    return SAMPLE_CUSTOMERS;
+  }
+
+  try {
+    const { google } = await import('googleapis');
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Customers!A2:G',
+    });
+
+    const rows = response.data.values as string[][] || [];
+    
+    return rows
+      .filter(row => row && row.length > 0 && row[0]?.trim())
+      .map(row => {
+        // Check if old layout (6 columns) or new layout (7 columns)
+        const isLegacy = ['INSTAGRAM', 'TIKTOK', 'ZALO', 'FACEBOOK', 'KHÁC'].includes((row[1] || '').toUpperCase());
+        
+        return {
+          customerId: row[0] || '',
+          name: isLegacy ? '' : (row[1] || ''),
+          source: isLegacy ? (row[1] || '') : (row[2] || ''),
+          email: isLegacy ? (row[2] || '') : (row[3] || ''),
+          note: isLegacy ? (row[3] || '') : (row[4] || ''),
+          createdAt: isLegacy ? (row[4] || '') : (row[5] || ''),
+          updatedAt: isLegacy ? (row[5] || '') : (row[6] || ''),
+        };
+      });
+  } catch (err) {
+    console.error('Error fetching customers:', err);
+    return SAMPLE_CUSTOMERS;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -21,5 +68,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(204).send('');
   }
 
-  return res.json({ success: true, data: SAMPLE_CUSTOMERS });
+  const spreadsheetId = process.env.SPREADSHEET_ID || '';
+  const customers = await getCustomers(spreadsheetId);
+
+  return res.json({ success: true, data: customers });
 }

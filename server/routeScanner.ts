@@ -17,10 +17,12 @@
 // Dynamic segments ([id]) become Express `:id` parameters, accessible via
 // request.url in the handler (e.g. new URL(request.url).pathname.split('/')).
 //
+// In production, handlers are bundled by esbuild and passed as `handlerModules`.
+// In development, handlers are loaded via tsx and passed the same way.
+//
 // ──────────────────────────────────────────────────────────────────────────────
 
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import type { Express, Request as ExpressRequest, Response as ExpressResponse, NextFunction } from 'express';
 
 const HTTP_METHODS = ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS', 'PUT', 'HEAD'] as const;
@@ -29,8 +31,14 @@ type HttpMethod = typeof HTTP_METHODS[number];
 export interface MountedRoute {
   method: HttpMethod;
   expressPath: string; // e.g. /api/rooms/:id
-  filePath: string;    // absolute path to the handler file
+  filePath: string;   // absolute path to the handler file
 }
+
+/**
+ * Map of absolute handler file path → loaded module.
+ * Passed in from server.ts so handlers are pre-bundled by esbuild.
+ */
+export type HandlerRegistry = Record<string, Record<string, unknown>>;
 
 /**
  * Convert an Express request into a Fetch API Request object that the
@@ -67,11 +75,6 @@ function buildFetchRequest(req: ExpressRequest, originalUrl: string): Request {
  * Set-Cookie headers must be split because fetch's Headers joins them
  * with commas, which breaks cookie semantics.
  */
-/**
- * Copy a Fetch API Response back into Express's res object.
- * Set-Cookie headers must be split because fetch's Headers joins them
- * with commas, which breaks cookie semantics.
- */
 async function sendFetchResponse(fetchRes: Response, expressRes: ExpressResponse): Promise<void> {
   expressRes.status(fetchRes.status);
   fetchRes.headers.forEach((value, key) => {
@@ -98,10 +101,13 @@ async function sendFetchResponse(fetchRes: Response, expressRes: ExpressResponse
 
 /**
  * Walk src/pages/api/** and return one MountedRoute per (method, file) pair.
- * A cache-busting query string is appended to every dynamic import so that
- * tsx watch mode picks up edits in dev without restarting the server.
+ * Only scans the filesystem to discover URL paths; handler functions come
+ * from the pre-loaded `handlerModules` registry.
  */
-export async function scanRoutes(apiRoot: string): Promise<MountedRoute[]> {
+export async function scanRoutes(
+  apiRoot: string,
+  handlerModules: HandlerRegistry,
+): Promise<MountedRoute[]> {
   const fs = await import('node:fs/promises');
 
   async function walk(dir: string): Promise<string[]> {
@@ -114,7 +120,8 @@ export async function scanRoutes(apiRoot: string): Promise<MountedRoute[]> {
       } else if (
         e.isFile() &&
         (e.name.endsWith('.ts') || e.name.endsWith('.js')) &&
-        !e.name.endsWith('.d.ts')
+        !e.name.endsWith('.d.ts') &&
+        e.name !== 'index.ts' // barrel file is not a handler
       ) {
         out.push(full);
       }
@@ -126,6 +133,9 @@ export async function scanRoutes(apiRoot: string): Promise<MountedRoute[]> {
   const routes: MountedRoute[] = [];
 
   for (const abs of files) {
+    const mod = handlerModules[abs];
+    if (!mod) continue; // skip if not in registry (e.g. this file itself)
+
     const rel = path.relative(apiRoot, abs).replace(/\\/g, '/');
     // /api prefix is added so route paths line up with Vercel's convention
     // and with the Vite proxy target ('/api').
@@ -133,13 +143,9 @@ export async function scanRoutes(apiRoot: string): Promise<MountedRoute[]> {
       '/api' +
       '/' +
       rel
-        .replace(/\.(ts|js)$/, '')
+        .replace(/\.(ts|js|mjs)$/, '')
         .replace(/\/index$/, '')
         .replace(/\[(\w+)\]/g, ':$1');
-
-    const mod: Record<string, unknown> = await import(
-      pathToFileURL(abs).href + `?t=${Date.now()}`
-    );
 
     for (const method of HTTP_METHODS) {
       if (typeof mod[method] === 'function') {
@@ -155,7 +161,11 @@ export async function scanRoutes(apiRoot: string): Promise<MountedRoute[]> {
  * Mount every discovered route on the Express app and respond to OPTIONS
  * preflights for the entire /api/* tree.
  */
-export async function mountApiRoutes(app: Express, apiRoot: string): Promise<MountedRoute[]> {
+export async function mountApiRoutes(
+  app: Express,
+  apiRoot: string,
+  handlerModules: HandlerRegistry,
+): Promise<MountedRoute[]> {
   app.use('/api', (req, res, next) => {
     const origin = req.headers.origin;
     if (origin) {
@@ -172,17 +182,15 @@ export async function mountApiRoutes(app: Express, apiRoot: string): Promise<Mou
     next();
   });
 
-  const routes = await scanRoutes(apiRoot);
+  const routes = await scanRoutes(apiRoot, handlerModules);
 
   for (const route of routes) {
+    const mod = handlerModules[route.filePath];
     const method = route.method.toLowerCase() as 'get' | 'post' | 'patch' | 'delete' | 'options' | 'put' | 'head';
     app.route(route.expressPath)[method](
       async (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
         try {
-          const handlerMod: Record<string, any> = await import(
-            pathToFileURL(route.filePath).href + `?t=${Date.now()}`
-          );
-          const handler = handlerMod[route.method];
+          const handler = mod[route.method] as ((req: Request) => Promise<Response>) | undefined;
           if (typeof handler !== 'function') {
             res.status(500).json({
               success: false,
