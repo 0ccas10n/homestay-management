@@ -65,28 +65,29 @@ async function sendFetchResponse(fetchRes: Response, res: VercelResponse): Promi
   }
 }
 
+// A static list of routes mapping to their export names in src/pages/api/index
 const routeTable = [
-  { pattern: /^\/api\/availability\/?$/, modules: [handlers.availability] },
-  { pattern: /^\/api\/dashboard\/?$/, modules: [handlers.dashboard] },
-  { pattern: /^\/api\/health\/?$/, modules: [handlers.health] },
-  { pattern: /^\/api\/locations\/?$/, modules: [handlers.locations] },
-  { pattern: /^\/api\/rooms\/?$/, modules: [handlers.roomsRoot, handlers.roomsIndex] },
-  { pattern: /^\/api\/rooms\/([^\/]+)\/?$/, modules: [handlers.roomsId] },
-  { pattern: /^\/api\/auth\/login\/?$/, modules: [handlers.authLogin] },
-  { pattern: /^\/api\/auth\/logout\/?$/, modules: [handlers.authLogout] },
-  { pattern: /^\/api\/auth\/me\/?$/, modules: [handlers.authMe] },
-  { pattern: /^\/api\/bookings\/?$/, modules: [handlers.bookingsIndex] },
-  { pattern: /^\/api\/bookings\/status\/?$/, modules: [handlers.bookingsStatus] },
-  { pattern: /^\/api\/bookings\/([^\/]+)\/?$/, modules: [handlers.bookingsId] },
-  { pattern: /^\/api\/cleaning\/?$/, modules: [handlers.cleaningIndex] },
-  { pattern: /^\/api\/cleaning\/([^\/]+)\/?$/, modules: [handlers.cleaningId] },
-  { pattern: /^\/api\/customers\/?$/, modules: [handlers.customersIndex] },
-  { pattern: /^\/api\/expenses\/?$/, modules: [handlers.expensesIndex] },
-  { pattern: /^\/api\/notifications\/?$/, modules: [handlers.notificationsIndex] },
-  { pattern: /^\/api\/notifications\/mark-all-read\/?$/, modules: [handlers.notificationsMarkAllRead] },
-  { pattern: /^\/api\/notifications\/([^\/]+)\/?$/, modules: [handlers.notificationsId] },
-  { pattern: /^\/api\/rate-plan-prices\/?$/, modules: [handlers.ratePlanPricesIndex] },
-  { pattern: /^\/api\/rate-plans\/?$/, modules: [handlers.ratePlansIndex] },
+  { pattern: /^\/api\/availability\/?$/, exportName: 'availability' },
+  { pattern: /^\/api\/dashboard\/?$/, exportName: 'dashboard' },
+  { pattern: /^\/api\/health\/?$/, exportName: 'health' },
+  { pattern: /^\/api\/locations\/?$/, exportName: 'locations' },
+  { pattern: /^\/api\/rooms\/?$/, exportNames: ['roomsRoot', 'roomsIndex'] },
+  { pattern: /^\/api\/rooms\/([^\/]+)\/?$/, exportName: 'roomsId' },
+  { pattern: /^\/api\/auth\/login\/?$/, exportName: 'authLogin' },
+  { pattern: /^\/api\/auth\/logout\/?$/, exportName: 'authLogout' },
+  { pattern: /^\/api\/auth\/me\/?$/, exportName: 'authMe' },
+  { pattern: /^\/api\/bookings\/?$/, exportName: 'bookingsIndex' },
+  { pattern: /^\/api\/bookings\/status\/?$/, exportName: 'bookingsStatus' },
+  { pattern: /^\/api\/bookings\/([^\/]+)\/?$/, exportName: 'bookingsId' },
+  { pattern: /^\/api\/cleaning\/?$/, exportName: 'cleaningIndex' },
+  { pattern: /^\/api\/cleaning\/([^\/]+)\/?$/, exportName: 'cleaningId' },
+  { pattern: /^\/api\/customers\/?$/, exportName: 'customersIndex' },
+  { pattern: /^\/api\/expenses\/?$/, exportName: 'expensesIndex' },
+  { pattern: /^\/api\/notifications\/?$/, exportName: 'notificationsIndex' },
+  { pattern: /^\/api\/notifications\/mark-all-read\/?$/, exportName: 'notificationsMarkAllRead' },
+  { pattern: /^\/api\/notifications\/([^\/]+)\/?$/, exportName: 'notificationsId' },
+  { pattern: /^\/api\/rate-plan-prices\/?$/, exportName: 'ratePlanPricesIndex' },
+  { pattern: /^\/api\/rate-plans\/?$/, exportName: 'ratePlansIndex' },
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -105,36 +106,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(204).end();
   }
 
-  // Parse path (ignore query string)
-  const urlPath = req.url ? req.url.split('?')[0] : '';
-  const method = (req.method || 'GET').toUpperCase();
-  
-  let handlerFn: any = null;
-
-  for (const route of routeTable) {
-    const match = urlPath.match(route.pattern);
-    if (match) {
-      // Find the first module in this route that exports the requested HTTP method
-      for (const mod of route.modules) {
-        if (mod && typeof (mod as any)[method] === 'function') {
-          handlerFn = (mod as any)[method];
-          break;
-        }
-      }
-      if (handlerFn) break;
-    }
-  }
-
-  if (!handlerFn) {
-    return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: `Route not found or method not supported: ${method} ${urlPath}` } });
-  }
-
   try {
+    // Dynamically import handlers to catch any module initialization errors
+    const handlers = await import('../src/pages/api/index');
+
+    // Parse path (ignore query string)
+    const urlPath = req.url ? req.url.split('?')[0] : '';
+    const method = (req.method || 'GET').toUpperCase();
+    
+    let handlerFn: any = null;
+
+    for (const route of routeTable) {
+      const match = urlPath.match(route.pattern);
+      if (match) {
+        const exportNames = route.exportNames || [route.exportName];
+        for (const name of exportNames) {
+          const mod = (handlers as any)[name!];
+          if (mod && typeof mod[method] === 'function') {
+            handlerFn = mod[method];
+            break;
+          }
+        }
+        if (handlerFn) break;
+      }
+    }
+
+    if (!handlerFn) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: `Route not found or method not supported: ${method} ${urlPath}` } });
+    }
+
     const fetchReq = buildFetchRequest(req);
     const fetchRes = await handlerFn(fetchReq);
     await sendFetchResponse(fetchRes, res);
   } catch (err: any) {
     console.error('API Error:', err);
-    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err?.message || 'Internal server error' } });
+    res.status(500).json({ 
+      success: false, 
+      error: { 
+        code: 'INTERNAL_ERROR', 
+        message: err?.message || 'Internal server error',
+        stack: err?.stack
+      } 
+    });
   }
 }
