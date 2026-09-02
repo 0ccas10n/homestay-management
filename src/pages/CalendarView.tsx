@@ -281,17 +281,25 @@ export default function CalendarView() {
                 // Past its expected checkout but staff never checked the guest out/cancelled — flag it.
                 const isOverdue = (b.status === 'confirmed' || b.status === 'checked_in')
                   && new Date(b.expectedCheckOutAt).getTime() < today.getTime();
+                const fmtDate = (iso: string) => {
+                  try {
+                    const [date, time] = iso.split('T');
+                    const [, m, d] = date.split('-');
+                    const hhmm = time.slice(0, 5);
+                    return `${hhmm} ${d}/${m}`;
+                  } catch { return iso; }
+                };
+
                 return (
                   <div
                     key={b.bookingId}
                     onClick={() => setSelectedBooking(b)}
-                    title={`${formatStatusLabel(b.status)}${isOverdue ? ' · OVERDUE (not checked out)' : ''} · ${b.checkInAt} → ${b.expectedCheckOutAt}`}
+                    title={`${formatStatusLabel(b.status)}${isOverdue ? ' · Quá giờ Checkout' : ''} · ${fmtDate(b.checkInAt)} → ${fmtDate(b.expectedCheckOutAt)}`}
                     style={{
                       position: 'absolute',
                       left: `${geom.leftPct}%`,
                       width: `calc(${geom.widthPct}% - 4px)`,
                       minWidth: 'max-content', // Đảm bảo luôn đủ dài để hiển thị hết chữ
-                      paddingRight: 8, // Thêm khoảng trống bên phải cho đẹp
                       marginLeft: 2,
                       top,
                       height: BLOCK_H,
@@ -301,7 +309,7 @@ export default function CalendarView() {
                       outline: isOverdue ? '1px dashed #DC2626' : 'none',
                       outlineOffset: -1,
                       borderRadius: '0 4px 4px 0',
-                      padding: '0 4px',
+                      padding: '0 8px 0 6px',
                       fontSize: 10, fontWeight: 600,
                       cursor: 'pointer',
                       textAlign: 'left', // Căn lề trái

@@ -931,13 +931,22 @@ function BookingBlock({
   const progress = visual.showProgress ? progressPct(b) : null;
   const isStayWindow = b.status === 'confirmed' && (new Date(b.checkInAt).getTime() <= Date.now() && Date.now() < new Date(b.expectedCheckOutAt).getTime());
 
+  const fmtDate = (iso: string) => {
+    try {
+      const [date, time] = iso.split('T');
+      const [, m, d] = date.split('-');
+      const hhmm = time.slice(0, 5);
+      return `${hhmm} ${d}/${m}`;
+    } catch { return iso; }
+  };
+
   return (
     <div
       onClick={(e) => {
         e.stopPropagation();
         onClick();
       }}
-      title={`${guestName} · ${formatStatusLabel(b.status)}${isStayWindow ? ' (Đang trong giờ lưu trú)' : ''} · ${b.checkInAt} → ${b.expectedCheckOutAt}`}
+      title={`${guestName} · ${formatStatusLabel(b.status)}${isStayWindow ? ' (Đang trong giờ lưu trú)' : ''} · ${fmtDate(b.checkInAt)} → ${fmtDate(b.expectedCheckOutAt)}`}
       className={`${visual.striped ? 'timeline-stripe' : ''} ${visual.solid ? 'timeline-block-solid' : ''}`}
       style={{
         position: 'absolute',

@@ -57,9 +57,14 @@ export default function QuickEditModal({ booking, guestName, roomName, onClose, 
       setLoading(true);
       setError(null);
 
-      // Convert local datetime-local value to ISO string
-      const ciIso = new Date(checkInAt).toISOString();
-      const coIso = new Date(expectedCheckOutAt).toISOString();
+      // Ensure we append the correct local timezone offset (+07:00) 
+      // instead of converting to UTC so slice() operations on the frontend still work.
+      const formatToLocalIso = (dtLocal: string) => {
+        return dtLocal.length === 16 ? `${dtLocal}:00+07:00` : dtLocal;
+      };
+
+      const ciIso = formatToLocalIso(checkInAt);
+      const coIso = formatToLocalIso(expectedCheckOutAt);
 
       const numTotal = Number(totalAmount.replace(/[^\d]/g, ''));
 

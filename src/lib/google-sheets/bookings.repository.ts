@@ -399,7 +399,15 @@ export async function update(
           patch.numGuests ?? existing.numGuests,
         ));
     }
+    
     totalAmount = baseAmount + (existing.overtimeAmount ?? 0);
+
+    // Nếu người dùng chủ động sửa `totalAmount` trên form thành một số mới khác với số cũ, 
+    // chúng ta sẽ ưu tiên lấy số mới này thay vì tính lại tự động.
+    if (patch.totalAmount !== undefined && patch.totalAmount !== existing.totalAmount) {
+      totalAmount = patch.totalAmount;
+      baseAmount = Math.max(0, patch.totalAmount - (existing.overtimeAmount ?? 0));
+    }
   }
 
   const updated: Booking = {
