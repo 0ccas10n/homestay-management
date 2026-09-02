@@ -75,7 +75,7 @@ export default function TopBar({ activePage, darkMode, onToggleDark, onNavigate,
             background: darkMode ? '#0F172A' : '#F8FAFC',
             border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
             borderRadius: 8, fontSize: 13, color: darkMode ? '#E2E8F0' : '#1E293B',
-            outline: 'none', fontFamily: "'Outfit', sans-serif",
+            outline: 'none', fontFamily: 'inherit',
           }}
         />
       </div>}

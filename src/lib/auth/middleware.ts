@@ -46,7 +46,8 @@ export async function requireRole(
   const session = await requireAuth(request);
   if (session instanceof Response) return session; // 401 already
 
-  if (session.role !== role) {
+  const hasRequiredRole = session.role === role || (role === 'staff' && session.role === 'admin');
+  if (!hasRequiredRole) {
     return jsonError(403, 'FORBIDDEN', `This action requires ${role} privileges`);
   }
 

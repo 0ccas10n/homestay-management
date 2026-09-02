@@ -13,7 +13,9 @@
     "format": "oxfmt",
     "seed": "tsx scripts/seed.ts",
     "recalculate-bookings": "tsx scripts/recalculate-bookings.ts",
-    "recalculate-bookings:dry": "tsx scripts/recalculate-bookings.ts --dry-run"
+    "recalculate-bookings:dry": "tsx scripts/recalculate-bookings.ts --dry-run",
+    "reconcile-cleaning": "tsx scripts/reconcile-cleaning.ts",
+    "reconcile-cleaning:apply": "tsx scripts/reconcile-cleaning.ts --apply"
   },
   "dependencies": {
     "date-fns": "^4.4.0",

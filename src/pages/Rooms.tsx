@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useRooms } from '@/hooks/useRooms';
+import { ApiError } from '@/services/api';
 import type { Room, RoomStatus } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
@@ -82,8 +83,8 @@ export default function Rooms() {
       setFormOpen(false);
       setEditingRoom(null);
       showToast('Room updated');
-    } catch {
-      showToast('Failed to update room');
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to update room');
     }
   };
 
@@ -338,13 +339,12 @@ function RoomFormModal({ onClose, onSave, initial, darkMode, inputStyle, textMut
     notes: initial?.notes ?? '',
     imageUrl: initial?.imageUrl ?? '',
   });
+  const [amenitiesReplaced, setAmenitiesReplaced] = useState(!initial);
 
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(prev => ({ ...prev, [k]: v }));
 
-  const AMENITIES = ['WiFi', 'AC', 'TV', 'Bathtub', 'Balcony', 'Kitchen', 'Jacuzzi', 'Safe', 'Mini-bar', 'Sea View'];
-
-  const handleSave = () => {
+  const AMENITIES = ['Sofa','Smart TV', 'Máy chiếu', 'Ban công','Cửa Sổ', 'Bếp',  'Microwave', 'Nồi Chiên Không Dầu','Bồn Tắm'];  const handleSave = () => {
     if (!form.name.trim()) return;
     onSave({ ...form });
   };
@@ -383,12 +383,32 @@ function RoomFormModal({ onClose, onSave, initial, darkMode, inputStyle, textMut
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: textMuted, display: 'block', marginBottom: 5 }}>Amenities</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: textMuted }}>Amenities</label>
+              <button
+                type="button"
+                onClick={() => { set('amenities', []); setAmenitiesReplaced(true); }}
+                style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: 0 }}
+              >
+                Clear all
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: textMuted, marginTop: 5 }}>Lần chọn đầu tiên sẽ thay thế danh sách cũ. Chọn thêm để bổ sung.</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {AMENITIES.map(a => {
                 const on = form.amenities.includes(a);
                 return (
-                  <button key={a} type="button" onClick={() => set('amenities', on ? form.amenities.filter(x => x !== a) : [...form.amenities, a])}
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => {
+                      if (!amenitiesReplaced && !on) {
+                        set('amenities', [a]);
+                      } else {
+                        set('amenities', on ? form.amenities.filter(x => x !== a) : [...form.amenities, a]);
+                      }
+                      setAmenitiesReplaced(true);
+                    }}
                     style={{
                       padding: '5px 12px', borderRadius: 99, fontSize: 12, fontWeight: 600,
                       cursor: 'pointer', fontFamily: "'Outfit', sans-serif",

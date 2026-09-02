@@ -184,6 +184,20 @@ function getMemorySheet(sheetName: string): string[][] {
 
 // Lazy Google Sheets client
 let _client: ReturnType<typeof createSheetsClient> | null = null;
+const READ_CACHE_TTL_MS = 10_000;
+const readCache = new Map<string, { expiresAt: number; values: string[][] }>();
+
+function cloneRows(rows: string[][]): string[][] {
+  return rows.map(row => [...row]);
+}
+
+function clearCachedSheet(spreadsheetId: string, range: string): void {
+  const sheetPrefix = `${spreadsheetId}:${range.split('!')[0]}!`;
+  for (const key of readCache.keys()) {
+    if (key.startsWith(sheetPrefix)) readCache.delete(key);
+  }
+}
+
 function hasGoogleCreds(): boolean {
   return Boolean(
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() &&
@@ -232,6 +246,12 @@ export const sheets = {
 
   async getValues(spreadsheetId: string, range: string): Promise<string[][]> {
     const credsOk = hasGoogleCreds();
+    const cacheKey = `${spreadsheetId}:${range}`;
+    const cached = readCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cloneRows(cached.values);
+    }
+
     console.log('[sheets.getValues]', { hasGoogleCreds: credsOk, range, sheetName: range.split('!')[0] });
     if (credsOk && this.client) {
       try {
@@ -239,8 +259,14 @@ export const sheets = {
           spreadsheetId,
           range,
         });
-        return (response.data.values as string[][]) ?? [];
+        const values = (response.data.values as string[][]) ?? [];
+        readCache.set(cacheKey, { expiresAt: Date.now() + READ_CACHE_TTL_MS, values: cloneRows(values) });
+        return values;
       } catch (err) {
+        if (cached) {
+          console.warn('Google Sheets getValues failed, using cached live data:', (err as Error)?.message);
+          return cloneRows(cached.values);
+        }
         console.warn('Google Sheets getValues failed, using in-memory store:', (err as Error)?.message);
       }
     }
@@ -282,6 +308,7 @@ export const sheets = {
           valueInputOption: 'RAW',
           requestBody: { values },
         });
+        clearCachedSheet(spreadsheetId, range);
         return;
       } catch (err) {
         console.warn('Google Sheets setValues failed, saving to in-memory store:', (err as Error)?.message);
@@ -321,6 +348,7 @@ export const sheets = {
           valueInputOption: 'RAW',
           requestBody: { values: [row] },
         });
+        clearCachedSheet(spreadsheetId, range);
         return;
       } catch (err) {
         console.warn('Google Sheets appendRow failed, appending to in-memory store:', (err as Error)?.message);
@@ -346,6 +374,7 @@ export const sheets = {
             data: ranges.map((range, i) => ({ range, values: [values[i]] })),
           },
         });
+        for (const range of ranges) clearCachedSheet(spreadsheetId, range);
         return;
       } catch (err) {
         console.warn('Google Sheets batchUpdate failed, saving in memory:', (err as Error)?.message);

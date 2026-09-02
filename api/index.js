@@ -933,6 +933,17 @@ function getMemorySheet(sheetName) {
   return inMemoryStore.get(sheetName);
 }
 var _client = null;
+var READ_CACHE_TTL_MS = 1e4;
+var readCache = /* @__PURE__ */ new Map();
+function cloneRows(rows) {
+  return rows.map((row) => [...row]);
+}
+function clearCachedSheet(spreadsheetId, range) {
+  const sheetPrefix = `${spreadsheetId}:${range.split("!")[0]}!`;
+  for (const key of readCache.keys()) {
+    if (key.startsWith(sheetPrefix)) readCache.delete(key);
+  }
+}
 function hasGoogleCreds() {
   return Boolean(
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() && process.env.GOOGLE_PRIVATE_KEY?.trim() && (process.env.SPREADSHEET_ID?.trim() || process.env.GOOGLE_SHEETS_SPREADSHEET_ID?.trim())
@@ -972,6 +983,11 @@ var sheets = {
   },
   async getValues(spreadsheetId, range) {
     const credsOk = hasGoogleCreds();
+    const cacheKey = `${spreadsheetId}:${range}`;
+    const cached = readCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cloneRows(cached.values);
+    }
     console.log("[sheets.getValues]", { hasGoogleCreds: credsOk, range, sheetName: range.split("!")[0] });
     if (credsOk && this.client) {
       try {
@@ -979,8 +995,14 @@ var sheets = {
           spreadsheetId,
           range
         });
-        return response.data.values ?? [];
+        const values = response.data.values ?? [];
+        readCache.set(cacheKey, { expiresAt: Date.now() + READ_CACHE_TTL_MS, values: cloneRows(values) });
+        return values;
       } catch (err) {
+        if (cached) {
+          console.warn("Google Sheets getValues failed, using cached live data:", err?.message);
+          return cloneRows(cached.values);
+        }
         console.warn("Google Sheets getValues failed, using in-memory store:", err?.message);
       }
     }
@@ -1010,6 +1032,7 @@ var sheets = {
           valueInputOption: "RAW",
           requestBody: { values }
         });
+        clearCachedSheet(spreadsheetId, range);
         return;
       } catch (err) {
         console.warn("Google Sheets setValues failed, saving to in-memory store:", err?.message);
@@ -1032,6 +1055,7 @@ var sheets = {
           valueInputOption: "RAW",
           requestBody: { values: [row] }
         });
+        clearCachedSheet(spreadsheetId, range);
         return;
       } catch (err) {
         console.warn("Google Sheets appendRow failed, appending to in-memory store:", err?.message);
@@ -1051,6 +1075,7 @@ var sheets = {
             data: ranges.map((range, i) => ({ range, values: [values[i]] }))
           }
         });
+        for (const range of ranges) clearCachedSheet(spreadsheetId, range);
         return;
       } catch (err) {
         console.warn("Google Sheets batchUpdate failed, saving in memory:", err?.message);
@@ -1862,7 +1887,8 @@ async function requireAuth(request) {
 async function requireRole(request, role) {
   const session = await requireAuth(request);
   if (session instanceof Response) return session;
-  if (session.role !== role) {
+  const hasRequiredRole = session.role === role || role === "staff" && session.role === "admin";
+  if (!hasRequiredRole) {
     return jsonError(403, "FORBIDDEN", `This action requires ${role} privileges`);
   }
   return session;
@@ -2719,9 +2745,19 @@ async function PATCH2(request) {
       if (!result) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
       const { booking, overtimeMinutes, overtimeAmount } = result;
       await update2(SPREADSHEET_ID8, booking.roomId, { status: "needs_cleaning" });
-      const tasks = await query4(SPREADSHEET_ID8, { bookingId, status: "pending" });
-      for (const task of tasks) {
-        await transition(SPREADSHEET_ID8, task.cleaningId, "completed");
+      const tasks = await query4(SPREADSHEET_ID8, { bookingId });
+      const hasActiveCleaningTask = tasks.some(
+        (task) => task.status === "pending" || task.status === "in_progress"
+      );
+      if (!hasActiveCleaningTask) {
+        await create5(SPREADSHEET_ID8, {
+          roomId: booking.roomId,
+          bookingId,
+          scheduledAt: parsed.actualCheckOutAt,
+          status: "pending",
+          priority: "high",
+          note: `Cleaning required after checkout for booking ${bookingId}`
+        });
       }
       return jsonSuccess({
         booking,
@@ -2771,8 +2807,11 @@ async function GET9(request) {
   const bookingId = searchParams.get("bookingId") ?? void 0;
   const status = searchParams.get("status") ?? void 0;
   const date = searchParams.get("date") ?? void 0;
+  const active4 = searchParams.get("active") === "true";
   try {
-    const tasks = roomId || bookingId || status || date ? await query4(SPREADSHEET_ID9, {
+    const tasks = active4 ? (await query4(SPREADSHEET_ID9)).filter(
+      (task) => task.status === "pending" || task.status === "in_progress"
+    ) : roomId || bookingId || status || date ? await query4(SPREADSHEET_ID9, {
       roomId: roomId ?? void 0,
       bookingId: bookingId ?? void 0,
       status: status ?? void 0

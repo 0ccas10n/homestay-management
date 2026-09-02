@@ -54,7 +54,7 @@ export default function Dashboard() {
   useEffect(() => {
     Promise.all([
       roomsApi.getInternal().catch(() => []),
-      cleaningApi.get().catch(() => []),
+      cleaningApi.get({ active: 'true' }).catch(() => []),
     ]).then(([r, c]) => {
       setRooms(r);
       setCleaningTasks(c);
@@ -90,7 +90,9 @@ export default function Dashboard() {
     b.status === 'checked_in',
   );
 
-  const urgentCleaning = cleaningTasks.filter(t => t.priority === 'high' && t.status !== 'completed');
+  const activeCleaning = cleaningTasks.filter(t =>
+    t.status === 'pending' || t.status === 'in_progress',
+  );
 
   const prevMonthRevenue = monthlyRevenue.length >= 2
     ? monthlyRevenue[monthlyRevenue.length - 2]!.revenue
@@ -111,7 +113,7 @@ export default function Dashboard() {
   const statCards = [
     { label: 'Total Rooms', value: totalRooms || '—', sub: `${available} available`, color: statColors[0], icon: '🛏' },
     { label: 'Occupied', value: occupied || '—', sub: `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}% occupancy`, color: statColors[1], icon: '👤' },
-    { label: 'Cleaning Needed', value: needsCleaning || '—', sub: `${urgentCleaning.length} urgent`, color: statColors[2], icon: '🧹' },
+    { label: 'Cleaning Needed', value: needsCleaning || '—', sub: `${activeCleaning.length} in queue`, color: statColors[2], icon: '🧹' },
     { label: 'Monthly Revenue', value: formatVnd(monthlyRevenueTotal), sub: monthlyDeltaText, color: statColors[3], icon: '💰' },
   ];
 
@@ -346,12 +348,12 @@ export default function Dashboard() {
         {/* Urgent Cleaning */}
         <div style={card(darkMode)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Urgent Cleaning</div>
-            <span style={{ background: '#FEE2E2', color: '#991B1B', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>{urgentCleaning.length}</span>
+            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Cleaning Queue</div>
+            <span style={{ background: '#FEE2E2', color: '#991B1B', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>{activeCleaning.length}</span>
           </div>
-          {urgentCleaning.length === 0 ? (
-            <p style={{ color: textMuted, fontSize: 13 }}>All rooms clean ✓</p>
-          ) : urgentCleaning.map(t => (
+            {activeCleaning.length === 0 ? (
+              <p style={{ color: textMuted, fontSize: 13 }}>No rooms waiting for cleaning</p>
+            ) : activeCleaning.map(t => (
             <div key={t.cleaningId} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${borderColor}` }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>

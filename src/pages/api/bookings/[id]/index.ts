@@ -6,7 +6,7 @@
 import { readOne, update, checkout } from '@/lib/google-sheets/bookings.repository';
 import { readOne as readCustomer } from '@/lib/google-sheets/customers.repository';
 import { update as updateRoom } from '@/lib/google-sheets/rooms.repository';
-import { transition, query as queryCleaning } from '@/lib/google-sheets/cleaning.repository';
+import { create as createCleaning, query as queryCleaning } from '@/lib/google-sheets/cleaning.repository';
 import { updateBookingSchema, parseBody } from '@/lib/api/validation';
 import { requireAuth } from '@/lib/auth/middleware';
 import {
@@ -90,10 +90,19 @@ export async function PATCH(request: Request) {
       // Update room status → 'needs_cleaning' (checkout just finished, awaiting housekeeping)
       await updateRoom(SPREADSHEET_ID, booking.roomId, { status: 'needs_cleaning' });
 
-      // Auto-complete the linked cleaning task
-      const tasks = await queryCleaning(SPREADSHEET_ID, { bookingId, status: 'pending' });
-      for (const task of tasks) {
-        await transition(SPREADSHEET_ID, task.cleaningId, 'completed');
+      const tasks = await queryCleaning(SPREADSHEET_ID, { bookingId });
+      const hasActiveCleaningTask = tasks.some(task =>
+        task.status === 'pending' || task.status === 'in_progress',
+      );
+      if (!hasActiveCleaningTask) {
+        await createCleaning(SPREADSHEET_ID, {
+          roomId: booking.roomId,
+          bookingId,
+          scheduledAt: parsed.actualCheckOutAt,
+          status: 'pending',
+          priority: 'high',
+          note: `Cleaning required after checkout for booking ${bookingId}`,
+        });
       }
 
       return jsonSuccess({

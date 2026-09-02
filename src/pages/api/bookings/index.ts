@@ -174,5 +174,7 @@ function safeBooking(b: Booking): object {
     unitPriceAtBooking:      b.unitPriceAtBooking,
     numGuests:               b.numGuests,
     note:                    b.note,
+    createdAt:               b.createdAt,
+    updatedAt:               b.updatedAt,
   };
 }

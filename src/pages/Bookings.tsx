@@ -13,9 +13,11 @@ import { useCustomers } from '@/hooks/useCustomers';
 import type { Booking } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
+import BookingFormModal from '@/components/BookingFormModal';
 import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 
 const STATUSES = ['All', 'inquiry', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'];
+const PAGE_SIZE = 20;
 
 export default function Bookings() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
@@ -26,6 +28,8 @@ export default function Bookings() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [selected, setSelected] = useState<Booking | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<Booking | null>(null);
+  const [addBookingOpen, setAddBookingOpen] = useState(false);
+  const [page, setPage] = useState(1);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,6 +63,17 @@ export default function Bookings() {
     const matchStatus = filterStatus === 'All' || b.status === filterStatus;
     return matchQ && matchStatus;
   });
+
+  // Newest-created bookings first.
+  const sorted = useMemo(
+    () => [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [filtered],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  useEffect(() => { setPage(1); }, [search, filterStatus]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // True when the booking is in a state where it can still be cancelled.
   const canCancel = (b: Booking) =>
@@ -130,7 +145,14 @@ export default function Bookings() {
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...inputStyle, maxWidth: 160 }}>
           {STATUSES.map(s => <option key={s} value={s}>{s === 'All' ? 'All' : formatStatusLabel(s)}</option>)}
         </select>
-        <div style={{ marginLeft: 'auto', fontSize: 13, color: textMuted }}>{filtered.length} booking{filtered.length !== 1 ? 's' : ''}</div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 13, color: textMuted }}>{sorted.length} booking{sorted.length !== 1 ? 's' : ''}</div>
+          <button
+            onClick={() => setAddBookingOpen(true)}
+            style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+            + Add Booking
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -149,7 +171,7 @@ export default function Bookings() {
                 <tr>
                   <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: textMuted }}>Loading bookings…</td>
                 </tr>
-              ) : filtered.map(b => {
+              ) : paginated.map(b => {
                 return (
                 <tr key={b.bookingId}
                   style={{ borderBottom: `1px solid ${border}`, transition: 'background 0.1s' }}
@@ -189,11 +211,43 @@ export default function Bookings() {
               })}
             </tbody>
           </table>
-          {!loading && filtered.length === 0 && (
+          {!loading && sorted.length === 0 && (
             <div style={{ padding: 40, textAlign: 'center', color: textMuted, fontSize: 13 }}>Không tìm thấy booking</div>
           )}
         </div>
+        {!loading && sorted.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 16px', borderTop: `1px solid ${border}` }}>
+            <div style={{ fontSize: 12, color: textMuted }}>Trang {page}/{totalPages}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 6, padding: '5px 12px', fontSize: 12, cursor: page <= 1 ? 'default' : 'pointer', color: page <= 1 ? textMuted : textPrimary, opacity: page <= 1 ? 0.5 : 1 }}>
+                ‹ Trước
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 6, padding: '5px 12px', fontSize: 12, cursor: page >= totalPages ? 'default' : 'pointer', color: page >= totalPages ? textMuted : textPrimary, opacity: page >= totalPages ? 0.5 : 1 }}>
+                Sau ›
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Add Booking Modal */}
+      <BookingFormModal
+        open={addBookingOpen}
+        onClose={() => setAddBookingOpen(false)}
+        darkMode={darkMode}
+        onCreated={async () => {
+          setAddBookingOpen(false);
+          await refetch();
+          showToast('Booking created successfully');
+        }}
+        onError={msg => showToast(msg)}
+      />
 
       {/* View Modal */}
       <Modal open={!!selected} onClose={() => setSelected(null)} title={`Booking ${selected?.bookingId}`} darkMode={darkMode}>

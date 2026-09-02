@@ -698,10 +698,10 @@ async function recalculateTotal(
               onChange={e => handleRoomChange(e.target.value)}
               style={inputStyle}
             >
-              <option value="" disabled style={{ background: optionBg, color: optionColor }}>Select a room</option>
+              <option value="" disabled style={{ background: optionBg, color: optionColor }}>Chọn phòng</option>
               {rooms.map(r => (
                 <option key={r.roomId} value={r.roomId} style={{ background: optionBg, color: optionColor }}>
-                  {r.name} · {r.capacity} guests
+                  {`${r.name} `}
                 </option>
               ))}
             </select>
@@ -718,7 +718,7 @@ async function recalculateTotal(
               onChange={e => handleRatePlanChange(e.target.value)}
               style={inputStyle}
             >
-              <option value="" disabled style={{ background: optionBg, color: optionColor }}>Select a rate plan</option>
+              <option value="" disabled style={{ background: optionBg, color: optionColor }}>Khung giờ</option>
               {activeRatePlans.map(p => (
                 <option key={p.ratePlanId} value={p.ratePlanId} style={{ background: optionBg, color: optionColor }}>
                   {p.name}

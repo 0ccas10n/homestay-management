@@ -51,7 +51,7 @@ export default function AppShell() {
     <div style={{
       display: 'flex', minHeight: '100vh',
       background: bg, color: textPrimary,
-      fontFamily: "'Outfit', sans-serif",
+      fontFamily: 'inherit',
     }}>
       {isMobile && mobileMenuOpen && (
         <button

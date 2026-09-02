@@ -18,10 +18,15 @@ export async function GET(request: Request) {
   const bookingId = searchParams.get('bookingId') ?? undefined;
   const status    = searchParams.get('status')     ?? undefined;
   const date      = searchParams.get('date')       ?? undefined;
+  const active    = searchParams.get('active') === 'true';
 
   try {
-    // If no filters, default to today's due tasks
-    const tasks = (roomId || bookingId || status || date)
+    // If no filters, default to today's due tasks.
+    const tasks = active
+      ? (await query(SPREADSHEET_ID)).filter(task =>
+          task.status === 'pending' || task.status === 'in_progress',
+        )
+      : (roomId || bookingId || status || date)
       ? await query(SPREADSHEET_ID, {
           roomId:     roomId     ?? undefined,
           bookingId:  bookingId  ?? undefined,

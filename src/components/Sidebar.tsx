@@ -74,10 +74,10 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle, i
           background: 'linear-gradient(135deg, #2563EB, #10B981)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0, fontSize: 16, fontWeight: 700, color: '#fff',
-        }}>S</div>
+        }}>H</div>
         {!isCollapsed && (
           <div>
-            <div style={{ color: '#F8FAFC', fontWeight: 700, fontSize: 15, lineHeight: 1.1 }}>StayOS</div>
+            <div style={{ color: '#F8FAFC', fontWeight: 700, fontSize: 15, lineHeight: 1.1 }}>Hiên homestay</div>
             <div style={{ color: '#64748B', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>Homestay Suite</div>
           </div>
         )}
@@ -115,7 +115,7 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle, i
                 borderRadius: 8, border: 'none', cursor: 'pointer',
                 background: active ? 'rgba(37,99,235,0.18)' : 'transparent',
                 color: active ? '#60A5FA' : '#94A3B8',
-                fontFamily: "'Outfit', sans-serif",
+                fontFamily: 'inherit',
                 fontSize: 14, fontWeight: active ? 600 : 400,
                 transition: 'all 0.15s',
                 width: '100%',
@@ -163,7 +163,7 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle, i
             fontSize: 13,
             fontWeight: 600,
             cursor: 'pointer',
-            fontFamily: "'Outfit', sans-serif",
+            fontFamily: 'inherit',
             display: 'flex',
             alignItems: 'center',
             gap: 8,
