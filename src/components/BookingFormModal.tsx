@@ -36,6 +36,7 @@ import { ApiError } from '@/services/api';
 import type { Booking, BookingSource, RatePlan } from '@/types/index';
 import { ratePlans as fallbackRatePlans } from '@/data/sampleData';
 import { formatVnd } from '@/utils/format';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 const LOC_TZ_OFFSET = '+07:00';
 
@@ -236,6 +237,7 @@ export default function BookingFormModal({
   onCreated,
   onError,
 }: BookingFormModalProps) {
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const initial = useMemo(() => {
     const checkIn = new Date();
     const checkOut = new Date(checkIn.getTime() + 4 * 60 * 60 * 1000);
@@ -589,11 +591,46 @@ async function recalculateTotal(
 
   const optionBg = darkMode ? '#0F172A' : '#FFFFFF';
   const optionColor = darkMode ? '#E2E8F0' : '#1E293B';
+  const gridColumns = isMobile ? '1fr' : '1fr 1fr';
 
   return (
-    <Modal open={open} onClose={onClose} title="Add New Booking" width={560} darkMode={darkMode}>
-      <form noValidate onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Add New Booking"
+      width={560}
+      darkMode={darkMode}
+      footer={
+        <>
+          <button
+            type="button" onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
+              borderRadius: 8, padding: '10px 20px', fontWeight: 600, fontSize: 13,
+              cursor: 'pointer', color: darkMode ? '#94A3B8' : '#64748B',
+              fontFamily: "'Outfit', sans-serif",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit" form="booking-form" disabled={submitting}
+            style={{
+              background: submitting ? '#93C5FD' : '#2563EB',
+              color: '#fff', border: 'none', borderRadius: 8,
+              padding: '10px 20px', fontWeight: 600, fontSize: 14,
+              cursor: submitting ? 'wait' : 'pointer',
+              fontFamily: "'Outfit', sans-serif",
+            }}
+          >
+            {submitting ? 'Creating…' : 'Create Booking'}
+          </button>
+        </>
+      }
+    >
+      <form id="booking-form" noValidate onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: gridColumns, gap: 12 }}>
 
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={labelStyle}>Guest Name - ID *</label>
@@ -653,7 +690,7 @@ async function recalculateTotal(
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: gridColumns, gap: 12 }}>
           <div>
             <label style={labelStyle}>Room *</label>
             <select
@@ -696,7 +733,7 @@ async function recalculateTotal(
 
         {/* Price field — labelled as auto-fill for Daily, manual for Hourly. */}
         {state.bookingType === 'hourly' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: gridColumns, gap: 12 }}>
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={labelStyle}>Giá (VND) *</label>
               <div style={{ position: 'relative' }}>
@@ -760,7 +797,7 @@ async function recalculateTotal(
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: gridColumns, gap: 12 }}>
           <div>
             <label style={labelStyle}>Check-in Date *</label>
             <input
@@ -800,7 +837,7 @@ async function recalculateTotal(
           const rawCap = selectedRoom?.capacity ? Number(selectedRoom.capacity) : 4;
           const maxCapacity = Number.isFinite(rawCap) && rawCap > 0 ? rawCap : 4;
           return (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: gridColumns, gap: 12 }}>
               <div>
                 <label style={labelStyle}>
                   Số lượng khách {selectedRoom ? `(Tối đa ${maxCapacity} khách)` : ''}
@@ -841,32 +878,6 @@ async function recalculateTotal(
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-          <button
-            type="button" onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
-              borderRadius: 8, padding: '10px 20px', fontWeight: 600, fontSize: 13,
-              cursor: 'pointer', color: darkMode ? '#94A3B8' : '#64748B',
-              fontFamily: "'Outfit', sans-serif",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit" disabled={submitting}
-            style={{
-              background: submitting ? '#93C5FD' : '#2563EB',
-              color: '#fff', border: 'none', borderRadius: 8,
-              padding: '10px 20px', fontWeight: 600, fontSize: 14,
-              cursor: submitting ? 'wait' : 'pointer',
-              fontFamily: "'Outfit', sans-serif",
-            }}
-          >
-            {submitting ? 'Creating…' : 'Create Booking'}
-          </button>
-        </div>
       </form>
     </Modal>
   );

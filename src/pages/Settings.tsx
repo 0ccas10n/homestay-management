@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useRooms } from '@/hooks/useRooms';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { formatStatusLabel } from '@/utils/format';
 
 const TABS = ['Business Info', 'Rooms', 'Room Types', 'Staff', 'Pricing'];
@@ -16,6 +17,7 @@ const TABS = ['Business Info', 'Rooms', 'Room Types', 'Staff', 'Pricing'];
 export default function Settings() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
   const { rooms, loading: roomsLoading, refetch } = useRooms();
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const [activeTab, setActiveTab] = useState('Business Info');
   const [toast, setToast] = useState<string | null>(null);
   const [bizInfo, setBizInfo] = useState({
@@ -48,7 +50,7 @@ export default function Settings() {
   };
 
   return (
-    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ padding: isMobile ? 16 : 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
       {toast && (
         <div style={{
           position: 'fixed', bottom: 24, right: 24, zIndex: 300,
@@ -77,13 +79,13 @@ export default function Settings() {
 
       {/* Business Info tab */}
       {activeTab === 'Business Info' && (
-        <div style={{ background: bg, borderRadius: 12, border: `1px solid ${border}`, padding: 24 }}>
+        <div style={{ background: bg, borderRadius: 12, border: `1px solid ${border}`, padding: isMobile ? 16 : 24 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, marginBottom: 20 }}>Business Information</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
             {Object.entries(bizInfo).map(([key, val]) => {
               const isAddress = key === 'address';
               return (
-                <div key={key} style={isAddress ? { gridColumn: '1 / -1' } : {}}>
+                <div key={key} style={isAddress && !isMobile ? { gridColumn: '1 / -1' } : {}}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: textMuted, display: 'block', marginBottom: 5 }}>
                     {key.replace(/([A-Z])/g, ' $1')}
                   </label>
@@ -119,7 +121,8 @@ export default function Settings() {
           {roomsLoading && rooms.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: textMuted }}>Loading rooms…</div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 650, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${border}`, background: darkMode ? '#0F172A' : '#F8FAFC' }}>
                   {['Room #', 'Type', 'Floor', 'Capacity', 'Status'].map(h => (
@@ -155,13 +158,14 @@ export default function Settings() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}
 
       {/* Room Types tab */}
       {activeTab === 'Room Types' && (
-        <div style={{ background: bg, borderRadius: 12, border: `1px solid ${border}`, padding: 24 }}>
+        <div style={{ background: bg, borderRadius: 12, border: `1px solid ${border}`, padding: isMobile ? 16 : 24 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, marginBottom: 20 }}>Room Types & Base Pricing</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
@@ -169,13 +173,13 @@ export default function Settings() {
               { type: 'Yên (Deluxe)',    basePrice: 450_000, desc: 'Tối đa 5 khách, bồn tắm + ban công' },
               { type: 'Yên Jacuzzi',      basePrice: 650_000, desc: 'Tối đa 5 khách, bếp + jacuzzi' },
             ].map(rt => (
-              <div key={rt.type} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 18px', borderRadius: 10, border: `1px solid ${border}` }}>
+              <div key={rt.type} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 16, padding: '14px 18px', borderRadius: 10, border: `1px solid ${border}` }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, color: textPrimary, fontSize: 14 }}>{rt.type}</div>
                   <div style={{ fontSize: 12, color: textMuted }}>{rt.desc}</div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input defaultValue={rt.basePrice} type="number" style={{ ...inputStyle, width: 120, textAlign: 'right' as const }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <input defaultValue={rt.basePrice} type="number" style={{ ...inputStyle, width: isMobile ? '100%' : 120, flex: isMobile ? '1 1 100%' : undefined, textAlign: 'right' as const }} />
                   <span style={{ fontSize: 12, color: textMuted }}>₫/đêm</span>
                   <button onClick={() => showToast(`${rt.type} pricing updated (local)`)} style={{
                     background: '#10B981', color: '#fff', border: 'none', borderRadius: 7,

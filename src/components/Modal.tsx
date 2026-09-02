@@ -5,11 +5,12 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  footer?: ReactNode;
   width?: number;
   darkMode?: boolean;
 }
 
-export default function Modal({ open, onClose, title, children, width = 520, darkMode }: ModalProps) {
+export default function Modal({ open, onClose, title, children, footer, width = 520, darkMode }: ModalProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     if (open) window.addEventListener('keydown', handler);
@@ -35,6 +36,8 @@ export default function Modal({ open, onClose, title, children, width = 520, dar
           borderRadius: 16, width: '100%', maxWidth: width,
           boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
           overflow: 'hidden',
+          maxHeight: 'calc(100vh - 40px)',
+          display: 'flex', flexDirection: 'column',
           animation: 'modalIn 0.18s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
@@ -46,7 +49,17 @@ export default function Modal({ open, onClose, title, children, width = 520, dar
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: darkMode ? '#F1F5F9' : '#1E293B' }}>{title}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', fontSize: 18, lineHeight: 1 }}>×</button>
         </div>
-        <div style={{ padding: '20px 24px 24px' }}>{children}</div>
+        <div style={{ padding: '20px 24px 24px', overflowY: 'auto', flex: 1 }}>{children}</div>
+        {footer && (
+          <div style={{
+            display: 'flex', justifyContent: 'flex-end', gap: 10,
+            padding: '14px 24px', flexShrink: 0,
+            borderTop: `1px solid ${darkMode ? '#334155' : '#F1F5F9'}`,
+            background: darkMode ? '#1E293B' : '#fff',
+          }}>
+            {footer}
+          </div>
+        )}
       </div>
       <style>{`@keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }`}</style>
     </div>

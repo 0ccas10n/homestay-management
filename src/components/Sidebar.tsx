@@ -27,11 +27,14 @@ interface SidebarProps {
   onNavigate: (id: string) => void;
   collapsed: boolean;
   onToggle: () => void;
+  isMobile: boolean;
+  mobileOpen: boolean;
 }
 
-export default function Sidebar({ activePage, onNavigate, collapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ activePage, onNavigate, collapsed, onToggle, isMobile, mobileOpen }: SidebarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const isCollapsed = !isMobile && collapsed;
 
   const initials = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -47,18 +50,21 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle }:
   return (
     <aside
       style={{
-        width: collapsed ? 68 : 228,
+        width: isCollapsed ? 68 : (isMobile ? 'min(80vw, 280px)' : 228),
         minHeight: '100vh',
         background: '#0F172A',
         display: 'flex',
         flexDirection: 'column',
-        transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
+        transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1), transform 0.25s cubic-bezier(0.4,0,0.2,1)',
         flexShrink: 0,
-        position: 'sticky',
+        position: isMobile ? 'fixed' : 'sticky',
         top: 0,
+        left: 0,
+        zIndex: isMobile ? 60 : undefined,
         height: '100vh',
         overflowY: 'auto',
         overflowX: 'hidden',
+        transform: isMobile && !mobileOpen ? 'translateX(-100%)' : 'translateX(0)',
       }}
     >
       {/* Logo */}
@@ -69,7 +75,7 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle }:
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0, fontSize: 16, fontWeight: 700, color: '#fff',
         }}>S</div>
-        {!collapsed && (
+        {!isCollapsed && (
           <div>
             <div style={{ color: '#F8FAFC', fontWeight: 700, fontSize: 15, lineHeight: 1.1 }}>StayOS</div>
             <div style={{ color: '#64748B', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>Homestay Suite</div>
@@ -81,12 +87,12 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle }:
             marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
             color: '#475569', fontSize: 14, padding: 4, borderRadius: 6,
             flexShrink: 0,
-            display: collapsed ? 'none' : 'flex',
+            display: isCollapsed || isMobile ? 'none' : 'flex',
           }}
         >⟨</button>
       </div>
 
-      {collapsed && (
+      {isCollapsed && (
         <button
           onClick={onToggle}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: 14, padding: '12px 0', textAlign: 'center' }}
@@ -101,11 +107,11 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle }:
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
-              title={collapsed ? item.label : undefined}
+              title={isCollapsed ? item.label : undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                padding: collapsed ? '10px 0' : '9px 12px',
-                justifyContent: collapsed ? 'center' : 'flex-start',
+                padding: isCollapsed ? '10px 0' : '9px 12px',
+                justifyContent: isCollapsed ? 'center' : 'flex-start',
                 borderRadius: 8, border: 'none', cursor: 'pointer',
                 background: active ? 'rgba(37,99,235,0.18)' : 'transparent',
                 color: active ? '#60A5FA' : '#94A3B8',
@@ -119,7 +125,7 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle }:
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = active ? '#60A5FA' : '#94A3B8'; }}
             >
               <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
-              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+              {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
             </button>
           );
         })}
@@ -133,7 +139,7 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle }:
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#fff', fontSize: 13, fontWeight: 700,
         }}>{initials}</div>
-        {!collapsed && (
+        {!isCollapsed && (
           <div style={{ overflow: 'hidden' }}>
             <div style={{ color: '#E2E8F0', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user?.name ?? 'Unknown'}
@@ -143,16 +149,16 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle }:
         )}
       </div>
 
-      {/* Logout button — appears when not collapsed */}
-      {!collapsed && (
-        <button
+      <button
           onClick={handleLogout}
+          title={isCollapsed ? 'Sign out' : undefined}
+          aria-label="Sign out"
           style={{
-            margin: '4px 12px 12px',
+            margin: isCollapsed ? '4px 8px 12px' : '4px 12px 12px',
             background: 'rgba(239,68,68,0.1)',
             border: '1px solid rgba(239,68,68,0.2)',
             borderRadius: 8,
-            padding: '8px 12px',
+            padding: isCollapsed ? '8px 0' : '8px 12px',
             color: '#FCA5A5',
             fontSize: 13,
             fontWeight: 600,
@@ -161,16 +167,16 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onToggle }:
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            width: 'calc(100% - 24px)',
+            justifyContent: isCollapsed ? 'center' : 'flex-start',
+            width: isCollapsed ? 'calc(100% - 16px)' : 'calc(100% - 24px)',
             transition: 'all 0.15s',
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.2)'; (e.currentTarget as HTMLElement).style.color = '#FCA5A5'; }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.1)'; (e.currentTarget as HTMLElement).style.color = '#FCA5A5'; }}
         >
           <span>🚪</span>
-          <span>Sign out</span>
+          {!isCollapsed && <span>Sign out</span>}
         </button>
-      )}
     </aside>
   );
 }

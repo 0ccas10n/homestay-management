@@ -6,6 +6,8 @@ interface TopBarProps {
   darkMode: boolean;
   onToggleDark: () => void;
   onNavigate: (id: string) => void;
+  isMobile: boolean;
+  onOpenMobileMenu: () => void;
 }
 
 const PAGE_TITLES: Record<string, string> = {
@@ -22,7 +24,7 @@ const PAGE_TITLES: Record<string, string> = {
   settings:     'Settings',
 };
 
-export default function TopBar({ activePage, darkMode, onToggleDark, onNavigate }: TopBarProps) {
+export default function TopBar({ activePage, darkMode, onToggleDark, onNavigate, isMobile, onOpenMobileMenu }: TopBarProps) {
   const [search, setSearch] = useState('');
   const { user } = useAuth();
 
@@ -38,9 +40,22 @@ export default function TopBar({ activePage, darkMode, onToggleDark, onNavigate 
     <header style={{
       height: 60, background: darkMode ? '#1E293B' : '#fff',
       borderBottom: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
-      display: 'flex', alignItems: 'center', gap: 16, padding: '0 24px',
+      display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16, padding: isMobile ? '0 12px' : '0 24px',
       position: 'sticky', top: 0, zIndex: 40,
     }}>
+      {isMobile && (
+        <button
+          aria-label="Open navigation menu"
+          title="Open navigation menu"
+          onClick={onOpenMobileMenu}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: 6,
+            color: darkMode ? '#E2E8F0' : '#334155', fontSize: 20, lineHeight: 1,
+          }}
+        >
+          ☰
+        </button>
+      )}
       <div style={{ flex: 1 }}>
         <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: darkMode ? '#F1F5F9' : '#1E293B' }}>
           {PAGE_TITLES[activePage] ?? 'Dashboard'}
@@ -49,7 +64,7 @@ export default function TopBar({ activePage, darkMode, onToggleDark, onNavigate 
       </div>
 
       {/* Search */}
-      <div style={{ position: 'relative', maxWidth: 280, width: '100%' }}>
+      {!isMobile && <div style={{ position: 'relative', maxWidth: 280, width: '100%' }}>
         <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', fontSize: 13 }}>🔍</span>
         <input
           value={search}
@@ -63,7 +78,7 @@ export default function TopBar({ activePage, darkMode, onToggleDark, onNavigate 
             outline: 'none', fontFamily: "'Outfit', sans-serif",
           }}
         />
-      </div>
+      </div>}
 
       {/* Dark mode toggle */}
       <button

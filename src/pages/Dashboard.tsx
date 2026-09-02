@@ -13,6 +13,7 @@ import { useDashboard } from '@/hooks/useDashboard';
 import { useBookings } from '@/hooks/useBookings';
 import { bookingsApi, roomsApi, cleaningApi, expensesApi } from '@/services/api';
 import type { Booking, CleaningTask } from '@/types/index';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { getBookingStatus, getStatusColor, getStatusBg, minutesUntilCheckout, formatMinutes } from '@/utils/pricing';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
@@ -23,6 +24,7 @@ const TODAY_DATE = new Date().toISOString().slice(0, 10);
 
 export default function Dashboard() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const { data: dashboard, loading: dashLoading } = useDashboard();
   const monthlyRevenue = dashboard?.monthlyRevenue ?? [];
   const weeklyOccupancy = dashboard?.weeklyOccupancy ?? [];
@@ -252,7 +254,7 @@ export default function Dashboard() {
       </div>
 
       {/* Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+      {!isMobile && <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
         <div style={card(darkMode)}>
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Revenue vs Expenses</div>
@@ -298,7 +300,7 @@ export default function Dashboard() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </div>}
 
       {/* Today's Activity */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
