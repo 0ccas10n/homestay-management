@@ -6,28 +6,28 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import * as handlers from '../src/pages/api/index';
 
-// Build the request URL from VercelRequest
+// Convert Fetch API Request to Vercel Request is done inside handler
 function buildFetchRequest(req: VercelRequest): Request {
   const protocol = (req.headers['x-forwarded-proto'] as string) || 'http';
   const host = req.headers.host || 'localhost';
   const fullUrl = `${protocol}://${host}${req.url}`;
-
-  const headers = new Headers();
-  for (const [k, v] of Object.entries(req.headers)) {
-    if (v === undefined) continue;
-    if (Array.isArray(v)) headers.set(k, v.join(', '));
-    else headers.set(k, String(v));
-  }
-
+  
   const init: RequestInit = {
     method: req.method,
-    headers,
+    headers: new Headers(req.headers as any),
   };
 
-  if (req.method !== 'GET' && req.method !== 'HEAD' && req.body !== undefined) {
-    // req.body is already parsed by Vercel if it's JSON, so we need to stringify it
-    // because our Fetch API handlers expect to call request.json()
-    init.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+    // If Vercel already parsed the body as an object (e.g. JSON), stringify it
+    if (typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+      init.body = JSON.stringify(req.body);
+      // Ensure content-type is set if not present
+      if (!init.headers?.has('content-type')) {
+        (init.headers as Headers).set('content-type', 'application/json');
+      }
+    } else {
+      init.body = req.body;
+    }
   }
 
   return new Request(fullUrl, init);
@@ -107,9 +107,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Dynamically import handlers to catch any module initialization errors
-    const handlers = await import('../src/pages/api/index');
-
     // Parse path (ignore query string)
     const urlPath = req.url ? req.url.split('?')[0] : '';
     const method = (req.method || 'GET').toUpperCase();

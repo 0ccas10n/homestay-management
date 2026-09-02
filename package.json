@@ -2,12 +2,12 @@
   "name": "homestay-management",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
   "scripts": {
+    "build:api": "esbuild api/_app.ts --bundle --platform=node --target=node20 --format=esm --packages=external --outfile=api/index.js",
     "dev": "tsx server/index.ts",
     "dev:client": "vite",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:client\"",
-    "build": "vite build",
+    "build": "npm run build:api && vite build",
     "start": "vercel serve",
     "preview": "vite preview",
     "format": "oxfmt",
@@ -46,5 +46,6 @@
   },
   "allowScripts": {
     "esbuild": true
-  }
+  },
+  "type": "module"
 }
