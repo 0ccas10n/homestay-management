@@ -184,20 +184,25 @@ function getMemorySheet(sheetName: string): string[][] {
 
 // Lazy Google Sheets client
 let _client: ReturnType<typeof createSheetsClient> | null = null;
-const hasGoogleCreds = Boolean(
-  process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
-  process.env.GOOGLE_PRIVATE_KEY &&
-  process.env.SPREADSHEET_ID,
-);
+function hasGoogleCreds(): boolean {
+  return Boolean(
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() &&
+    process.env.GOOGLE_PRIVATE_KEY?.trim() &&
+    (process.env.SPREADSHEET_ID?.trim() || process.env.GOOGLE_SHEETS_SPREADSHEET_ID?.trim())
+  );
+}
 
 function createSheetsClient() {
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
+  const key = process.env.GOOGLE_PRIVATE_KEY?.trim().replace(/\\n/g, '\n');
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID?.trim();
   const auth = new google.auth.GoogleAuth({
     credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      client_email: email,
+      private_key: key,
     },
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
+    projectId,
   });
 
   return google.sheets({
@@ -208,7 +213,7 @@ function createSheetsClient() {
 }
 
 export function getSheetsClient() {
-  if (!_client && hasGoogleCreds) {
+  if (!_client && hasGoogleCreds()) {
     _client = createSheetsClient();
   }
   return _client;
@@ -220,8 +225,9 @@ export const sheets = {
   },
 
   async getValues(spreadsheetId: string, range: string): Promise<string[][]> {
-    console.log('[sheets.getValues]', { hasGoogleCreds, range, sheetName: range.split('!')[0] });
-    if (hasGoogleCreds && this.client) {
+    const credsOk = hasGoogleCreds();
+    console.log('[sheets.getValues]', { hasGoogleCreds: credsOk, range, sheetName: range.split('!')[0] });
+    if (credsOk && this.client) {
       try {
         const response = await this.client.spreadsheets.values.get({
           spreadsheetId,
@@ -262,7 +268,7 @@ export const sheets = {
     range: string,
     values: (string | number | boolean | null)[][],
   ): Promise<void> {
-    if (hasGoogleCreds && this.client) {
+    if (hasGoogleCreds() && this.client) {
       try {
         await this.client.spreadsheets.values.update({
           spreadsheetId,
@@ -291,7 +297,7 @@ export const sheets = {
     range: string,
     row: (string | number | boolean | null)[],
   ): Promise<void> {
-    if (hasGoogleCreds && this.client) {
+    if (hasGoogleCreds() && this.client) {
       // ─── BUG FIX ─────────────────────────────────────────────────────────
       // The previous implementation called `values.append` with an explicit
       // single-row range (e.g. `Bookings!A10`). Google Sheets then performed
@@ -325,7 +331,7 @@ export const sheets = {
     ranges: string[],
     values: (string | number | boolean | null)[][],
   ): Promise<void> {
-    if (hasGoogleCreds && this.client) {
+    if (hasGoogleCreds() && this.client) {
       try {
         await this.client.spreadsheets.values.batchUpdate({
           spreadsheetId,
@@ -348,7 +354,7 @@ export const sheets = {
   },
 
   async createSheet(spreadsheetId: string, title: string, rowCount = 1000): Promise<void> {
-    if (hasGoogleCreds && this.client) {
+    if (hasGoogleCreds() && this.client) {
       try {
         await this.client.spreadsheets.batchUpdate({
           spreadsheetId,
@@ -377,7 +383,7 @@ export const sheets = {
   },
 
   async deleteSheet(spreadsheetId: string, title: string): Promise<void> {
-    if (hasGoogleCreds && this.client) {
+    if (hasGoogleCreds() && this.client) {
       try {
         const meta = await this.client.spreadsheets.get({ spreadsheetId, includeGridData: false });
         const s = meta.data.sheets?.find(s => s.properties?.title === title);

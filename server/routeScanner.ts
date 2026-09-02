@@ -121,7 +121,7 @@ export async function scanRoutes(
         e.isFile() &&
         (e.name.endsWith('.ts') || e.name.endsWith('.js')) &&
         !e.name.endsWith('.d.ts') &&
-        e.name !== 'index.ts' // barrel file is not a handler
+        full !== path.join(apiRoot, 'index.ts')
       ) {
         out.push(full);
       }

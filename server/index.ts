@@ -62,7 +62,7 @@ async function main() {
         entry.isFile() &&
         (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) &&
         !entry.name.endsWith('.d.ts') &&
-        entry.name !== 'index.ts'
+        full !== path.join(apiRoot, 'index.ts')
       ) {
         results.push(full);
       }
@@ -74,7 +74,9 @@ async function main() {
   
   for (const absPath of handlerFiles) {
     try {
-      const mod = await import(absPath);
+      // Convert Windows path to file:// URL for ESM compatibility
+      const fileUrl = `file:///${absPath.replace(/\\/g, '/')}`;
+      const mod = await import(fileUrl);
       handlerModules[absPath] = mod;
       const rel = path.relative(apiRoot, absPath).replace(/\\/g, '/');
       console.log(`  [api] Loaded handler: ${rel}`);
