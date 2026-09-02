@@ -11,6 +11,7 @@ import {
 } from './types';
 import type { Notification } from '@/types/index';
 import { generateId } from './id';
+import { timestamps, updatedTimestamp } from './datetime';
 
 /** Read raw sheet rows (includes createdAt/updatedAt columns) for read-back. */
 async function readRawRows(spreadsheetId: string): Promise<string[][]> {
@@ -41,7 +42,7 @@ export async function create(
   input: Omit<Notification, 'notificationId'>,
 ): Promise<Notification> {
   const notificationId = await generateId('NOTIF', 'Notifications', spreadsheetId);
-  const { timestamps } = await import('./datetime');
+
   const { createdAt, updatedAt } = timestamps();
 
   const notification: Notification = {
@@ -69,7 +70,7 @@ export async function markRead(
   spreadsheetId: string,
   notificationId: string,
 ): Promise<Notification | null> {
-  const { updatedTimestamp } = await import('./datetime');
+
   const rows = await readRawRows(spreadsheetId);
   const idx = rows.findIndex(row => row[0] === notificationId);
   if (idx === -1) return null;
@@ -108,7 +109,7 @@ export async function markRead(
 }
 
 export async function markAllRead(spreadsheetId: string): Promise<void> {
-  const { updatedTimestamp } = await import('./datetime');
+
   const rows = await readRawRows(spreadsheetId);
   const col = String.fromCharCode(64 + NOTIFICATIONS_HEADERS.length);
 

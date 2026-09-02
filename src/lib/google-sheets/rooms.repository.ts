@@ -15,7 +15,8 @@ import {
   type mapRowToRoom as MapRow,
 } from './types';
 import type { Room, RoomStatus } from '@/types/index';
-import { updatedTimestamp } from './datetime';
+import { updatedTimestamp, timestamps } from './datetime';
+import { generateId } from './id';
 
 // ─── Read ───────────────────────────────────────────────────────────────────────
 
@@ -45,8 +46,7 @@ export async function create(
   spreadsheetId: string,
   input: Omit<Room, 'roomId' | 'createdAt' | 'updatedAt'>,
 ): Promise<Room> {
-  const { timestamps } = await import('./datetime');
-  const { generateId } = await import('./id');
+
 
   const roomId = await generateId('ROOM', 'Rooms', spreadsheetId);
   const { createdAt, updatedAt } = timestamps();
