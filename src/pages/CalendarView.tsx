@@ -14,6 +14,8 @@ import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 import { bookingBlock } from '@/utils/timelineGeometry';
+import QuickEditModal from '@/components/QuickEditModal';
+
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
 }
@@ -27,13 +29,14 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function CalendarView() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
-  const { bookings, loading, refetch, cancelBooking } = useBookings();
+  const { bookings, loading, refetch, cancelBooking, checkOutBooking, updateStatus } = useBookings();
   const { rooms, refetch: refetchRooms } = useRooms();
   const { customers, refetch: refetchCustomers } = useCustomers();
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<Booking | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -51,7 +54,7 @@ export default function CalendarView() {
 
   // Bookings that can still be cancelled by the user.
   const canCancel = (b: Booking) =>
-    b.status !== 'cancelled' && b.status !== 'checked_out' && b.status !== 'no_show';
+    b.status === 'inquiry' || b.status === 'confirmed';
 
   const handleCancel = async (id: string) => {
     try {
@@ -61,6 +64,28 @@ export default function CalendarView() {
       showToast('Booking cancelled — room is now available');
     } catch {
       showToast('Failed to cancel booking');
+    }
+  };
+
+  const handleCheckIn = async (id: string) => {
+    try {
+      const ok = await updateStatus(id, 'checked_in');
+      if (ok) {
+        setSelectedBooking(null);
+        showToast('Guest checked in successfully');
+      }
+    } catch {
+      showToast('Failed to check in guest');
+    }
+  };
+
+  const handleCheckOut = async (id: string) => {
+    try {
+      const res = await checkOutBooking(id);
+      setSelectedBooking(null);
+      showToast(res.overtimeAmount > 0 ? `Đã check-out — phụ thu quá giờ ${formatVnd(res.overtimeAmount)}` : 'Check-out thành công');
+    } catch {
+      showToast('Check-out thất bại');
     }
   };
 
@@ -108,7 +133,7 @@ export default function CalendarView() {
   while (cells.length % 7 !== 0) cells.push(null);
 
   const bookingColors: Record<string, string> = {
-    checked_in: '#2563EB', confirmed: '#10B981', inquiry: '#8B5CF6',
+    checked_in: '#10B981', confirmed: '#2563EB', inquiry: '#8B5CF6',
     checked_out: '#94A3B8', cancelled: '#EF4444', no_show: '#F59E0B',
   };
 
@@ -196,10 +221,14 @@ export default function CalendarView() {
             const blockLanes = new Map<string, number>();
             for (const { b } of weekBlocks) {
               const start = new Date(b.checkInAt).getTime();
-              const end   = new Date(b.expectedCheckOutAt).getTime();
+              const realEnd = new Date(b.expectedCheckOutAt).getTime();
+              // Pad the end time by at least 18 hours (64800000 ms) so that stretched
+              // short blocks (minWidth: 140) don't visually overlap with subsequent bookings in the same lane.
+              const visualEnd = Math.max(realEnd, start + 18 * 60 * 60 * 1000);
+              
               let lane = lanes.findIndex(endTime => endTime <= start);
-              if (lane === -1) { lane = lanes.length; lanes.push(end); }
-              else { lanes[lane] = end; }
+              if (lane === -1) { lane = lanes.length; lanes.push(visualEnd); }
+              else { lanes[lane] = visualEnd; }
               blockLanes.set(b.bookingId, lane);
             }
             return { total: Math.max(1, lanes.length), blockLanes };
@@ -209,7 +238,7 @@ export default function CalendarView() {
             d !== null && year === today.getFullYear() && month === today.getMonth() && d === today.getDate()
           );
           const ROW_MIN_H = 90;
-          const BLOCK_H   = 18;
+          const BLOCK_H   = 19;
           const BLOCK_GAP = 2;
           const dayNumReserve = 28; // space reserved for day numbers row
           const dynamicH = dayNumReserve + Math.max(0, laneCount.total) * (BLOCK_H + BLOCK_GAP) + 8;
@@ -261,6 +290,8 @@ export default function CalendarView() {
                       position: 'absolute',
                       left: `${geom.leftPct}%`,
                       width: `calc(${geom.widthPct}% - 4px)`,
+                      minWidth: 'max-content', // Đảm bảo luôn đủ dài để hiển thị hết chữ
+                      paddingRight: 8, // Thêm khoảng trống bên phải cho đẹp
                       marginLeft: 2,
                       top,
                       height: BLOCK_H,
@@ -270,9 +301,10 @@ export default function CalendarView() {
                       outline: isOverdue ? '1px dashed #DC2626' : 'none',
                       outlineOffset: -1,
                       borderRadius: '0 4px 4px 0',
-                      padding: '0 6px',
+                      padding: '0 4px',
                       fontSize: 10, fontWeight: 600,
                       cursor: 'pointer',
+                      textAlign: 'left', // Căn lề trái
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       lineHeight: `${BLOCK_H}px`,
                       zIndex: 2,
@@ -319,6 +351,48 @@ export default function CalendarView() {
                 Cancel Booking
               </button>
             )}
+            {['inquiry', 'confirmed', 'checked_in'].includes(selectedBooking.status) && (
+              <button
+                onClick={() => {
+                  setSelectedBooking(null);
+                  setEditBooking(selectedBooking);
+                }}
+                style={{
+                  marginTop: 4,
+                  background: '#DBEAFE', color: '#1D4ED8',
+                  border: 'none', borderRadius: 8,
+                  padding: '10px 14px', fontWeight: 600, fontSize: 13,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                Sửa nhanh
+              </button>
+            )}
+            {(selectedBooking.status === 'inquiry' || selectedBooking.status === 'confirmed') && (
+              <button
+                onClick={() => handleCheckIn(selectedBooking.bookingId)}
+                style={{
+                  marginTop: 4,
+                  background: '#D1FAE5', color: '#047857',
+                  border: 'none', borderRadius: 8,
+                  padding: '10px 14px', fontWeight: 600, fontSize: 13,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                Check-in
+              </button>
+            )}
+            {selectedBooking.status === 'checked_in' && (
+              <button
+                onClick={() => handleCheckOut(selectedBooking.bookingId)}
+                style={{
+                  marginTop: 4,
+                  background: '#F59E0B', color: '#fff',
+                  border: 'none', borderRadius: 8,
+                  padding: '10px 14px', fontWeight: 600, fontSize: 13,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                Xác nhận Check-out
+              </button>
+            )}
           </div>
         )}
       </Modal>
@@ -360,6 +434,18 @@ export default function CalendarView() {
           </div>
         )}
       </Modal>
+
+      <QuickEditModal
+        booking={editBooking}
+        guestName={editBooking ? customerMap.get(editBooking.customerId) : undefined}
+        roomName={editBooking ? roomMap.get(editBooking.roomId) : undefined}
+        onClose={() => setEditBooking(null)}
+        onSuccess={() => {
+          showToast('Đã cập nhật booking thành công');
+          refetch();
+        }}
+        darkMode={darkMode}
+      />
     </div>
   );
 }

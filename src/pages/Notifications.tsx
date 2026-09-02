@@ -59,7 +59,7 @@ export default function Notifications() {
               background: 'none', border: `1px solid ${border}`, borderRadius: 8,
               padding: '6px 14px', fontSize: 12, fontWeight: 600,
               cursor: 'pointer', color: textMuted,
-              fontFamily: "'Outfit', sans-serif",
+              fontFamily: "var(--font-sans)",
             }}
           >
             Mark all read

@@ -73,7 +73,7 @@ export default function Expenses() {
     width: '100%', padding: '8px 12px', borderRadius: 8,
     border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
     background: darkMode ? '#0F172A' : '#F8FAFC',
-    color: darkMode ? '#F1F5F9' : '#1E293B', fontSize: 13, fontFamily: "'Outfit', sans-serif", outline: 'none',
+    color: darkMode ? '#F1F5F9' : '#1E293B', fontSize: 13, fontFamily: "var(--font-sans)", outline: 'none',
   };
 
   const catColors: Record<string, string> = {
@@ -101,7 +101,7 @@ export default function Expenses() {
             <option>All</option>
             {CATEGORIES.map(c => <option key={c}>{c}</option>)}
           </select>
-          <button onClick={() => setAddOpen(true)} style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+          <button onClick={() => setAddOpen(true)} style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
             + Add Expense
           </button>
         </div>
@@ -193,7 +193,7 @@ export default function Expenses() {
               )}
             </div>
           ))}
-          <button onClick={handleAdd} style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+          <button onClick={handleAdd} style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
             Save Expense
           </button>
         </div>

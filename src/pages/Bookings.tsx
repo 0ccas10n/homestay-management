@@ -14,6 +14,7 @@ import type { Booking } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import BookingFormModal from '@/components/BookingFormModal';
+import QuickEditModal from '@/components/QuickEditModal';
 import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 
 const STATUSES = ['All', 'inquiry', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'];
@@ -27,6 +28,7 @@ export default function Bookings() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [selected, setSelected] = useState<Booking | null>(null);
+  const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<Booking | null>(null);
   const [addBookingOpen, setAddBookingOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -75,9 +77,9 @@ export default function Bookings() {
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // True when the booking is in a state where it can still be cancelled.
+  // Bookings that can still be cancelled by the user.
   const canCancel = (b: Booking) =>
-    b.status !== 'cancelled' && b.status !== 'checked_out' && b.status !== 'no_show';
+    b.status === 'inquiry' || b.status === 'confirmed';
 
   const handleCancel = async (id: string) => {
     try {
@@ -92,8 +94,8 @@ export default function Bookings() {
 
   const handleCheckIn = async (id: string) => {
     try {
-      await updateStatus(id, 'checked_in');
-      showToast('Đã check-in khách');
+      const ok = await updateStatus(id, 'checked_in');
+      if (ok) showToast('Đã check-in khách');
     } catch {
       showToast('Check-in thất bại');
     }
@@ -110,8 +112,8 @@ export default function Bookings() {
 
   const handleNoShow = async (id: string) => {
     try {
-      await updateStatus(id, 'no_show');
-      showToast('Đã đánh dấu no-show');
+      const ok = await updateStatus(id, 'no_show');
+      if (ok) showToast('Đã đánh dấu no-show');
     } catch {
       showToast('Cập nhật thất bại');
     }
@@ -120,7 +122,7 @@ export default function Bookings() {
   const inputStyle = {
     width: '100%', padding: '8px 12px', borderRadius: 8,
     border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`, background: darkMode ? '#0F172A' : '#F8FAFC',
-    color: darkMode ? '#F1F5F9' : '#1E293B', fontSize: 13, fontFamily: "'Outfit', sans-serif", outline: 'none',
+    color: darkMode ? '#F1F5F9' : '#1E293B', fontSize: 13, fontFamily: "var(--font-sans)", outline: 'none',
   };
 
   const bg = darkMode ? '#1E293B' : '#fff';
@@ -149,7 +151,7 @@ export default function Bookings() {
           <div style={{ fontSize: 13, color: textMuted }}>{sorted.length} booking{sorted.length !== 1 ? 's' : ''}</div>
           <button
             onClick={() => setAddBookingOpen(true)}
-            style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+            style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
             + Add Booking
           </button>
         </div>
@@ -193,11 +195,14 @@ export default function Bookings() {
                   </td>
                   <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                     <button onClick={() => setSelected(b)} style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: textMuted, marginRight: 4 }}>Xem</button>
+                    {['inquiry', 'confirmed', 'checked_in'].includes(b.status) && (
+                      <button onClick={() => setEditBooking(b)} style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#3B82F6', marginRight: 4 }}>Sửa</button>
+                    )}
                     {(b.status === 'inquiry' || b.status === 'confirmed') && (
-                      <button onClick={() => handleCheckIn(b.bookingId)} style={{ background: 'none', border: '1px solid #93C5FD', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#2563EB', marginRight: 4 }}>Check-in</button>
+                      <button onClick={() => handleCheckIn(b.bookingId)} style={{ background: '#D1FAE5', border: '1px solid #6EE7B7', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#047857', marginRight: 4 }}>Check-in</button>
                     )}
                     {b.status === 'checked_in' && (
-                      <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: 'none', border: '1px solid #6EE7B7', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#10B981', marginRight: 4 }}>Check-out</button>
+                      <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: 'none', border: '1px solid #FCD34D', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#D97706', marginRight: 4 }}>Check-out</button>
                     )}
                     {(b.status === 'inquiry' || b.status === 'confirmed') && (
                       <button onClick={() => handleNoShow(b.bookingId)} style={{ background: 'none', border: '1px solid #FDE68A', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#B45309', marginRight: 4 }}>No-show</button>
@@ -279,11 +284,22 @@ export default function Bookings() {
               </div>
             )}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {['inquiry', 'confirmed', 'checked_in'].includes(selected.status) && (
+                <button
+                  onClick={() => {
+                    setSelected(null);
+                    setEditBooking(selected);
+                  }}
+                  style={{ background: '#DBEAFE', color: '#1D4ED8', border: 'none', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  Sửa nhanh
+                </button>
+              )}
               {(selected.status === 'inquiry' || selected.status === 'confirmed') && (
-                <button onClick={() => handleCheckIn(selected.bookingId)} style={{ background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #93C5FD', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Check-in</button>
+                <button onClick={() => handleCheckIn(selected.bookingId)} style={{ background: '#D1FAE5', color: '#047857', border: 'none', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Check-in</button>
               )}
               {selected.status === 'checked_in' && (
-                <button onClick={() => handleCheckOut(selected.bookingId)} style={{ background: '#D1FAE5', color: '#047857', border: '1px solid #6EE7B7', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Check-out</button>
+                <button onClick={() => handleCheckOut(selected.bookingId)} style={{ background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Check-out</button>
               )}
               {(selected.status === 'inquiry' || selected.status === 'confirmed') && (
                 <button onClick={() => handleNoShow(selected.bookingId)} style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>No-show</button>
@@ -327,7 +343,7 @@ export default function Bookings() {
                   border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
                   borderRadius: 8, padding: '9px 16px', fontWeight: 600, fontSize: 13,
                   cursor: 'pointer', color: darkMode ? '#94A3B8' : '#64748B',
-                  fontFamily: "'Outfit', sans-serif",
+                  fontFamily: "var(--font-sans)",
                 }}>
                 Giữ booking
               </button>
@@ -336,7 +352,7 @@ export default function Bookings() {
                 style={{
                   background: '#EF4444', color: '#fff', border: 'none',
                   borderRadius: 8, padding: '9px 16px', fontWeight: 600, fontSize: 13,
-                  cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                  cursor: 'pointer', fontFamily: "var(--font-sans)",
                 }}>
                 Xác nhận huỷ
               </button>
@@ -344,6 +360,18 @@ export default function Bookings() {
           </div>
         )}
       </Modal>
+
+      <QuickEditModal
+        booking={editBooking}
+        guestName={editBooking ? customerMap.get(editBooking.customerId) : undefined}
+        roomName={editBooking ? roomMap.get(editBooking.roomId) : undefined}
+        onClose={() => setEditBooking(null)}
+        onSuccess={() => {
+          showToast('Đã cập nhật booking thành công');
+          refetch();
+        }}
+        darkMode={darkMode}
+      />
     </div>
   );
 }

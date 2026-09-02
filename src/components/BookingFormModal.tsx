@@ -578,7 +578,7 @@ async function recalculateTotal(
     border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
     background: darkMode ? '#0F172A' : '#F8FAFC',
     color: darkMode ? '#E2E8F0' : '#1E293B',
-    fontSize: 13, fontFamily: "'Outfit', sans-serif", outline: 'none',
+    fontSize: 13, fontFamily: "var(--font-sans)", outline: 'none',
     boxSizing: 'border-box',
   };
 
@@ -613,7 +613,7 @@ async function recalculateTotal(
               border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
               borderRadius: 8, padding: '10px 20px', fontWeight: 600, fontSize: 13,
               cursor: 'pointer', color: darkMode ? '#94A3B8' : '#64748B',
-              fontFamily: "'Outfit', sans-serif",
+              fontFamily: "var(--font-sans)",
             }}
           >
             Cancel
@@ -625,7 +625,7 @@ async function recalculateTotal(
               color: '#fff', border: 'none', borderRadius: 8,
               padding: '10px 20px', fontWeight: 600, fontSize: 14,
               cursor: submitting ? 'wait' : 'pointer',
-              fontFamily: "'Outfit', sans-serif",
+              fontFamily: "var(--font-sans)",
             }}
           >
             {submitting ? 'Creating…' : 'Create Booking'}
@@ -679,7 +679,7 @@ async function recalculateTotal(
                   style={{
                     padding: '7px 18px', borderRadius: 7,
                     fontSize: 13, fontWeight: 600,
-                    cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                    cursor: 'pointer', fontFamily: "var(--font-sans)",
                     border: 'none',
                     background: selected ? '#2563EB' : 'transparent',
                     color: selected ? '#fff' : (darkMode ? '#94A3B8' : '#64748B'),
@@ -867,7 +867,7 @@ async function recalculateTotal(
             value={state.note}
             onChange={e => update('note', e.target.value)}
             placeholder="optional" rows={2}
-            style={{ ...inputStyle, resize: 'vertical', fontFamily: "'Outfit', sans-serif" }}
+            style={{ ...inputStyle, resize: 'vertical', fontFamily: "var(--font-sans)" }}
           />
         </div>
 

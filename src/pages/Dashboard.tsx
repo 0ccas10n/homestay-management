@@ -15,7 +15,7 @@ import { useCustomers } from '@/hooks/useCustomers';
 import { bookingsApi, roomsApi, cleaningApi, expensesApi } from '@/services/api';
 import type { Booking, CleaningTask } from '@/types/index';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { getBookingStatus, getStatusColor, getStatusBg, minutesUntilCheckout, formatMinutes } from '@/utils/pricing';
+import { getBookingStatus, getStatusColor, getStatusBg, minutesUntilCheckout, formatMinutes, OVERTIME_HOURLY_RATE } from '@/utils/pricing';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import BookingFormModal from '@/components/BookingFormModal';
@@ -30,7 +30,7 @@ export default function Dashboard() {
   const monthlyRevenue = dashboard?.monthlyRevenue ?? [];
   const weeklyOccupancy = dashboard?.weeklyOccupancy ?? [];
   const monthlyRevenueTotal = dashboard?.monthlyRevenueTotal ?? 0;
-  const { bookings, refetch: refetchBookings } = useBookings({ autoFetch: false });
+  const { bookings, refetch: refetchBookings, updateStatus } = useBookings({ autoFetch: false });
   const [rooms, setRooms] = useState<Awaited<ReturnType<typeof roomsApi.getInternal>>>([]);
   const [cleaningTasks, setCleaningTasks] = useState<CleaningTask[]>([]);
   const [nowMin, setNowMin] = useState(() => {
@@ -48,20 +48,18 @@ export default function Dashboard() {
 
   // Fetch rooms + cleaning tasks on mount
   const refetchLocalRooms = useCallback(() => {
-    roomsApi.getInternal()
-      .then(r => setRooms(r))
-      .catch(() => {});
+    roomsApi.getInternal().then(r => setRooms(r)).catch(() => {});
   }, []);
+
+  const refetchLocalCleaning = useCallback(() => {
+    cleaningApi.get({ active: 'true' }).then(c => setCleaningTasks(c)).catch(() => {});
+  }, []);
+
   useEffect(() => {
-    Promise.all([
-      roomsApi.getInternal().catch(() => []),
-      cleaningApi.get({ active: 'true' }).catch(() => []),
-    ]).then(([r, c]) => {
-      setRooms(r);
-      setCleaningTasks(c);
-    });
+    refetchLocalRooms();
+    refetchLocalCleaning();
     refetchBookings().catch(() => {});
-  }, [refetchBookings, refetchLocalRooms]);
+  }, [refetchBookings, refetchLocalRooms, refetchLocalCleaning]);
 
   const roomMap: Record<string, (typeof rooms)[number] | undefined> = {};
   for (const r of rooms) roomMap[r.roomId] = r;
@@ -80,16 +78,16 @@ export default function Dashboard() {
   const needsCleaning = dashboard?.roomsToClean ?? 0;
 
   const today = TODAY_DATE;
-  const checkingIn = bookings.filter(b =>
-    b.checkInAt.startsWith(today) &&
-    b.status !== 'cancelled' &&
-    (b.status === 'confirmed' || b.status === 'inquiry'),
-  );
-  const checkingOut = bookings.filter(b =>
-    b.expectedCheckOutAt.startsWith(today) &&
-    b.status !== 'cancelled' &&
-    b.status === 'checked_in',
-  );
+  const checkingIn = bookings.filter(b => {
+    if (b.status === 'cancelled' || (b.status !== 'confirmed' && b.status !== 'inquiry')) return false;
+    const checkInDate = b.checkInAt.slice(0, 10);
+    return checkInDate <= today;
+  });
+  const checkingOut = bookings.filter(b => {
+    if (b.status !== 'checked_in') return false;
+    const checkoutDate = b.expectedCheckOutAt.slice(0, 10);
+    return checkoutDate <= today;
+  });
 
   const activeCleaning = cleaningTasks.filter(t =>
     t.status === 'pending' || t.status === 'in_progress',
@@ -130,14 +128,39 @@ export default function Dashboard() {
     return r?.name ?? booking.roomId;
   };
 
+  const getLiveCheckoutTotal = (b: Booking) => {
+    // For hourly bookings, backend skips auto overtime calculation 
+    // (receptionist enters manual extra charges via API).
+    // So we just return the stored total.
+    if (b.bookingType === 'hourly' || b.ratePlanId === 'RP-0004' || b.ratePlanId === '__custom__') {
+      return { total: getBookingTotal(b), overtimeAmount: 0, overtimeMinutes: 0 };
+    }
+
+    const expected = new Date(b.expectedCheckOutAt).getTime();
+    const now = new Date().getTime();
+    
+    if (now <= expected) {
+      return { total: getBookingTotal(b), overtimeAmount: 0, overtimeMinutes: 0 };
+    }
+
+    const overtimeMinutes = Math.max(0, Math.round((now - expected) / 60000));
+    const overtimeHours = Math.ceil(overtimeMinutes / 60);
+    const overtimeAmount = overtimeHours * OVERTIME_HOURLY_RATE;
+    const total = (b.baseAmount ?? 0) + overtimeAmount;
+
+    return { total, overtimeAmount, overtimeMinutes };
+  };
+
   // ── Modal actions ──────────────────────────────────────────────────────────────
 
   const handleCheckIn = async (bookingId: string) => {
     try {
-      await bookingsApi.update(bookingId, { status: 'checked_in' });
-      await refetchBookings();
-      setModal(null);
-      showToast('Guest checked in successfully');
+      const ok = await updateStatus(bookingId, 'checked_in');
+      if (ok) {
+        await refetchBookings();
+        setModal(null);
+        showToast('Guest checked in successfully');
+      }
     } catch {
       showToast('Check-in failed. Please try again.');
     }
@@ -149,6 +172,7 @@ export default function Dashboard() {
       await bookingsApi.update(bookingId, { actualCheckOutAt: now });
       await refetchBookings();
       refetchLocalRooms(); // room status flips to 'needs_cleaning' on the server
+      refetchLocalCleaning(); // a new cleaning task is generated on the server
       setModal(null);
       showToast('Guest checked out — room flagged for cleaning');
     } catch {
@@ -408,19 +432,28 @@ export default function Dashboard() {
 
       <Modal open={modal === 'check-out'} onClose={() => setModal(null)} title="Check Out Guest" darkMode={darkMode}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {checkingOut.map(b => (
-            <div key={b.bookingId} style={{ padding: '12px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}` }}>
-              <div style={{ fontWeight: 600, color: darkMode ? '#F1F5F9' : '#1E293B' }}>{getGuestName(b)}</div>
-              <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B', marginBottom: 8 }}>
-                Room {getRoomNumber(b)} · {b.checkInAt.slice(0, 16).replace('T', ' ')} → {b.expectedCheckOutAt.slice(0, 16).replace('T', ' ')}<br/>
-                Balance: <strong>{formatVnd(getBookingTotal(b))}</strong>
+          {checkingOut.map(b => {
+            const live = getLiveCheckoutTotal(b);
+            const isOverdue = live.overtimeMinutes > 0;
+            return (
+              <div key={b.bookingId} style={{ padding: '12px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}` }}>
+                <div style={{ fontWeight: 600, color: darkMode ? '#F1F5F9' : '#1E293B' }}>{getGuestName(b)}</div>
+                <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B', marginBottom: 8, lineHeight: 1.5 }}>
+                  <div>Room {getRoomNumber(b)} · {b.checkInAt.slice(0, 16).replace('T', ' ')} → {b.expectedCheckOutAt.slice(0, 16).replace('T', ' ')}</div>
+                  {isOverdue && (
+                    <div style={{ color: '#EF4444' }}>
+                      Quá giờ: {formatMinutes(live.overtimeMinutes)} (Phụ thu: +{formatVnd(live.overtimeAmount)})
+                    </div>
+                  )}
+                  <div>Tổng thu: <strong style={{ color: isOverdue ? '#EF4444' : 'inherit', fontSize: 14 }}>{formatVnd(live.total)}</strong></div>
+                </div>
+                <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Xác nhận Check-out & Thu tiền
+                </button>
               </div>
-              <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Process Check-out
-              </button>
-            </div>
-          ))}
-          {checkingOut.length === 0 && <p style={{ color: '#64748B', fontSize: 13 }}>No guests checking out today.</p>}
+            );
+          })}
+          {checkingOut.length === 0 && <p style={{ color: '#64748B', fontSize: 13 }}>Không có khách nào đang check-in.</p>}
         </div>
       </Modal>
 
@@ -468,7 +501,7 @@ function ExpenseForm({ darkMode, onSave }: { darkMode: boolean; onSave: (e: { ca
     border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
     background: darkMode ? '#0F172A' : '#F8FAFC',
     color: darkMode ? '#E2E8F0' : '#1E293B',
-    fontSize: 13, fontFamily: "'Outfit', sans-serif", outline: 'none',
+    fontSize: 13, fontFamily: "var(--font-sans)", outline: 'none',
     boxSizing: 'border-box' as const,
   };
 
@@ -491,7 +524,7 @@ function ExpenseForm({ darkMode, onSave }: { darkMode: boolean; onSave: (e: { ca
           if (!amount || !description) return;
           onSave({ category, amount: parseFloat(amount), description, date, vendor });
         }}
-        style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+        style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
         Save Expense
       </button>
     </div>

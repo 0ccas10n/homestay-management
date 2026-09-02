@@ -23,6 +23,7 @@ import type { Booking, Room } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import BookingFormModal from '@/components/BookingFormModal';
+import QuickEditModal from '@/components/QuickEditModal';
 import { assignLanes, bookingBlock } from '@/utils/timelineGeometry';
 import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 import { bookingsApi } from '@/services/api';
@@ -116,18 +117,18 @@ function statusVisual(status: string, darkMode: boolean): StatusVisual {
     case 'checked_in':
       return {
         ...base,
-        bg: isDark ? 'rgba(37,99,235,0.30)' : '#DBEAFE',
-        border: '#2563EB',
-        text: isDark ? '#DBEAFE' : '#1E40AF',
+        bg: isDark ? 'rgba(16,185,129,0.18)' : '#ECFDF5',
+        border: '#10B981',
+        text: isDark ? '#6EE7B7' : '#065F46',
         solid: true,
         showProgress: true,
       };
     case 'confirmed':
       return {
         ...base,
-        bg: isDark ? 'rgba(16,185,129,0.18)' : '#ECFDF5',
-        border: '#10B981',
-        text: isDark ? '#6EE7B7' : '#065F46',
+        bg: isDark ? 'rgba(37,99,235,0.30)' : '#DBEAFE',
+        border: '#2563EB',
+        text: isDark ? '#DBEAFE' : '#1E40AF',
         solid: true,
       };
     case 'inquiry':
@@ -185,22 +186,9 @@ function progressPct(b: Booking): number {
 
 /** Compute the real-time lifecycle status of a booking based on current time. */
 function getEffectiveBookingStatus(b: Booking): import('@/types/index').BookingStatus {
-  if (b.status === 'cancelled' || b.status === 'no_show') {
-    return b.status;
-  }
-  const cinMs = new Date(b.checkInAt).getTime();
-  const coutMs = new Date(b.expectedCheckOutAt).getTime();
-  const nowMs = Date.now();
-
-  // Đã qua giờ checkout -> Đã trả phòng / Hoàn tất
-  if (nowMs >= coutMs) {
-    return 'checked_out';
-  }
-  // Đang trong thời gian ở (checkIn <= now < checkOut) -> Đang ở
-  if (nowMs >= cinMs && nowMs < coutMs) {
-    return 'checked_in';
-  }
-  // Tương lai -> Giữ nguyên (confirmed / inquiry)
+  // BIZ LOGIC FIX: Do not override booking status based on time. 
+  // The system of record (DB) must be the single source of truth so receptionists 
+  // know if a guest has physically checked in or checked out.
   return b.status;
 }
 
@@ -209,13 +197,39 @@ export default function Timeline() {
   const { darkMode } = useOutletContext<TimelineProps>();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const { rooms, loading: roomsLoading, refetch: refetchRooms } = useRooms();
-  const { bookings, loading: bookingsLoading, refetch: refetchBookings } = useBookings();
+  const { bookings, loading: bookingsLoading, refetch: refetchBookings, checkOutBooking, updateStatus } = useBookings();
   const { customers, refetch: refetchCustomers } = useCustomers();
   const [zoom, setZoom] = useState<7 | 14 | 30>(DEFAULT_ZOOM);
   const [windowStart, setWindowStart] = useState<string>(() => addDaysStr(todayStr(), -1));
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [addBooking, setAddBooking] = useState<{ roomId?: string; date?: string } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
+  const handleCheckOut = async (id: string) => {
+    try {
+      const res = await checkOutBooking(id);
+      setSelectedBooking(null);
+      showToast(res.overtimeAmount > 0 ? `Đã check-out — phụ thu quá giờ ${formatVnd(res.overtimeAmount)}` : 'Check-out thành công');
+    } catch {
+      showToast('Check-out thất bại');
+    }
+  };
+
+  const handleCheckIn = async (id: string) => {
+    try {
+      const ok = await updateStatus(id, 'checked_in');
+      if (ok) {
+        setSelectedBooking(null);
+        showToast('Check-in thành công');
+      }
+    } catch {
+      showToast('Check-in thất bại');
+    }
+  };
 
   useEffect(() => {
     refetchRooms();
@@ -387,7 +401,7 @@ export default function Timeline() {
                     background: active ? '#2563EB' : 'transparent',
                     color: active ? '#fff' : textMuted,
                     fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                    fontFamily: "'Outfit', sans-serif",
+                    fontFamily: "var(--font-sans)",
                     transition: 'background 0.15s',
                   }}
                 >
@@ -458,7 +472,7 @@ export default function Timeline() {
               padding: '5px 10px',
               fontSize: 12, fontWeight: 600,
               cursor: 'pointer',
-              fontFamily: "'Outfit', sans-serif",
+              fontFamily: "var(--font-sans)",
               minWidth: 180, flex: isMobile ? 1 : undefined,
             }}
           >
@@ -649,9 +663,27 @@ export default function Timeline() {
             textPrimary={textPrimary}
             textMuted={textMuted}
             border={border}
+            onCheckOut={() => handleCheckOut(selectedBooking.bookingId)}
+            onCheckIn={() => handleCheckIn(selectedBooking.bookingId)}
+            onEdit={() => {
+              setSelectedBooking(null);
+              setEditBooking(selectedBooking);
+            }}
           />
         )}
       </Modal>
+
+      <QuickEditModal
+        booking={editBooking}
+        guestName={editBooking ? customerMap.get(editBooking.customerId) : undefined}
+        roomName={editBooking ? rooms.find(r => r.roomId === editBooking.roomId)?.name : undefined}
+        onClose={() => setEditBooking(null)}
+        onSuccess={() => {
+          showToast('Đã cập nhật booking thành công');
+          refetchBookings();
+        }}
+        darkMode={darkMode}
+      />
       <BookingFormModal
         open={!!addBooking}
         onClose={() => setAddBooking(null)}
@@ -911,6 +943,7 @@ function BookingBlock({
         position: 'absolute',
         left: `${geom.leftPct}%`,
         width: `calc(${geom.widthPct}% - 4px)`,
+        minWidth: 24, // Ensures even a 1-hour booking is clickable
         marginLeft: 2,
         top,
         height,
@@ -988,12 +1021,15 @@ function BookingBlock({
 }
 
 function BookingDetail({
-  booking, room, guestName, textPrimary, textMuted, border,
+  booking, room, guestName, textPrimary, textMuted, border, onCheckOut, onCheckIn, onEdit,
 }: {
   booking: Booking;
   room: Room | undefined;
   guestName: string | undefined;
   textPrimary: string; textMuted: string; border: string;
+  onCheckOut?: () => void;
+  onCheckIn?: () => void;
+  onEdit?: () => void;
 }) {
   const effectiveStatus = getEffectiveBookingStatus(booking);
   const sameDay = booking.checkInAt.slice(0, 10) === booking.expectedCheckOutAt.slice(0, 10);
@@ -1018,6 +1054,44 @@ function BookingDetail({
       ))}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
         <StatusBadge status={effectiveStatus} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          {['inquiry', 'confirmed', 'checked_in'].includes(effectiveStatus) && onEdit && (
+            <button
+              onClick={onEdit}
+              style={{
+                background: '#DBEAFE', color: '#1D4ED8',
+                border: 'none', borderRadius: 8,
+                padding: '8px 12px', fontWeight: 600, fontSize: 13,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              Sửa nhanh
+            </button>
+          )}
+          {(effectiveStatus === 'inquiry' || effectiveStatus === 'confirmed') && onCheckIn && (
+            <button
+              onClick={onCheckIn}
+              style={{
+                background: '#D1FAE5', color: '#047857',
+                border: 'none', borderRadius: 8,
+                padding: '8px 12px', fontWeight: 600, fontSize: 13,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              Check-in
+            </button>
+          )}
+          {effectiveStatus === 'checked_in' && onCheckOut && (
+            <button
+              onClick={onCheckOut}
+              style={{
+                background: '#F59E0B', color: '#fff',
+                border: 'none', borderRadius: 8,
+                padding: '8px 12px', fontWeight: 600, fontSize: 13,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              Xác nhận Check-out
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1032,7 +1106,7 @@ function navBtnStyle(border: string, color: string): React.CSSProperties {
     padding: '6px 11px',
     fontSize: 13, fontWeight: 700,
     cursor: 'pointer',
-    fontFamily: "'Outfit', sans-serif",
+    fontFamily: "var(--font-sans)",
     minWidth: 32,
   };
 }

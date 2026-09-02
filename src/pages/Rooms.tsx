@@ -188,7 +188,7 @@ export default function Rooms() {
         <div style={{ marginLeft: 'auto', fontSize: 12, color: textMuted }}>{filtered.length} room{filtered.length !== 1 ? 's' : ''}</div>
         <button
           onClick={() => { setEditingRoom(null); setFormOpen(true); }}
-          style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+          style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
           + Add Room
         </button>
       </div>
@@ -450,8 +450,8 @@ function RoomFormModal({ onClose, onSave, initial, darkMode, inputStyle, textMut
               style={{ ...inputStyle(), resize: 'vertical', minHeight: 72 } as React.CSSProperties} />
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${border}`, borderRadius: 8, padding: '10px', fontWeight: 600, fontSize: 14, cursor: 'pointer', color: textMuted, fontFamily: "'Outfit', sans-serif" }}>Cancel</button>
-            <button onClick={handleSave} style={{ flex: 2, background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+            <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${border}`, borderRadius: 8, padding: '10px', fontWeight: 600, fontSize: 14, cursor: 'pointer', color: textMuted, fontFamily: "var(--font-sans)" }}>Cancel</button>
+            <button onClick={handleSave} style={{ flex: 2, background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
               {initial ? 'Save Changes' : 'Add Room'}
             </button>
           </div>

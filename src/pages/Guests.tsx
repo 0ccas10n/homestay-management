@@ -82,7 +82,7 @@ export default function Guests() {
             border: `1px solid ${border}`,
             background: darkMode ? '#0F172A' : '#F8FAFC',
             color: textPrimary, fontSize: 13,
-            fontFamily: "'Outfit', sans-serif", outline: 'none',
+            fontFamily: "var(--font-sans)", outline: 'none',
           }}
         />
         <span style={{ fontSize: 13, color: textMuted }}>

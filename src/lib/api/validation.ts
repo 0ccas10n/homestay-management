@@ -123,6 +123,7 @@ export const updateBookingSchema = z.object({
   ratePlanId:          z.string().min(1).optional(),
   numGuests:           z.number().int().min(1).max(4).optional(),
   actualCheckOutAt:    isoDateTimeSchema.optional(),
+  totalAmount:         z.number().nonnegative().optional(),
   note:                z.string().max(1000).optional(),
 });
 

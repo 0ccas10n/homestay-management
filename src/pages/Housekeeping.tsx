@@ -81,7 +81,7 @@ export default function Housekeeping() {
         {(['All', 'pending', 'in_progress', 'completed'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+            cursor: 'pointer', fontFamily: "var(--font-sans)",
             background: filter === f ? '#2563EB' : bg,
             color: filter === f ? '#fff' : textMuted,
             border: `1px solid ${filter === f ? '#2563EB' : border}`,
@@ -126,18 +126,18 @@ export default function Housekeeping() {
               <div style={{ display: 'flex', gap: 6 }}>
                 {t.status === 'pending' && (
                   <button onClick={() => handleTransition(t.cleaningId, 'in_progress')}
-                    style={{ flex: 1, background: '#FEF3C7', color: '#92400E', border: 'none', borderRadius: 7, padding: '7px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+                    style={{ flex: 1, background: '#FEF3C7', color: '#92400E', border: 'none', borderRadius: 7, padding: '7px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
                     Start Cleaning
                   </button>
                 )}
                 {t.status === 'in_progress' && (
                   <button onClick={() => handleTransition(t.cleaningId, 'pending')}
-                    style={{ background: darkMode ? '#334155' : '#F1F5F9', color: textMuted, border: 'none', borderRadius: 7, padding: '7px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+                    style={{ background: darkMode ? '#334155' : '#F1F5F9', color: textMuted, border: 'none', borderRadius: 7, padding: '7px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
                     Pause
                   </button>
                 )}
                 <button onClick={() => handleTransition(t.cleaningId, 'completed')}
-                  style={{ flex: 1, background: '#ECFDF5', color: '#065F46', border: 'none', borderRadius: 7, padding: '7px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+                  style={{ flex: 1, background: '#ECFDF5', color: '#065F46', border: 'none', borderRadius: 7, padding: '7px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
                   Mark Completed ✓
                 </button>
               </div>

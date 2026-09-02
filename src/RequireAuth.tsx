@@ -17,7 +17,7 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontFamily: "'Outfit', sans-serif",
+        fontFamily: "var(--font-sans)",
         color: '#64748B',
         fontSize: 14,
       }}>

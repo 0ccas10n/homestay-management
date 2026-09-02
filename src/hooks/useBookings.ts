@@ -58,11 +58,32 @@ export function useBookings(_options?: UseBookingsOptions): UseBookingsReturn {
   }, []);
 
   const updateStatus = useCallback(async (id: string, status: Booking['status']) => {
+    const booking = bookings.find(b => b.bookingId === id);
+    if (booking) {
+      const checkInTime = new Date(booking.checkInAt).getTime();
+      const now = Date.now();
+      const diffMins = (checkInTime - now) / 60000;
+      
+      if (status === 'checked_in' && diffMins > 120) {
+        const hoursEarly = (diffMins / 60).toFixed(1);
+        if (!window.confirm(`⚠️ Khách đang check-in SỚM ${hoursEarly} tiếng so với giờ dự kiến.\nBạn có chắc chắn muốn cho khách check-in sớm không?`)) {
+          return false;
+        }
+      }
+      
+      if (status === 'no_show' && diffMins > -120) {
+        if (!window.confirm(`⚠️ Chưa quá 2 tiếng kể từ giờ check-in dự kiến (hoặc chưa đến giờ).\nBạn có chắc chắn muốn đánh dấu No-show không?`)) {
+          return false;
+        }
+      }
+    }
+
     const res = await bookingsApi.updateStatus(id, status);
     setBookings(prev => prev.map(b =>
       b.bookingId === id ? res.booking : b,
     ));
-  }, []);
+    return true;
+  }, [bookings]);
 
   const checkOutBooking = useCallback(async (id: string, actualCheckOutAt?: string) => {
     const res = await bookingsApi.checkout(id, actualCheckOutAt ?? new Date().toISOString());

@@ -12,7 +12,7 @@ import type { RatePlan, Booking } from '../types/index';
 import { ratePlans } from '../data/hourlyData';
 
 // ─── Surcharge constants (同步 seedData.ts SURCHARGE_RULES) ───────────────────────
-const OVERTIME_HOURLY_RATE = 70_000; // VND per overtime hour past expected check-out
+export const OVERTIME_HOURLY_RATE = 70_000; // VND per overtime hour past expected check-out
 
 // ─── 1. Duration helpers (ISO 8601) ─────────────────────────────────────────────
 

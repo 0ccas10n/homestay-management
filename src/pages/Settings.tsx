@@ -45,7 +45,7 @@ export default function Settings() {
     border: `1px solid ${border}`,
     background: darkMode ? '#0F172A' : '#F8FAFC',
     color: textPrimary, fontSize: 13,
-    fontFamily: "'Outfit', sans-serif", outline: 'none',
+    fontFamily: "var(--font-sans)", outline: 'none',
     boxSizing: 'border-box' as const,
   };
 
@@ -67,7 +67,7 @@ export default function Settings() {
         {TABS.map(t => (
           <button key={t} onClick={() => setActiveTab(t)} style={{
             padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', fontFamily: "'Outfit', sans-serif", border: 'none',
+            cursor: 'pointer', fontFamily: "var(--font-sans)", border: 'none',
             background: activeTab === t ? '#2563EB' : 'transparent',
             color: activeTab === t ? '#fff' : textMuted,
             transition: 'all 0.15s',
@@ -104,7 +104,7 @@ export default function Settings() {
             style={{
               marginTop: 20, background: '#2563EB', color: '#fff', border: 'none',
               borderRadius: 8, padding: '10px 24px', fontWeight: 600, fontSize: 14,
-              cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+              cursor: 'pointer', fontFamily: "var(--font-sans)",
             }}
           >
             Save Changes
@@ -184,7 +184,7 @@ export default function Settings() {
                   <button onClick={() => showToast(`${rt.type} pricing updated (local)`)} style={{
                     background: '#10B981', color: '#fff', border: 'none', borderRadius: 7,
                     padding: '7px 14px', fontSize: 12, fontWeight: 600,
-                    cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                    cursor: 'pointer', fontFamily: "var(--font-sans)",
                   }}>
                     Save
                   </button>
@@ -203,7 +203,7 @@ export default function Settings() {
             <button onClick={() => showToast('Invite staff feature coming soon')} style={{
               background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8,
               padding: '7px 14px', fontSize: 12, fontWeight: 600,
-              cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+              cursor: 'pointer', fontFamily: "var(--font-sans)",
             }}>
               + Invite Staff
             </button>
@@ -262,7 +262,7 @@ export default function Settings() {
             <button onClick={() => showToast('Pricing rules saved (local)') } style={{
               alignSelf: 'flex-start', background: '#2563EB', color: '#fff', border: 'none',
               borderRadius: 8, padding: '10px 24px', fontWeight: 600, fontSize: 14,
-              cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+              cursor: 'pointer', fontFamily: "var(--font-sans)",
             }}>
               Save Pricing Rules
             </button>
