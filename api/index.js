@@ -1227,7 +1227,7 @@ function jsonNoContent() {
 
 // src/lib/api/validation.ts
 var isoDateTimeSchema = z.string().regex(
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2}|Z)$/,
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}:\d{2}|Z)$/,
   "Must be an ISO 8601 datetime with timezone offset"
 );
 var dateSchema = z.string().regex(
@@ -1474,7 +1474,7 @@ async function byCustomer(spreadsheetId, customerId) {
 async function hasOverlap(spreadsheetId, roomId, checkInAt, expectedCheckOutAt, excludeBookingId) {
   const existing = await byRoom(spreadsheetId, roomId);
   return existing.filter(
-    (b) => b.status !== "cancelled" && b.status !== "checked_out" && b.bookingId !== excludeBookingId
+    (b) => b.status !== "cancelled" && b.status !== "checked_out" && b.status !== "no_show" && b.bookingId !== excludeBookingId
   ).some(
     (b) => windowsOverlap(b.checkInAt, b.expectedCheckOutAt, checkInAt, expectedCheckOutAt)
   );

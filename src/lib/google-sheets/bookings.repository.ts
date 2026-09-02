@@ -182,7 +182,7 @@ export async function byCustomer(
 
 /**
  * Check whether a requested stay window would overlap any active booking for a room.
- * Active = not cancelled, not checked_out.
+ * Active = not cancelled, not checked_out, not no_show.
  * Excludes a bookingId (used when updating an existing booking).
  */
 export async function hasOverlap(
@@ -197,6 +197,7 @@ export async function hasOverlap(
     .filter(b =>
       b.status !== 'cancelled' &&
       b.status !== 'checked_out' &&
+      b.status !== 'no_show' &&
       b.bookingId !== excludeBookingId,
     )
     .some(b =>

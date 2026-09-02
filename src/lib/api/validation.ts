@@ -16,7 +16,7 @@ import { jsonValidationError } from './response';
 
 /** ISO 8601 datetime string with timezone offset, e.g. "2026-08-28T14:00:00+07:00" */
 export const isoDateTimeSchema = z.string().regex(
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2}|Z)$/,
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}:\d{2}|Z)$/,
   'Must be an ISO 8601 datetime with timezone offset',
 );
 
