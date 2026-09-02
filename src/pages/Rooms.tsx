@@ -48,7 +48,14 @@ export default function Rooms() {
   }, [rooms]);
 
   const filtered = rooms.filter(r => {
-    if (filterTab !== 'All' && r.status !== filterTab) return false;
+    const isRoomInactive = !r.active || r.status === 'inactive';
+    if (filterTab === 'inactive') {
+      if (!isRoomInactive) return false;
+    } else if (filterTab === 'All') {
+      if (isRoomInactive) return false;
+    } else {
+      if (r.status !== filterTab || isRoomInactive) return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       if (!r.name.toLowerCase().includes(q) && !(r.description ?? '').toLowerCase().includes(q)) return false;
@@ -57,13 +64,13 @@ export default function Rooms() {
   });
 
   const statCounts: Record<FilterTab, number> = {
-    All: rooms.filter(r => r.active).length,
+    All: rooms.filter(r => r.active && r.status !== 'inactive').length,
     available: rooms.filter(r => r.status === 'available' && r.active).length,
     occupied: rooms.filter(r => r.status === 'occupied' && r.active).length,
     cleaning: rooms.filter(r => r.status === 'cleaning' && r.active).length,
     needs_cleaning: rooms.filter(r => r.status === 'needs_cleaning' && r.active).length,
     maintenance: rooms.filter(r => r.status === 'maintenance' && r.active).length,
-    inactive: rooms.filter(r => !r.active).length,
+    inactive: rooms.filter(r => !r.active || r.status === 'inactive').length,
   };
 
   const handleAdd = async (data: Omit<Room, 'roomId' | 'createdAt' | 'updatedAt'>) => {
@@ -101,10 +108,18 @@ export default function Rooms() {
   const handleDelete = async (room: Room) => {
     try {
       await deleteRoom(room.roomId);
-      setSelectedRoom(null);
       showToast(`Room ${room.name} disabled`);
     } catch {
       showToast('Failed to disable room');
+    }
+  };
+
+  const handleRestore = async (room: Room) => {
+    try {
+      await updateRoom(room.roomId, { active: true, status: 'available' });
+      showToast(`Room ${room.name} restored to Available`);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to restore room');
     }
   };
 
@@ -117,7 +132,7 @@ export default function Rooms() {
     width: '100%', padding: '9px 12px', borderRadius: 8,
     border: `1px solid ${err ? '#EF4444' : border}`,
     background: darkMode ? '#0F172A' : '#F8FAFC',
-    color: textPrimary, fontSize: 13, fontFamily: "'Outfit', sans-serif",
+    color: textPrimary, fontSize: 13, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box' as const,
   });
 
@@ -155,7 +170,7 @@ export default function Rooms() {
             <button key={f} onClick={() => setFilterTab(f)}
               style={{
                 padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-                cursor: 'pointer', fontFamily: "'Outfit', sans-serif", border: 'none',
+                cursor: 'pointer', fontFamily: 'inherit', border: 'none',
                 background: filterTab === f ? (darkMode ? '#1E293B' : '#fff') : 'transparent',
                 color: filterTab === f ? textPrimary : textMuted,
                 boxShadow: filterTab === f ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
@@ -168,7 +183,7 @@ export default function Rooms() {
         <div style={{ position: 'relative' }}>
           <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94A3B8' }}>🔍</span>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Room name…"
-            style={{ padding: '6px 10px 6px 28px', borderRadius: 8, border: `1px solid ${border}`, background: darkMode ? '#0F172A' : '#F8FAFC', color: textPrimary, fontSize: 12, fontFamily: "'Outfit', sans-serif", outline: 'none', width: 140 }} />
+            style={{ padding: '6px 10px 6px 28px', borderRadius: 8, border: `1px solid ${border}`, background: darkMode ? '#0F172A' : '#F8FAFC', color: textPrimary, fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 140 }} />
         </div>
         <div style={{ marginLeft: 'auto', fontSize: 12, color: textMuted }}>{filtered.length} room{filtered.length !== 1 ? 's' : ''}</div>
         <button
@@ -190,13 +205,13 @@ export default function Rooms() {
           const isActive = r.active && r.status !== 'inactive';
           return (
             <div key={r.roomId}
-              onClick={() => setSelectedRoom(isActive ? r : null)}
+              onClick={() => setSelectedRoom(r)}
               style={{
                 background: bg,
                 borderRadius: 14,
                 border: `1.5px solid ${isActive ? color : border}`,
                 padding: '18px 18px 14px',
-                cursor: isActive ? 'pointer' : 'default',
+                cursor: 'pointer',
                 opacity: !r.active ? 0.6 : 1,
                 transition: 'all 0.15s',
               }}>
@@ -216,7 +231,7 @@ export default function Rooms() {
                     style={{
                       background: r.status === 'maintenance' ? '#ECFDF5' : '#FEF2F2',
                       color: r.status === 'maintenance' ? '#065F46' : '#991B1B',
-                      border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                      border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                     }}>
                     {r.status === 'maintenance' ? 'Restore' : '🔧 OOO'}
                   </button>
@@ -247,20 +262,27 @@ export default function Rooms() {
             <div style={{ padding: '20px 24px', flexShrink: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "'DM Serif Display', serif", color: textPrimary }}>Room {selectedRoom.name}</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'inherit', color: textPrimary }}>Room {selectedRoom.name}</div>
                   <div style={{ marginTop: 8 }}><StatusBadge status={selectedRoom.status} /></div>
                 </div>
                 <button onClick={() => setSelectedRoom(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textMuted, fontSize: 22 }}>×</button>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
                 <button onClick={() => { setEditingRoom(selectedRoom); setFormOpen(true); }}
-                  style={{ flex: 1, background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+                  style={{ flex: 1, background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   ✏️ Edit Room
                 </button>
-                <button onClick={() => handleDelete(selectedRoom)}
-                  style={{ background: 'rgba(239,68,68,0.1)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
-                  🚫 Disable
-                </button>
+                {(!selectedRoom.active || selectedRoom.status === 'inactive') ? (
+                  <button onClick={() => handleRestore(selectedRoom)}
+                    style={{ flex: 1, background: '#10B981', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    ✅ Enable Room
+                  </button>
+                ) : (
+                  <button onClick={() => handleDelete(selectedRoom)}
+                    style={{ background: 'rgba(239,68,68,0.1)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    🚫 Disable
+                  </button>
+                )}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div style={{ background: darkMode ? '#0F172A' : '#F8FAFC', borderRadius: 8, padding: '10px 14px' }}>
@@ -411,7 +433,7 @@ function RoomFormModal({ onClose, onSave, initial, darkMode, inputStyle, textMut
                     }}
                     style={{
                       padding: '5px 12px', borderRadius: 99, fontSize: 12, fontWeight: 600,
-                      cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                      cursor: 'pointer', fontFamily: 'inherit',
                       background: on ? '#2563EB' : (darkMode ? '#1E293B' : '#F1F5F9'),
                       color: on ? '#fff' : textMuted,
                       border: `1px solid ${on ? '#2563EB' : border}`,

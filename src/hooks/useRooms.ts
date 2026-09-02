@@ -49,7 +49,7 @@ export function useRooms(): UseRoomsReturn {
 
   const deleteRoom = useCallback(async (id: string) => {
     await roomsApi.delete(id);
-    setRooms(prev => prev.filter(r => r.roomId !== id));
+    setRooms(prev => prev.map(r => r.roomId === id ? { ...r, status: 'inactive', active: false } : r));
   }, []);
 
   return { rooms, loading, error, refetch, createRoom, updateRoom, deleteRoom };

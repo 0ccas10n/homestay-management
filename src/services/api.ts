@@ -86,9 +86,27 @@ async function request<T>(
     throw new ApiError('NETWORK_ERROR', `Network request to ${path} failed`, 0);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  if (!response.ok) {
+    let errBody: ApiErrorBody | undefined;
+    try {
+      errBody = (await response.json()) as ApiErrorBody;
+    } catch {
+      // response body was not valid JSON
+    }
+    throw new ApiError(
+      errBody?.error?.code ?? 'REQUEST_FAILED',
+      errBody?.error?.message ?? `Request to ${path} failed with HTTP ${response.status}`,
+      response.status,
+    );
+  }
+
   let parsed: Envelope<T>;
   try {
-    parsed = await response.json() as Envelope<T>;
+    parsed = (await response.json()) as Envelope<T>;
   } catch {
     throw new ApiError(
       'INVALID_RESPONSE',
@@ -97,7 +115,7 @@ async function request<T>(
     );
   }
 
-  if (!response.ok || parsed.success === false) {
+  if (parsed.success === false) {
     const err = parsed as ApiErrorBody;
     throw new ApiError(
       err.error?.code ?? 'UNKNOWN_ERROR',

@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useBookings } from '@/hooks/useBookings';
 import { useRooms } from '@/hooks/useRooms';
+import { useCustomers } from '@/hooks/useCustomers';
 import type { Booking } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
@@ -28,6 +29,7 @@ export default function CalendarView() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
   const { bookings, loading, refetch, cancelBooking } = useBookings();
   const { rooms, refetch: refetchRooms } = useRooms();
+  const { customers, refetch: refetchCustomers } = useCustomers();
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
@@ -37,6 +39,13 @@ export default function CalendarView() {
 
   useEffect(() => { refetch(); }, [refetch]);
   useEffect(() => { refetchRooms(); }, [refetchRooms]);
+  useEffect(() => { refetchCustomers(); }, [refetchCustomers]);
+
+  const roomMap = useMemo(() => new Map(rooms.map(r => [r.roomId, r.name])), [rooms]);
+  const customerMap = useMemo(() => new Map(customers.map(c => [c.customerId, c.name])), [customers]);
+
+  const getRoomName = (roomId: string) => roomMap.get(roomId) || roomId;
+  const getCustomerName = (b: Booking) => b.guestName || customerMap.get(b.customerId) || b.customerId;
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -128,7 +137,7 @@ export default function CalendarView() {
             fontSize: 12, fontWeight: 600,
             color: textPrimary,
             cursor: 'pointer',
-            fontFamily: "'Outfit', sans-serif",
+            fontFamily: 'inherit',
             minWidth: 160,
           }}
         >
@@ -137,7 +146,7 @@ export default function CalendarView() {
             <option key={r.roomId} value={r.roomId}>{r.name}</option>
           ))}
         </select>
-        <button onClick={() => { setMonth(today.getMonth()); setYear(today.getFullYear()); }} style={{ marginLeft: 'auto', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Today</button>
+        <button onClick={() => { setMonth(today.getMonth()); setYear(today.getFullYear()); }} style={{ marginLeft: 'auto', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Today</button>
       </div>
 
       {/* Legend */}
@@ -269,7 +278,7 @@ export default function CalendarView() {
                       zIndex: 2,
                     }}
                   >
-                    {isOverdue && '⚠ '}{b.customerId.slice(-4)} · R{b.roomId.slice(-3)} · {b.checkInAt.slice(11, 16)}
+                    {isOverdue && '⚠ '}{getCustomerName(b)} · {getRoomName(b.roomId)} · {b.checkInAt.slice(11, 16)}
                   </div>
                 );
               })}
@@ -284,8 +293,8 @@ export default function CalendarView() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
               ['Booking ID', selectedBooking.bookingId],
-              ['Customer ID', selectedBooking.customerId],
-              ['Room ID', selectedBooking.roomId],
+              ['Customer', getCustomerName(selectedBooking)],
+              ['Room', getRoomName(selectedBooking.roomId)],
               ['Check-in', `${selectedBooking.checkInAt.slice(0, 10)} ${selectedBooking.checkInAt.slice(11, 16)}`],
               ['Check-out', `${selectedBooking.expectedCheckOutAt.slice(0, 10)} ${selectedBooking.expectedCheckOutAt.slice(11, 16)}`],
               ['Guests', `${selectedBooking.numGuests ?? 1}`],
@@ -305,7 +314,7 @@ export default function CalendarView() {
                   background: '#FEE2E2', color: '#991B1B',
                   border: '1px solid #FCA5A5', borderRadius: 8,
                   padding: '10px 14px', fontWeight: 600, fontSize: 13,
-                  cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                  cursor: 'pointer', fontFamily: 'inherit',
                 }}>
                 Cancel Booking
               </button>
@@ -334,7 +343,7 @@ export default function CalendarView() {
                   border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
                   borderRadius: 8, padding: '9px 16px', fontWeight: 600, fontSize: 13,
                   cursor: 'pointer', color: darkMode ? '#94A3B8' : '#64748B',
-                  fontFamily: "'Outfit', sans-serif",
+                  fontFamily: 'inherit',
                 }}>
                 Keep booking
               </button>
@@ -343,7 +352,7 @@ export default function CalendarView() {
                 style={{
                   background: '#EF4444', color: '#fff', border: 'none',
                   borderRadius: 8, padding: '9px 16px', fontWeight: 600, fontSize: 13,
-                  cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                  cursor: 'pointer', fontFamily: 'inherit',
                 }}>
                 Cancel booking
               </button>

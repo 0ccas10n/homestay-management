@@ -50,6 +50,8 @@ interface BookingFormModalProps {
   open: boolean;
   onClose: () => void;
   darkMode: boolean;
+  initialRoomId?: string;
+  initialDate?: string;
   /** Called after a successful create so the parent can refresh its data. */
   onCreated?: (booking: Booking) => void;
   /** Optional toast callback for error feedback. */
@@ -234,19 +236,21 @@ export default function BookingFormModal({
   open,
   onClose,
   darkMode,
+  initialRoomId,
+  initialDate,
   onCreated,
   onError,
 }: BookingFormModalProps) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const initial = useMemo(() => {
-    const checkIn = new Date();
+    const checkIn = initialDate ? new Date(initialDate + 'T14:00:00') : new Date();
     const checkOut = new Date(checkIn.getTime() + 4 * 60 * 60 * 1000);
     return {
       bookingType: 'daily' as BookingType,
       guestName: '',
       source: '' as BookingSource | '',
       note: '',
-      roomId: '',
+      roomId: initialRoomId ?? '',
       ratePlanId: '',
       numGuests: '2',
       totalAmount: '',
@@ -255,7 +259,7 @@ export default function BookingFormModal({
       checkOutDate: toDateInputValue(checkOut),
       checkOutTime: toTimeInputValue(checkOut),
     };
-  }, []);
+  }, [initialDate, initialRoomId]);
 
   const [state, setState] = useState<FormState>(initial);
   const [submitting, setSubmitting] = useState(false);

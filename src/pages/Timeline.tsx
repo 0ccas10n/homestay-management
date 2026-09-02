@@ -22,6 +22,7 @@ import { useCustomers } from '@/hooks/useCustomers';
 import type { Booking, Room } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
+import BookingFormModal from '@/components/BookingFormModal';
 import { assignLanes, bookingBlock } from '@/utils/timelineGeometry';
 import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 import { bookingsApi } from '@/services/api';
@@ -214,6 +215,7 @@ export default function Timeline() {
   const [windowStart, setWindowStart] = useState<string>(() => addDaysStr(todayStr(), -1));
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [addBooking, setAddBooking] = useState<{ roomId?: string; date?: string } | null>(null);
 
   useEffect(() => {
     refetchRooms();
@@ -620,6 +622,7 @@ export default function Timeline() {
                 windowDays={windowDays}
                 darkMode={darkMode}
                 onSelect={setSelectedBooking}
+                onEmptyClick={(roomId, date) => setAddBooking({ roomId, date })}
                 customerMap={customerMap}
                 labelWidth={labelWidth}
                 isMobile={isMobile}
@@ -649,6 +652,17 @@ export default function Timeline() {
           />
         )}
       </Modal>
+      <BookingFormModal
+        open={!!addBooking}
+        onClose={() => setAddBooking(null)}
+        darkMode={darkMode}
+        initialRoomId={addBooking?.roomId}
+        initialDate={addBooking?.date}
+        onCreated={() => {
+          setAddBooking(null);
+          refetchBookings();
+        }}
+      />
     </div>
   );
 }
@@ -665,6 +679,7 @@ interface RoomRowProps {
   windowDays: number;
   darkMode: boolean;
   onSelect: (b: Booking) => void;
+  onEmptyClick: (roomId: string, date: string) => void;
   customerMap: Map<string, string>;
   labelWidth: number;
   isMobile: boolean;
@@ -677,7 +692,7 @@ interface RoomRowProps {
 function RoomRow({
   room, days, bookings, cancelledBookings,
   windowStart, windowEnd, windowDays, darkMode,
-  onSelect, customerMap, styles,
+  onSelect, onEmptyClick, customerMap, styles,
   labelWidth, isMobile,
 }: RoomRowProps) {
   const todayColIndex = days.indexOf(styles.todayStr);
@@ -755,6 +770,7 @@ function RoomRow({
         {days.map((d, i) => (
           <div
             key={d}
+            onClick={() => onEmptyClick(room.roomId, d)}
             style={{
               position: 'absolute',
               left: `${(i / days.length) * 100}%`,
@@ -764,8 +780,11 @@ function RoomRow({
               background: d === styles.todayStr
                 ? (darkMode ? 'rgba(37,99,235,0.07)' : 'rgba(37,99,235,0.05)')
                 : 'transparent',
-              pointerEvents: 'none',
+              cursor: 'pointer',
+              zIndex: 1,
             }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = d === styles.todayStr ? (darkMode ? 'rgba(37,99,235,0.07)' : 'rgba(37,99,235,0.05)') : 'transparent'; }}
           />
         ))}
 
@@ -882,7 +901,10 @@ function BookingBlock({
 
   return (
     <div
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       title={`${guestName} · ${formatStatusLabel(b.status)}${isStayWindow ? ' (Đang trong giờ lưu trú)' : ''} · ${b.checkInAt} → ${b.expectedCheckOutAt}`}
       className={`${visual.striped ? 'timeline-stripe' : ''} ${visual.solid ? 'timeline-block-solid' : ''}`}
       style={{

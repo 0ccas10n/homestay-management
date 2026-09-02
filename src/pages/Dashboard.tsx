@@ -6,11 +6,12 @@
 // Pages rendered inside AppShell receive darkMode via useOutletContext().
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useBookings } from '@/hooks/useBookings';
+import { useCustomers } from '@/hooks/useCustomers';
 import { bookingsApi, roomsApi, cleaningApi, expensesApi } from '@/services/api';
 import type { Booking, CleaningTask } from '@/types/index';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -111,17 +112,17 @@ export default function Dashboard() {
 
   const statColors = ['#2563EB', '#10B981', '#F59E0B', '#8B5CF6'];
   const statCards = [
-    { label: 'Total Rooms', value: totalRooms || '—', sub: `${available} available`, color: statColors[0], icon: '🛏' },
+    { label: 'Total Rooms', value: available || '—', sub: `${available} available`, color: statColors[0], icon: '🛏' },
     { label: 'Occupied', value: occupied || '—', sub: `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}% occupancy`, color: statColors[1], icon: '👤' },
     { label: 'Cleaning Needed', value: needsCleaning || '—', sub: `${activeCleaning.length} in queue`, color: statColors[2], icon: '🧹' },
     { label: 'Monthly Revenue', value: formatVnd(monthlyRevenueTotal), sub: monthlyDeltaText, color: statColors[3], icon: '💰' },
   ];
 
+  const { customers } = useCustomers();
+  const customerMap = React.useMemo(() => new Map(customers.map(c => [c.customerId, c.name])), [customers]);
+
   const getGuestName = (booking: Booking): string => {
-    // Real data: customer name not included in the booking object.
-    // For now display a placeholder — this will be improved when the API
-    // returns customer info inline or a join is fetched.
-    return `Guest ${booking.customerId.slice(-4)}`;
+    return booking.guestName || customerMap.get(booking.customerId) || booking.customerId;
   };
 
   const getRoomNumber = (booking: Booking): string => {
@@ -246,7 +247,7 @@ export default function Dashboard() {
               border: `1px solid ${btn.color}30`,
               borderRadius: 8, padding: '8px 14px', fontSize: 13,
               fontWeight: 600, cursor: 'pointer',
-              fontFamily: "'Outfit', sans-serif",
+              fontFamily: 'inherit',
               transition: 'transform 0.1s, box-shadow 0.1s',
             }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 12px ${btn.color}25`; }}
@@ -398,7 +399,7 @@ export default function Dashboard() {
             <div key={b.bookingId} style={{ padding: '12px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`, cursor: 'pointer' }}
               onClick={() => handleCheckIn(b.bookingId)}>
               <div style={{ fontWeight: 600, color: darkMode ? '#F1F5F9' : '#1E293B' }}>{getGuestName(b)}</div>
-              <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B' }}>Room {getRoomNumber(b)} · {b.checkInAt.slice(0, 10)} → {b.expectedCheckOutAt.slice(0, 10)}</div>
+              <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B' }}>Room {getRoomNumber(b)} · {b.checkInAt.slice(0, 16).replace('T', ' ')} → {b.expectedCheckOutAt.slice(0, 16).replace('T', ' ')}</div>
             </div>
           ))}
           {checkingIn.length === 0 && <p style={{ color: '#64748B', fontSize: 13 }}>No guests to check in today.</p>}
@@ -410,8 +411,11 @@ export default function Dashboard() {
           {checkingOut.map(b => (
             <div key={b.bookingId} style={{ padding: '12px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}` }}>
               <div style={{ fontWeight: 600, color: darkMode ? '#F1F5F9' : '#1E293B' }}>{getGuestName(b)}</div>
-              <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B', marginBottom: 8 }}>Room {getRoomNumber(b)} · Balance: {formatVnd(getBookingTotal(b))}</div>
-              <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+              <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B', marginBottom: 8 }}>
+                Room {getRoomNumber(b)} · {b.checkInAt.slice(0, 16).replace('T', ' ')} → {b.expectedCheckOutAt.slice(0, 16).replace('T', ' ')}<br/>
+                Balance: <strong>{formatVnd(getBookingTotal(b))}</strong>
+              </div>
+              <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Process Check-out
               </button>
             </div>
@@ -430,7 +434,7 @@ export default function Dashboard() {
               </div>
               <button
                 onClick={() => handleMarkCleaned(t.cleaningId, t.roomId)}
-                style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+                style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Mark Done
               </button>
             </div>

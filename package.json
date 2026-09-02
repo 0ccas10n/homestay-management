@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "build:api": "esbuild api/_app.ts --bundle --platform=node --target=node20 --format=esm --packages=external --outfile=api/index.js",
-    "dev": "tsx server/index.ts",
+    "dev": "tsx watch server/index.ts",
     "dev:client": "vite",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:client\"",
     "build": "npm run build:api && vite build",

@@ -10,17 +10,17 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
 
 export async function GET(request: Request) {
   const { session } = await optionalAuth(request);
-
   const { searchParams } = new URL(request.url);
   const locationId = searchParams.get('locationId') ?? undefined;
+  const isExplicitPublic = searchParams.get('public') === 'true' && !session;
 
   const rooms = await query(SPREADSHEET_ID, {
     locationId,
-    active: true,
+    active: isExplicitPublic ? true : undefined,
+    status: isExplicitPublic ? 'available' : undefined,
   });
 
-  if (session) {
-    // Authenticated: return full room data including internal status fields
+  if (isExplicitPublic) {
     return jsonSuccess(
       rooms.map(r => ({
         roomId:      r.roomId,
@@ -29,27 +29,29 @@ export async function GET(request: Request) {
         description: r.description,
         capacity:    r.capacity,
         priceDisplay: r.priceDisplay,
-        status:      r.status,
-        active:      r.active,
         imageUrl:    r.imageUrl,
-        floor:       r.floor,
         amenities:   r.amenities,
-        notes:       r.notes,
       })),
     );
   }
 
-  // Public: return only non-internal fields per API.md §6
+  // Authenticated staff/admin or internal app dashboard: return full room data (including inactive)
   return jsonSuccess(
-    rooms
-      .filter(r => r.status !== 'inactive')
-      .map(r => ({
-        roomId:      r.roomId,
-        locationId:  r.locationId,
-        name:        r.name,
-        description: r.description,
-        capacity:    r.capacity,
-        imageUrl:    r.imageUrl,
-      })),
+    rooms.map(r => ({
+      roomId:      r.roomId,
+      locationId:  r.locationId,
+      name:        r.name,
+      description: r.description,
+      capacity:    r.capacity,
+      priceDisplay: r.priceDisplay,
+      status:      r.status,
+      active:      r.active,
+      imageUrl:    r.imageUrl,
+      floor:       r.floor,
+      amenities:   r.amenities,
+      notes:       r.notes,
+      createdAt:   r.createdAt,
+      updatedAt:   r.updatedAt,
+    })),
   );
 }

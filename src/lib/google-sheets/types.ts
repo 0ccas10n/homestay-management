@@ -89,18 +89,20 @@ export const ROOMS_HEADERS = [
 
 export function mapRowToRoom(row: string[]): Room {
   const amenitiesStr = row[10] ?? '';
+  const capNum = parseInt(row[4] ?? '2', 10);
+  const floorNum = row[9] ? parseInt(row[9], 10) : undefined;
   return {
     roomId:          row[0] ?? '',
     locationId:      row[1] ?? '',
     name:            row[2] ?? '',
     description:     emptyToUndefined(row[3]),
-    capacity:       parseInt(row[4] ?? '1', 10),
+    capacity:       isNaN(capNum) ? 2 : capNum,
     priceDisplay:   emptyToUndefined(row[5]),
     status:         (row[6] ?? 'available') as Room['status'],
     active:          parseBool(row[7]),
     imageUrl:        emptyToUndefined(row[8]),
-    floor:           row[9] ? parseInt(row[9], 10) : undefined,
-    amenities:       amenitiesStr ? amenitiesStr.split('|') : [],
+    floor:           floorNum !== undefined && !isNaN(floorNum) ? floorNum : 1,
+    amenities:       amenitiesStr ? amenitiesStr.split('|').filter(Boolean) : [],
     notes:           emptyToUndefined(row[11]),
     createdAt:       row[12] ?? '',
     updatedAt:       row[13] ?? '',

@@ -280,13 +280,13 @@ export default function Bookings() {
             )}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {(selected.status === 'inquiry' || selected.status === 'confirmed') && (
-                <button onClick={() => handleCheckIn(selected.bookingId)} style={{ background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #93C5FD', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Check-in</button>
+                <button onClick={() => handleCheckIn(selected.bookingId)} style={{ background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #93C5FD', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Check-in</button>
               )}
               {selected.status === 'checked_in' && (
-                <button onClick={() => handleCheckOut(selected.bookingId)} style={{ background: '#D1FAE5', color: '#047857', border: '1px solid #6EE7B7', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Check-out</button>
+                <button onClick={() => handleCheckOut(selected.bookingId)} style={{ background: '#D1FAE5', color: '#047857', border: '1px solid #6EE7B7', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Check-out</button>
               )}
               {(selected.status === 'inquiry' || selected.status === 'confirmed') && (
-                <button onClick={() => handleNoShow(selected.bookingId)} style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>No-show</button>
+                <button onClick={() => handleNoShow(selected.bookingId)} style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>No-show</button>
               )}
               {canCancel(selected) && (
                 <button
@@ -295,7 +295,7 @@ export default function Bookings() {
                     background: '#FEE2E2', color: '#991B1B',
                     border: '1px solid #FCA5A5', borderRadius: 8,
                     padding: '10px 14px', fontWeight: 600, fontSize: 13,
-                    cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                    cursor: 'pointer', fontFamily: 'inherit',
                   }}>
                   Huỷ Booking
                 </button>
