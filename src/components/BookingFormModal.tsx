@@ -760,7 +760,7 @@ async function recalculateTotal(
                 )}
               </div>
               <div style={{ fontSize: 11, color: darkMode ? '#64748B' : '#94A3B8', marginTop: 4 }}>
-                Nhập giá thủ công (theo giờ). Giá trị này được lưu trực tiếp vào CSDL.
+                Nhập giá thủ công (tùy chỉnh).
               </div>
             </div>
           </div>
@@ -792,7 +792,7 @@ async function recalculateTotal(
               )}
             </div>
             <div style={{ fontSize: 11, color: darkMode ? '#64748B' : '#94A3B8', marginTop: 4 }}>
-              Tự động tra từ bảng giá (RatePlanPrices). Server sẽ tính lại chính xác khi lưu.
+              Tự động tra từ bảng giá (theo khung giờ cố định).
             </div>
           </div>
         )}

@@ -25,6 +25,7 @@ import Modal from '@/components/Modal';
 import { assignLanes, bookingBlock } from '@/utils/timelineGeometry';
 import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 import { bookingsApi } from '@/services/api';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface TimelineProps { darkMode: boolean; }
 
@@ -205,6 +206,7 @@ function getEffectiveBookingStatus(b: Booking): import('@/types/index').BookingS
 // ── Component ────────────────────────────────────────────────────────────────
 export default function Timeline() {
   const { darkMode } = useOutletContext<TimelineProps>();
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const { rooms, loading: roomsLoading, refetch: refetchRooms } = useRooms();
   const { bookings, loading: bookingsLoading, refetch: refetchBookings } = useBookings();
   const { customers, refetch: refetchCustomers } = useCustomers();
@@ -218,6 +220,10 @@ export default function Timeline() {
     refetchBookings();
     refetchCustomers();
   }, [refetchRooms, refetchBookings, refetchCustomers]);
+
+  useEffect(() => {
+    if (isMobile) setZoom(7);
+  }, [isMobile]);
 
   const windowDays = zoom;
 
@@ -330,17 +336,19 @@ export default function Timeline() {
   // below DAY_MIN_W so the column stays readable on narrow viewports.
   // When the parent has more horizontal space than `totalWidth`, the
   // columns stretch evenly to fill it.
+  const labelWidth = isMobile ? 128 : LABEL_W;
+  const dayMinWidth = isMobile ? 72 : DAY_MIN_W;
   const dayColStyle: React.CSSProperties = {
-    minWidth: DAY_MIN_W, flex: '1 1 0',
+    minWidth: dayMinWidth, flex: '1 1 0',
   };
 
-  const totalWidth = LABEL_W + windowDays * DAY_MIN_W;
+  const totalWidth = labelWidth + windowDays * dayMinWidth;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', background: surface }}>
       {/* ── Toolbar row 1: title + nav + zoom + date picker ─────────────── */}
       <div style={{
-        padding: '14px 24px',
+        padding: isMobile ? '12px 16px' : '14px 24px',
         borderBottom: `1px solid ${border}`,
         background: bg,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -358,13 +366,13 @@ export default function Timeline() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : undefined }}>
           {/* Zoom segmented control */}
           <div style={{
             display: 'inline-flex', gap: 2, padding: 3,
             background: surface, border: `1px solid ${border}`, borderRadius: 9,
           }}>
-            {ZOOMS.map(z => {
+            {ZOOMS.filter(z => !isMobile || z.days !== 30).map(z => {
               const active = zoom === z.days;
               return (
                 <button
@@ -411,25 +419,25 @@ export default function Timeline() {
             <button onClick={goNext} style={navBtnStyle(border, textPrimary)} aria-label="Tiếp">›</button>
           </div>
 
-          <div style={{
+          {!isMobile && <div style={{
             padding: '6px 12px', borderRadius: 8,
             border: `1px solid ${border}`, fontSize: 13, fontWeight: 600,
             color: textPrimary, fontFamily: "'JetBrains Mono', monospace",
           }}>
             {monthYearLabel(windowStart, addDaysStr(windowStart, windowDays - 1))}
-          </div>
+          </div>}
         </div>
       </div>
 
       {/* ── Toolbar row 2: room filter + legend ─────────────────────────── */}
       <div style={{
-        padding: '9px 24px',
+        padding: isMobile ? '9px 16px' : '9px 24px',
         borderBottom: `1px solid ${border}`,
         background: headerBg,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: 12, flexWrap: 'wrap',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: isMobile ? '100%' : undefined }}>
           <span style={{
             fontSize: 10, color: textMuted, fontWeight: 700,
             textTransform: 'uppercase', letterSpacing: 0.6,
@@ -449,7 +457,7 @@ export default function Timeline() {
               fontSize: 12, fontWeight: 600,
               cursor: 'pointer',
               fontFamily: "'Outfit', sans-serif",
-              minWidth: 180,
+              minWidth: 180, flex: isMobile ? 1 : undefined,
             }}
           >
             <option value="all">Tất cả phòng ({activeRooms.length})</option>
@@ -459,7 +467,7 @@ export default function Timeline() {
           </select>
         </div>
 
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        {!isMobile && <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {(['inquiry', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'] as const).map(status => {
             const v = statusVisual(status, darkMode);
             const swatchBg = v.striped
@@ -480,24 +488,24 @@ export default function Timeline() {
               </span>
             );
           })}
-        </div>
+        </div>}
       </div>
 
       {/* ── Stats strip ─────────────────────────────────────────────────── */}
       <div style={{
-        padding: '9px 24px',
+        padding: isMobile ? '8px 16px' : '9px 24px',
         borderBottom: `1px solid ${border}`,
         background: statsBg,
         display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
       }}>
-        <StatPill
+        {!isMobile && <><StatPill
           icon={<OccupancyIcon color="#2563EB" />}
           label="Tỷ lệ lấp đầy"
           value={`${stats.occupied}/${stats.total}`}
           suffix={stats.total > 0 ? `(${stats.occupancyPct}%)` : ''}
           darkMode={darkMode}
         />
-        <StatDivider darkMode={darkMode} />
+        <StatDivider darkMode={darkMode} /></>}
         <StatPill
           icon={<ArrowDownIcon color="#10B981" />}
           label="Check-in hôm nay"
@@ -511,13 +519,13 @@ export default function Timeline() {
           value={String(stats.checkingOutToday)}
           darkMode={darkMode}
         />
-        <StatDivider darkMode={darkMode} />
+        {!isMobile && <><StatDivider darkMode={darkMode} />
         <StatPill
           icon={<BedIcon color="#8B5CF6" />}
           label="Đang ở"
           value={String(stats.currentlyStaying)}
           darkMode={darkMode}
-        />
+        /></>}
       </div>
 
       {/* ── Scrollable grid ──────────────────────────────────────────────── */}
@@ -534,7 +542,7 @@ export default function Timeline() {
             }}>
               <div style={{
                 position: 'sticky', left: 0, zIndex: 11,
-                width: LABEL_W, flexShrink: 0, padding: '8px 14px',
+                width: labelWidth, flexShrink: 0, padding: isMobile ? '8px 10px' : '8px 14px',
                 fontSize: 11, fontWeight: 700, color: textMuted,
                 borderRight: `1px solid ${border}`,
                 background: headerBg,
@@ -613,6 +621,8 @@ export default function Timeline() {
                 darkMode={darkMode}
                 onSelect={setSelectedBooking}
                 customerMap={customerMap}
+                labelWidth={labelWidth}
+                isMobile={isMobile}
                 styles={{ border, bg, textPrimary, textMuted, todayBar, todayStr: todayStr() }}
               />
             ))}
@@ -656,6 +666,8 @@ interface RoomRowProps {
   darkMode: boolean;
   onSelect: (b: Booking) => void;
   customerMap: Map<string, string>;
+  labelWidth: number;
+  isMobile: boolean;
   styles: {
     border: string; bg: string; textPrimary: string;
     textMuted: string; todayBar: string; todayStr: string;
@@ -666,6 +678,7 @@ function RoomRow({
   room, days, bookings, cancelledBookings,
   windowStart, windowEnd, windowDays, darkMode,
   onSelect, customerMap, styles,
+  labelWidth, isMobile,
 }: RoomRowProps) {
   const todayColIndex = days.indexOf(styles.todayStr);
   const todayOffsetPct = todayColIndex >= 0
@@ -714,7 +727,7 @@ function RoomRow({
       {/* Room label — sticky left so it stays visible when scrolling horizontally */}
       <div style={{
         position: 'sticky', left: 0, zIndex: 6,
-        width: LABEL_W, flexShrink: 0, padding: '10px 14px',
+        width: labelWidth, flexShrink: 0, padding: isMobile ? '10px' : '10px 14px',
         background: styles.bg, borderRight: `1px solid ${styles.border}`,
         display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4,
       }}>
