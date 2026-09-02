@@ -3,6 +3,7 @@
 // Dynamic route segments like [id] are imported as-is (TypeScript accepts [id] in paths).
 export * as availability from './availability';
 export * as dashboard from './dashboard';
+export * as health from './health';
 export * as locations from './locations';
 export * as roomsRoot from './rooms';
 export * as authLogin from './auth/login';

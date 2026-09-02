@@ -194,7 +194,13 @@ function hasGoogleCreds(): boolean {
 
 function createSheetsClient() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
-  const key = process.env.GOOGLE_PRIVATE_KEY?.trim().replace(/\\n/g, '\n');
+  let key = process.env.GOOGLE_PRIVATE_KEY?.trim();
+  
+  if (key && key.startsWith('"') && key.endsWith('"')) {
+    key = key.slice(1, -1);
+  }
+  key = key?.replace(/\\n/g, '\n');
+
   const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID?.trim();
   const auth = new google.auth.GoogleAuth({
     credentials: {

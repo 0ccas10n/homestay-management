@@ -68,6 +68,7 @@ async function sendFetchResponse(fetchRes: Response, res: VercelResponse): Promi
 const routeTable = [
   { pattern: /^\/api\/availability\/?$/, modules: [handlers.availability] },
   { pattern: /^\/api\/dashboard\/?$/, modules: [handlers.dashboard] },
+  { pattern: /^\/api\/health\/?$/, modules: [handlers.health] },
   { pattern: /^\/api\/locations\/?$/, modules: [handlers.locations] },
   { pattern: /^\/api\/rooms\/?$/, modules: [handlers.roomsRoot, handlers.roomsIndex] },
   { pattern: /^\/api\/rooms\/([^\/]+)\/?$/, modules: [handlers.roomsId] },
