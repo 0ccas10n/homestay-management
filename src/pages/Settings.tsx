@@ -20,18 +20,31 @@ export default function Settings() {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [activeTab, setActiveTab] = useState('Business Info');
   const [toast, setToast] = useState<string | null>(null);
-  const [bizInfo, setBizInfo] = useState({
-    name: 'Homestay Bình Lợi Trung',
-    address: 'Bình Lợi Trung, Bình Chánh, Hồ Chí Minh',
-    phone: '+84 28 0000 0001',
-    email: 'hello@binhloitrung.vn',
-    checkInTime: '14:00',
-    checkOutTime: '12:00',
-    currency: 'VND',
-    website: 'www.binhloitrung.vn',
+  const [bizInfo, setBizInfo] = useState(() => {
+    const saved = localStorage.getItem('bizInfo');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return {
+      name: 'Homestay Bình Lợi Trung',
+      address: 'Bình Lợi Trung, Bình Chánh, Hồ Chí Minh',
+      phone: '+84 28 0000 0001',
+      email: 'hello@binhloitrung.vn',
+      checkInTime: '14:00',
+      checkOutTime: '12:00',
+      currency: 'VND',
+      website: 'www.binhloitrung.vn',
+    };
   });
 
   useEffect(() => { refetch(); }, [refetch]);
+
+  const handleSaveBizInfo = () => {
+    localStorage.setItem('bizInfo', JSON.stringify(bizInfo));
+    showToast('Đã lưu thông tin homestay thành công!');
+  };
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -100,7 +113,7 @@ export default function Settings() {
             })}
           </div>
           <button
-            onClick={() => showToast('Business info saved (local)')}
+            onClick={handleSaveBizInfo}
             style={{
               marginTop: 20, background: '#2563EB', color: '#fff', border: 'none',
               borderRadius: 8, padding: '10px 24px', fontWeight: 600, fontSize: 14,

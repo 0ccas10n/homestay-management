@@ -103,7 +103,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
         if (me && me.userId) {
           setUser(me);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(me));
-        } else if (!storedUser) {
+        } else {
           setUser(null);
           localStorage.removeItem(STORAGE_KEY);
           localStorage.removeItem(TOKEN_KEY);

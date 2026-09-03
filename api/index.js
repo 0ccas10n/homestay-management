@@ -1334,6 +1334,7 @@ var updateBookingSchema = z.object({
   ratePlanId: z.string().min(1).optional(),
   numGuests: z.number().int().min(1).max(4).optional(),
   actualCheckOutAt: isoDateTimeSchema.optional(),
+  totalAmount: z.number().nonnegative().optional(),
   note: z.string().max(1e3).optional()
 });
 var updateBookingStatusSchema = z.object({
@@ -1599,6 +1600,10 @@ async function update(spreadsheetId, bookingId, patch) {
       ));
     }
     totalAmount = baseAmount + (existing.overtimeAmount ?? 0);
+    if (patch.totalAmount !== void 0 && patch.totalAmount !== existing.totalAmount) {
+      totalAmount = patch.totalAmount;
+      baseAmount = Math.max(0, patch.totalAmount - (existing.overtimeAmount ?? 0));
+    }
   }
   const updated = {
     ...existing,
