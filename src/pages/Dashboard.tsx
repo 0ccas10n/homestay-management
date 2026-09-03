@@ -116,9 +116,17 @@ export default function Dashboard() {
     ? 'No prior month data'
     : `${monthlyDelta >= 0 ? '+' : ''}${monthlyDelta}% so với tháng trước`;
 
+  const formatShortVnd = (v: number) => {
+    if (v === 0) return '0 ₫';
+    if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)} tỷ`;
+    if (v >= 1_000_000) return `${Math.round(v / 1_000_000)} tr`;
+    if (v >= 1_000) return `${Math.round(v / 1_000)}k`;
+    return `${v} ₫`;
+  };
+
   const statColors = ['#2563EB', '#10B981', '#F59E0B', '#8B5CF6'];
   const statCards = [
-    { label: 'Phòng trống', value: available, sub: `${totalRooms > 0 ? Math.round((available / totalRooms) * 100) : 0}% công suất`, color: statColors[0], icon: '🛏' },
+    { label: 'Phòng trống', value: available, sub: `${totalRooms > 0 ? Math.round((available / totalRooms) * 100) : 0}% tỷ lệ trống`, color: statColors[0], icon: '🛏' },
     { label: 'Đang có khách', value: occupied, sub: `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}% (${occupied}/${totalRooms} phòng)`, color: statColors[1], icon: '👤' },
     { label: 'Cần dọn dẹp', value: needsCleaning, sub: `${activeCleaning.length} phòng cần dọn`, color: statColors[2], icon: '🧹' },
     { label: 'Doanh thu tháng', value: formatVnd(monthlyRevenueTotal), sub: monthlyDeltaText, color: statColors[3], icon: '💰' },
@@ -170,13 +178,16 @@ export default function Dashboard() {
     return result;
   }, [customers, darkMode]);
 
-  // Doanh thu theo từng phòng
+  // Doanh thu theo từng phòng (Tháng này)
   const revenueByRoomData = React.useMemo(() => {
     const activeRooms = rooms.filter(r => r.active && r.status !== 'inactive');
     const revMap = new Map<string, number>();
+    const currentMonthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
 
     bookings.forEach(b => {
       if (b.status === 'cancelled') return;
+      // Chỉ tính các đơn đặt phòng trong tháng hiện tại
+      if (!b.checkInAt || !b.checkInAt.startsWith(currentMonthKey)) return;
       const amount = getBookingTotal(b);
       revMap.set(b.roomId, (revMap.get(b.roomId) || 0) + amount);
     });
@@ -429,8 +440,11 @@ export default function Dashboard() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#F1F5F9'} />
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={v => formatVnd(v as number)} />
-                  <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }} formatter={(v: unknown) => [formatVnd(v as number), '']} />
+                  <YAxis width={60} tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={formatShortVnd} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }}
+                    formatter={(v: unknown, name: string) => [formatVnd(v as number), name]}
+                  />
                   <Area type="monotone" dataKey="revenue" stroke="#2563EB" strokeWidth={2.5} fill="url(#rev)" name="Doanh thu" />
                   <Area type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} fill="url(#exp)" name="Chi phí" />
                 </AreaChart>
@@ -441,13 +455,13 @@ export default function Dashboard() {
             <div style={card(darkMode)}>
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Doanh thu theo từng phòng</div>
-                <div style={{ fontSize: 12, color: textMuted }}>Xếp hạng doanh thu thực tế</div>
+                <div style={{ fontSize: 12, color: textMuted }}>Xếp hạng doanh thu tháng này</div>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={revenueByRoomData} barSize={22} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#F1F5F9'} vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: textPrimary, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={v => formatVnd(v as number)} />
+                  <YAxis width={60} tick={{ fontSize: 10, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={formatShortVnd} />
                   <Tooltip
                     contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }}
                     formatter={(v: unknown) => [formatVnd(v as number), 'Doanh thu']}
@@ -713,10 +727,10 @@ function ExpenseForm({ darkMode, onSave }: { darkMode: boolean; onSave: (e: { ca
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {[
         { label: 'Danh mục', el: <select value={category} onChange={e => setCategory(e.target.value)} style={inputStyle}>{EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}</select> },
-        { label: 'Số tiền (VND)', el: <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} /> },
-        { label: 'Mô tả chi phí', el: <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="Nội dung chi tiêu..." style={inputStyle} /> },
+        { label: 'Số tiền (VND) *', el: <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} /> },
+        { label: 'Mô tả chi phí (tùy chọn)', el: <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="Nội dung chi tiêu (mặc định theo danh mục)" style={inputStyle} /> },
         { label: 'Nơi mua / Nhà cung cấp (tùy chọn)', el: <input type="text" value={vendor} onChange={e => setVendor(e.target.value)} placeholder="Siêu thị, cửa hàng..." style={inputStyle} /> },
-        { label: 'Ngày chi', el: <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} /> },
+        { label: 'Ngày chi *', el: <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} /> },
       ].map(({ label, el }) => (
         <div key={label}>
           <label style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#94A3B8' : '#64748B', display: 'block', marginBottom: 4 }}>{label}</label>
@@ -725,11 +739,12 @@ function ExpenseForm({ darkMode, onSave }: { darkMode: boolean; onSave: (e: { ca
       ))}
       <button
         onClick={() => {
-          if (!amount || !description) return;
-          onSave({ category, amount: parseFloat(amount), description, date, vendor });
+          if (!amount || parseFloat(amount) <= 0) return;
+          const desc = description.trim() || category;
+          onSave({ category, amount: parseFloat(amount), description: desc, date, vendor: vendor.trim() || undefined });
         }}
         style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
-        Save Expense
+        Lưu khoản chi
       </button>
     </div>
   );

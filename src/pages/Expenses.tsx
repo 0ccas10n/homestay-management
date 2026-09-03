@@ -36,10 +36,10 @@ interface ExpenseFormField {
 
 const fields: ExpenseFormField[] = [
   { label: 'Danh mục', key: 'category', type: 'select' },
-  { label: 'Số tiền (VND)', key: 'amount', type: 'number', step: 10000, placeholder: '1500000' },
-  { label: 'Mô tả chi phí', key: 'description', type: 'text', placeholder: 'Nội dung chi tiêu' },
+  { label: 'Số tiền (VND) *', key: 'amount', type: 'number', step: 10000, placeholder: '1500000' },
+  { label: 'Mô tả chi phí (tùy chọn)', key: 'description', type: 'text', placeholder: 'Nội dung chi tiêu (mặc định lấy theo danh mục)' },
   { label: 'Nơi mua / Nhà cung cấp (tùy chọn)', key: 'vendor', type: 'text', placeholder: 'Siêu thị, cửa hàng...' },
-  { label: 'Ngày chi', key: 'date', type: 'date' },
+  { label: 'Ngày chi *', key: 'date', type: 'date' },
 ];
 
 export default function Expenses() {
@@ -60,15 +60,30 @@ export default function Expenses() {
     .reduce((s, e) => s + e.amount, 0);
   const filtered = filterCat === 'All' ? expenses : expenses.filter(e => e.category === filterCat);
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleAdd = async () => {
-    if (!form.amount || !form.description) return;
+    if (!form.amount || parseFloat(form.amount) <= 0) {
+      showToast('Vui lòng nhập số tiền chi phí');
+      return;
+    }
+    setSubmitting(true);
     try {
-      await createExpense({ category: form.category, amount: parseFloat(form.amount), description: form.description, date: form.date, vendor: form.vendor || undefined });
+      const desc = form.description.trim() || form.category;
+      await createExpense({
+        category: form.category,
+        amount: parseFloat(form.amount),
+        description: desc,
+        date: form.date,
+        vendor: form.vendor.trim() || undefined,
+      });
       setAddOpen(false);
       setForm({ category: 'Tiền điện', amount: '', description: '', vendor: '', date: new Date().toISOString().slice(0, 10) });
-      showToast('Đã thêm khoản chi');
+      showToast('Đã thêm khoản chi thành công');
     } catch {
-      showToast('Lưu chi phí thất bại');
+      showToast('Lưu chi phí thất bại. Vui lòng thử lại.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -200,7 +215,7 @@ export default function Expenses() {
       </div>
 
       {/* Add Expense Modal */}
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Expense" darkMode={darkMode}>
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Thêm khoản chi mới" darkMode={darkMode}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {fields.map(f => (
             <div key={f.key}>
@@ -221,8 +236,17 @@ export default function Expenses() {
               )}
             </div>
           ))}
-          <button onClick={handleAdd} style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: "var(--font-sans)" }}>
-            Save Expense
+          <button
+            onClick={handleAdd}
+            disabled={submitting}
+            style={{
+              background: submitting ? '#93C5FD' : '#2563EB',
+              color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px',
+              fontWeight: 600, fontSize: 14, cursor: submitting ? 'not-allowed' : 'pointer',
+              fontFamily: "var(--font-sans)",
+            }}
+          >
+            {submitting ? 'Đang lưu...' : 'Lưu khoản chi'}
           </button>
         </div>
       </Modal>

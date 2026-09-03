@@ -131,16 +131,30 @@ export default function Reports() {
     trailing6Months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   }
 
+  const formatShortVnd = (v: number) => {
+    if (v === 0) return '0 ₫';
+    if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)} tỷ`;
+    if (v >= 1_000_000) return `${Math.round(v / 1_000_000)} tr`;
+    if (v >= 1_000) return `${Math.round(v / 1_000)}k`;
+    return `${v} ₫`;
+  };
+
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const revenueTrend = trailing6Months.map((month) => {
     const [y, m] = month.split('-');
-    const label = `Thg ${Number(m)}/${y}`;
+    const isCurrent = month === currentMonthStr;
+    const label = `Thg ${Number(m)}/${y}${isCurrent ? ' *' : ''}`;
     const rev = revenueByMonth[month] ?? 0;
     const exp = expensesByMonth[month] ?? 0;
+    const profit = rev - exp;
+    const margin = rev > 0 ? Math.round((profit / rev) * 100) : null;
     return {
       month: label,
       revenue: rev,
       expenses: exp,
-      profit: rev - exp,
+      profit,
+      margin,
+      isCurrent,
     };
   });
 
@@ -183,7 +197,6 @@ export default function Reports() {
     'DIRECT / KHÁC': '#64748B',
   };
 
-  // Group revenue this month by channel
   const channelRevenueTotals: Record<string, number> = {
     'FACEBOOK': 0,
     'ZALO': 0,
@@ -221,24 +234,33 @@ export default function Reports() {
   const summaryStats = [
     {
       title: 'Doanh thu tháng',
+      tag: 'Tạm tính',
+      tagBg: darkMode ? '#1E3A8A' : '#DBEAFE',
+      tagColor: '#2563EB',
       value: formatVnd(monthRevenue),
-      sub: 'Doanh thu tháng',
-      label: 'Tháng này',
+      sub: 'Doanh thu tháng này',
+      label: 'Thu thực tế MTD',
       icon: '🗓',
       color: '#2563EB',
     },
     {
       title: 'Tổng chi phí',
+      tag: 'Chưa đủ kỳ',
+      tagBg: darkMode ? '#7F1D1D' : '#FEE2E2',
+      tagColor: '#EF4444',
       value: formatVnd(currentMonthExpensesTotal),
       sub: 'Đã chi tháng này',
-      label: 'Chi phí vận hành',
+      label: 'Chưa tới hạn tiền phòng, điện',
       icon: '🧾',
       color: '#EF4444',
     },
     {
       title: 'Lợi nhuận tháng',
+      tag: 'Tạm tính',
+      tagBg: darkMode ? '#064E3B' : '#DCFCE7',
+      tagColor: '#10B981',
       value: `${isProfitPositive ? '+' : ''}${formatVnd(currentMonthNetProfit)}`,
-      sub: `${currentMonthProfitMargin}% Profit Margin`,
+      sub: `${currentMonthProfitMargin}% Margin (Tạm tính)`,
       label: `Thu ${formatVnd(monthRevenue)} · Chi ${formatVnd(currentMonthExpensesTotal)}`,
       icon: '💵',
       color: isProfitPositive ? '#10B981' : '#EF4444',
@@ -284,8 +306,8 @@ export default function Reports() {
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+      {/* Top 5 Metric Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
         {isLoading ? (
           Array.from({ length: 5 }).map((_, i) => (
             <div key={i} style={{ ...card, padding: '16px 18px', minHeight: 80 }} />
@@ -293,7 +315,14 @@ export default function Reports() {
         ) : summaryStats.map(s => (
           <div key={s.title} style={{ ...card, padding: '16px 18px', borderLeft: `4px solid ${s.color}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: textPrimary }}>{s.title}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: textPrimary }}>{s.title}</span>
+                {s.tag && (
+                  <span style={{ fontSize: 10, background: s.tagBg, color: s.tagColor, padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                    {s.tag}
+                  </span>
+                )}
+              </div>
               <span style={{ fontSize: 18 }}>{s.icon}</span>
             </div>
             <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'DM Serif Display', serif", marginBottom: 2 }}>{s.value}</div>
@@ -307,37 +336,92 @@ export default function Reports() {
       <div style={card}>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary }}>Báo cáo Doanh thu, Chi phí & Lợi nhuận (6 tháng)</div>
-            <div style={{ fontSize: 12, color: textMuted }}>Xu hướng lợi nhuận ròng thực tế theo từng tháng</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>Báo cáo Doanh thu & Chi phí (6 tháng)</span>
+              <span style={{ fontSize: 11, fontWeight: 600, background: darkMode ? '#78350F40' : '#FEF3C7', color: '#D97706', padding: '2px 8px', borderRadius: 6, border: '1px solid #FCD34D' }}>
+                (*) Tháng hiện tại là số liệu tạm tính (Cost Lag)
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: textMuted, marginTop: 2 }}>So sánh Doanh thu (Xanh) vs Chi phí (Đỏ) & Đường Biên lợi nhuận ròng (%)</div>
           </div>
           <div style={{ display: 'flex', gap: 14, fontSize: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: '#10B981' }} />
-              <span style={{ color: textPrimary, fontWeight: 600 }}>Lợi nhuận (Cột)</span>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: '#2563EB' }} />
+              <span style={{ color: textPrimary, fontWeight: 600 }}>Doanh thu (Cột xanh)</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB' }} />
-              <span style={{ color: textPrimary, fontWeight: 600 }}>Doanh thu (Đường)</span>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: '#EF4444' }} />
+              <span style={{ color: textPrimary, fontWeight: 600 }}>Chi phí (Cột đỏ)</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#EF4444' }} />
-              <span style={{ color: textPrimary, fontWeight: 600 }}>Chi phí (Đường)</span>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} />
+              <span style={{ color: textPrimary, fontWeight: 600 }}>Biên LN (%) (Đường)</span>
             </div>
           </div>
         </div>
         {revenueTrend.length > 0 ? (
-          <ResponsiveContainer width="100%" height={260}>
-            <ComposedChart data={revenueTrend} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={revenueTrend} margin={{ top: 15, right: 10, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
               <XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false} />
-              <YAxis tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={v => formatVnd(v as number)} />
+              <YAxis yAxisId="left" width={65} tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={formatShortVnd} />
+              <YAxis yAxisId="right" width={45} orientation="right" tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
               <Tooltip
                 contentStyle={tooltipStyle}
-                formatter={(v: unknown, name: string) => [formatVnd(v as number), name]}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || !payload.length) return null;
+                  const data = payload[0]?.payload;
+                  const isCur = data?.isCurrent;
+                  const profit = data?.profit ?? 0;
+                  const margin = data?.margin;
+                  return (
+                    <div style={{ ...tooltipStyle, padding: '10px 14px', minWidth: 220 }}>
+                      <div style={{ fontWeight: 700, color: textPrimary, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span>{label}</span>
+                        {isCur && (
+                          <span style={{ fontSize: 10, background: '#FEF3C7', color: '#B45309', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
+                            Đang diễn ra
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: '#2563EB', marginBottom: 2 }}>
+                        <span>Doanh thu:</span>
+                        <span style={{ fontWeight: 700 }}>{formatVnd(data?.revenue ?? 0)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: '#EF4444', marginBottom: 2 }}>
+                        <span>Chi phí:</span>
+                        <span style={{ fontWeight: 700 }}>{formatVnd(data?.expenses ?? 0)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: profit >= 0 ? '#10B981' : '#EF4444', marginBottom: 2 }}>
+                        <span>Lợi nhuận ròng:</span>
+                        <span style={{ fontWeight: 700 }}>{profit >= 0 ? '+' : ''}{formatVnd(profit)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: '#10B981', fontWeight: 700, paddingTop: 4, borderTop: `1px solid ${bdr}` }}>
+                        <span>Biên lợi nhuận:</span>
+                        <span>{margin !== null && margin !== undefined ? `${margin}%` : '—'}</span>
+                      </div>
+                      {isCur && (
+                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px dashed ${bdr}`, fontSize: 11, color: '#F59E0B', lineHeight: 1.3 }}>
+                          ⚠️ Tháng chưa chốt sổ (Chi phí cố định tiền nhà, điện nước chưa kết toán hết)
+                        </div>
+                      )}
+                    </div>
+                  );
+                }}
               />
-              <Bar dataKey="profit" name="Lợi nhuận" fill="#10B981" radius={[4, 4, 0, 0]} barSize={26} />
-              <Line type="monotone" dataKey="revenue" stroke="#2563EB" strokeWidth={2.5} dot={{ r: 4 }} name="Doanh thu" />
-              <Line type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 3 }} name="Chi phí" />
+              <Bar yAxisId="left" dataKey="revenue" name="Doanh thu" fill="#2563EB" radius={[4, 4, 0, 0]} barSize={16} />
+              <Bar yAxisId="left" dataKey="expenses" name="Chi phí" fill="#EF4444" radius={[4, 4, 0, 0]} barSize={16} />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="margin"
+                name="Biên lợi nhuận"
+                stroke="#10B981"
+                strokeWidth={3}
+                connectNulls={true}
+                dot={{ r: 5, fill: '#10B981', stroke: darkMode ? '#1E293B' : '#fff', strokeWidth: 2 }}
+                activeDot={{ r: 7 }}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
