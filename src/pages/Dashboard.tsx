@@ -72,10 +72,22 @@ export default function Dashboard() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  const totalRooms = rooms.length;
-  const occupied = dashboard?.occupiedRooms ?? 0;
-  const available = dashboard?.availableRooms ?? 0;
-  const needsCleaning = dashboard?.roomsToClean ?? 0;
+  const activeRooms = rooms.filter(r => r.active && r.status !== 'inactive');
+  const totalRooms = activeRooms.length;
+
+  const occupiedRoomIds = new Set(
+    bookings.filter(b => b.status === 'checked_in').map(b => b.roomId)
+  );
+  const occupied = activeRooms.filter(r => occupiedRoomIds.has(r.roomId)).length;
+
+  const activeCleaning = cleaningTasks.filter(t =>
+    t.status === 'pending' || t.status === 'in_progress',
+  );
+  const cleaningRoomIds = new Set(activeCleaning.map(t => t.roomId));
+  const needsCleaning = activeRooms.filter(r => r.status === 'needs_cleaning' || cleaningRoomIds.has(r.roomId)).length;
+
+  const maintenanceRooms = activeRooms.filter(r => r.status === 'maintenance').length;
+  const available = Math.max(0, totalRooms - occupied - needsCleaning - maintenanceRooms);
 
   const today = TODAY_DATE;
   const checkingIn = bookings.filter(b => {
@@ -88,10 +100,6 @@ export default function Dashboard() {
     const checkoutDate = b.expectedCheckOutAt.slice(0, 10);
     return checkoutDate <= today;
   });
-
-  const activeCleaning = cleaningTasks.filter(t =>
-    t.status === 'pending' || t.status === 'in_progress',
-  );
 
   const prevMonthRevenue = monthlyRevenue.length >= 2
     ? monthlyRevenue[monthlyRevenue.length - 2]!.revenue
@@ -110,9 +118,9 @@ export default function Dashboard() {
 
   const statColors = ['#2563EB', '#10B981', '#F59E0B', '#8B5CF6'];
   const statCards = [
-    { label: 'Số phòng', value: available, sub: `${available} phòng`, color: statColors[0], icon: '🛏' },
-    { label: 'Đang có khách', value: occupied, sub: `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}%`, color: statColors[1], icon: '👤' },
-    { label: 'Cần dọn dẹp', value: needsCleaning, sub: `${activeCleaning.length}`, color: statColors[2], icon: '🧹' },
+    { label: 'Phòng trống', value: available, sub: `${totalRooms > 0 ? Math.round((available / totalRooms) * 100) : 0}% công suất`, color: statColors[0], icon: '🛏' },
+    { label: 'Đang có khách', value: occupied, sub: `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}% (${occupied}/${totalRooms} phòng)`, color: statColors[1], icon: '👤' },
+    { label: 'Cần dọn dẹp', value: needsCleaning, sub: `${activeCleaning.length} phòng cần dọn`, color: statColors[2], icon: '🧹' },
     { label: 'Doanh thu tháng', value: formatVnd(monthlyRevenueTotal), sub: monthlyDeltaText, color: statColors[3], icon: '💰' },
   ];
 
@@ -674,10 +682,19 @@ export default function Dashboard() {
 
 // ─── Inline expense form ─────────────────────────────────────────────────────────
 
-const EXPENSE_CATEGORIES = ['Cleaning Supplies', 'Electricity', 'Water', 'Internet', 'Repairs', 'Staff', 'Other'];
+const EXPENSE_CATEGORIES = [
+  'Tiền phòng',
+  'Tiền điện',
+  'Tiền nước',
+  'Dụng cụ dọn dẹp',
+  'Sửa chữa & Bảo trì',
+  'Đồ dùng Homestay (Nước giặt, gia vị...)',
+  'Internet / Wifi',
+  'Chi phí khác',
+];
 
 function ExpenseForm({ darkMode, onSave }: { darkMode: boolean; onSave: (e: { category: string; amount: number; description: string; date: string; vendor?: string }) => void }) {
-  const [category, setCategory] = useState('Cleaning Supplies');
+  const [category, setCategory] = useState('Tiền điện');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [vendor, setVendor] = useState('');
@@ -695,11 +712,11 @@ function ExpenseForm({ darkMode, onSave }: { darkMode: boolean; onSave: (e: { ca
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {[
-        { label: 'Category', el: <select value={category} onChange={e => setCategory(e.target.value)} style={inputStyle}>{EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}</select> },
-        { label: 'Amount (VND)', el: <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} /> },
-        { label: 'Description', el: <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description" style={inputStyle} /> },
-        { label: 'Vendor (optional)', el: <input type="text" value={vendor} onChange={e => setVendor(e.target.value)} placeholder="Vendor name" style={inputStyle} /> },
-        { label: 'Date', el: <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} /> },
+        { label: 'Danh mục', el: <select value={category} onChange={e => setCategory(e.target.value)} style={inputStyle}>{EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}</select> },
+        { label: 'Số tiền (VND)', el: <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} /> },
+        { label: 'Mô tả chi phí', el: <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="Nội dung chi tiêu..." style={inputStyle} /> },
+        { label: 'Nơi mua / Nhà cung cấp (tùy chọn)', el: <input type="text" value={vendor} onChange={e => setVendor(e.target.value)} placeholder="Siêu thị, cửa hàng..." style={inputStyle} /> },
+        { label: 'Ngày chi', el: <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} /> },
       ].map(({ label, el }) => (
         <div key={label}>
           <label style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#94A3B8' : '#64748B', display: 'block', marginBottom: 4 }}>{label}</label>

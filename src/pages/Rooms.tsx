@@ -4,9 +4,11 @@
 // All CRUD actions call the API and update local state via the hook.
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useRooms } from '@/hooks/useRooms';
+import { useBookings } from '@/hooks/useBookings';
+import { useCleaning } from '@/hooks/useCleaning';
 import { ApiError } from '@/services/api';
 import type { Room, RoomStatus } from '@/types/index';
 import StatusBadge from '@/components/StatusBadge';
@@ -27,6 +29,8 @@ const STATUS_BG: Record<string, string> = {
 export default function Rooms() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
   const { rooms, loading, refetch, createRoom, updateRoom, deleteRoom } = useRooms();
+  const { bookings } = useBookings();
+  const { tasks: cleaningTasks } = useCleaning();
   const [filterTab, setFilterTab] = useState<FilterTab>('All');
   const [search, setSearch] = useState('');
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -38,6 +42,22 @@ export default function Rooms() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
+  const occupiedRoomIds = useMemo(() => {
+    return new Set(bookings.filter(b => b.status === 'checked_in').map(b => b.roomId));
+  }, [bookings]);
+
+  const cleaningRoomIds = useMemo(() => {
+    return new Set(cleaningTasks.filter(t => t.status !== 'completed').map(t => t.roomId));
+  }, [cleaningTasks]);
+
+  const getEffectiveStatus = (r: Room): RoomStatus => {
+    if (!r.active || r.status === 'inactive') return 'inactive';
+    if (r.status === 'maintenance') return 'maintenance';
+    if (occupiedRoomIds.has(r.roomId)) return 'occupied';
+    if (r.status === 'needs_cleaning' || cleaningRoomIds.has(r.roomId)) return 'needs_cleaning';
+    return r.status;
+  };
+
   // Sync selected when data changes
   useEffect(() => {
     if (selectedRoom) {
@@ -48,13 +68,14 @@ export default function Rooms() {
   }, [rooms]);
 
   const filtered = rooms.filter(r => {
-    const isRoomInactive = !r.active || r.status === 'inactive';
+    const effStatus = getEffectiveStatus(r);
+    const isRoomInactive = effStatus === 'inactive';
     if (filterTab === 'inactive') {
       if (!isRoomInactive) return false;
     } else if (filterTab === 'All') {
       if (isRoomInactive) return false;
     } else {
-      if (r.status !== filterTab || isRoomInactive) return false;
+      if (effStatus !== filterTab || isRoomInactive) return false;
     }
     if (search) {
       const q = search.toLowerCase();
@@ -65,11 +86,11 @@ export default function Rooms() {
 
   const statCounts: Record<FilterTab, number> = {
     All: rooms.filter(r => r.active && r.status !== 'inactive').length,
-    available: rooms.filter(r => r.status === 'available' && r.active).length,
-    occupied: rooms.filter(r => r.status === 'occupied' && r.active).length,
-    cleaning: rooms.filter(r => r.status === 'cleaning' && r.active).length,
-    needs_cleaning: rooms.filter(r => r.status === 'needs_cleaning' && r.active).length,
-    maintenance: rooms.filter(r => r.status === 'maintenance' && r.active).length,
+    available: rooms.filter(r => getEffectiveStatus(r) === 'available').length,
+    occupied: rooms.filter(r => getEffectiveStatus(r) === 'occupied').length,
+    cleaning: rooms.filter(r => getEffectiveStatus(r) === 'cleaning').length,
+    needs_cleaning: rooms.filter(r => getEffectiveStatus(r) === 'needs_cleaning').length,
+    maintenance: rooms.filter(r => getEffectiveStatus(r) === 'maintenance').length,
     inactive: rooms.filter(r => !r.active || r.status === 'inactive').length,
   };
 
@@ -201,8 +222,9 @@ export default function Rooms() {
       {/* Room grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
         {filtered.map(r => {
-          const color = STATUS_COLOR[r.status] ?? '#64748B';
-          const isActive = r.active && r.status !== 'inactive';
+          const effStatus = getEffectiveStatus(r);
+          const color = STATUS_COLOR[effStatus] ?? '#64748B';
+          const isActive = r.active && effStatus !== 'inactive';
           return (
             <div key={r.roomId}
               onClick={() => setSelectedRoom(r)}
@@ -218,7 +240,7 @@ export default function Rooms() {
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: color, borderRadius: '14px 14px 0 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <span style={{ fontSize: 26, fontWeight: 700, fontFamily: "'DM Serif Display', serif", color: textPrimary }}>{r.name}</span>
-                {isActive && <StatusBadge status={r.status} />}
+                {isActive && <StatusBadge status={effStatus} />}
                 {!r.active && <span style={{ background: '#FEE2E2', color: '#991B1B', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 99 }}>INACTIVE</span>}
               </div>
               <div style={{ fontSize: 13, color: textMuted, marginBottom: 4 }}>{r.description}</div>

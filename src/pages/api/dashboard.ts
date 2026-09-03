@@ -35,10 +35,10 @@ function trailingMonthKeys(now: Date): string[] {
   return keys;
 }
 
-/** Map a "YYYY-MM" key to its 3-letter month label. */
+/** Map a "YYYY-MM" key to its month and year label (e.g. "Thg 4/2026"). */
 function monthLabelFromKey(key: string): string {
-  const monthNum = Number(key.slice(5, 7));
-  return MONTH_LABELS[monthNum - 1]!;
+  const [year, month] = key.split('-');
+  return `Thg ${Number(month)}/${year}`;
 }
 
 /** Build monthlyRevenue from bookings + expenses over the trailing 6 months. */

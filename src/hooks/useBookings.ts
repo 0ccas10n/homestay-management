@@ -4,13 +4,13 @@
 // Handles optimistic updates for status transitions (check-in, cancel).
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { bookingsApi } from '@/services/api';
 import type { Booking } from '@/types/index';
 import { ApiError } from '@/services/api';
 
 interface UseBookingsOptions {
-  /** Auto-fetch on mount */
+  /** Auto-fetch on mount. Default: true */
   autoFetch?: boolean;
 }
 
@@ -28,7 +28,7 @@ interface UseBookingsReturn {
   cancelBooking: (id: string) => Promise<void>;
 }
 
-export function useBookings(_options?: UseBookingsOptions): UseBookingsReturn {
+export function useBookings(options?: UseBookingsOptions): UseBookingsReturn {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +45,12 @@ export function useBookings(_options?: UseBookingsOptions): UseBookingsReturn {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (options?.autoFetch !== false) {
+      refetch().catch(() => {});
+    }
+  }, [refetch, options?.autoFetch]);
 
   const createBooking = useCallback(async (data: Parameters<typeof bookingsApi.create>[0]) => {
     const created = await bookingsApi.create(data);

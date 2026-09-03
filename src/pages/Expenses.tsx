@@ -11,8 +11,17 @@ import type { Expense } from '@/types/index';
 import Modal from '@/components/Modal';
 import { formatVnd } from '@/utils/format';
 
-const CATEGORIES = ['Cleaning Supplies', 'Electricity', 'Water', 'Internet', 'Repairs', 'Staff', 'Other'];
-const PIE_COLORS = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
+const CATEGORIES = [
+  'Tiền phòng',
+  'Tiền điện',
+  'Tiền nước',
+  'Dụng cụ dọn dẹp',
+  'Sửa chữa & Bảo trì',
+  'Đồ dùng Homestay (Nước giặt, gia vị...)',
+  'Internet / Wifi',
+  'Chi phí khác',
+];
+const PIE_COLORS = ['#8B5CF6', '#2563EB', '#06B6D4', '#10B981', '#EF4444', '#F59E0B', '#EC4899', '#64748B'];
 
 type FormFieldKey = 'category' | 'amount' | 'description' | 'vendor' | 'date';
 type FormFieldType = 'select' | 'number' | 'text' | 'date';
@@ -26,11 +35,11 @@ interface ExpenseFormField {
 }
 
 const fields: ExpenseFormField[] = [
-  { label: 'Category', key: 'category', type: 'select' },
-  { label: 'Amount (VND)', key: 'amount', type: 'number', step: 10000, placeholder: '1500000' },
-  { label: 'Description', key: 'description', type: 'text' },
-  { label: 'Vendor (optional)', key: 'vendor', type: 'text' },
-  { label: 'Date', key: 'date', type: 'date' },
+  { label: 'Danh mục', key: 'category', type: 'select' },
+  { label: 'Số tiền (VND)', key: 'amount', type: 'number', step: 10000, placeholder: '1500000' },
+  { label: 'Mô tả chi phí', key: 'description', type: 'text', placeholder: 'Nội dung chi tiêu' },
+  { label: 'Nơi mua / Nhà cung cấp (tùy chọn)', key: 'vendor', type: 'text', placeholder: 'Siêu thị, cửa hàng...' },
+  { label: 'Ngày chi', key: 'date', type: 'date' },
 ];
 
 export default function Expenses() {
@@ -38,7 +47,7 @@ export default function Expenses() {
   const { expenses, loading, refetch, createExpense } = useExpenses();
   const [filterCat, setFilterCat] = useState('All');
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState({ category: 'Cleaning Supplies', amount: '', description: '', vendor: '', date: new Date().toISOString().slice(0, 10) });
+  const [form, setForm] = useState({ category: 'Tiền điện', amount: '', description: '', vendor: '', date: new Date().toISOString().slice(0, 10) });
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => { refetch(); }, [refetch]);
@@ -56,10 +65,10 @@ export default function Expenses() {
     try {
       await createExpense({ category: form.category, amount: parseFloat(form.amount), description: form.description, date: form.date, vendor: form.vendor || undefined });
       setAddOpen(false);
-      setForm({ category: 'Cleaning Supplies', amount: '', description: '', vendor: '', date: new Date().toISOString().slice(0, 10) });
-      showToast('Expense added');
+      setForm({ category: 'Tiền điện', amount: '', description: '', vendor: '', date: new Date().toISOString().slice(0, 10) });
+      showToast('Đã thêm khoản chi');
     } catch {
-      showToast('Failed to save expense');
+      showToast('Lưu chi phí thất bại');
     }
   };
 
@@ -77,8 +86,27 @@ export default function Expenses() {
   };
 
   const catColors: Record<string, string> = {
-    'Cleaning Supplies': '#06B6D4', 'Electricity': '#F59E0B', 'Water': '#2563EB',
-    'Internet': '#8B5CF6', 'Repairs': '#EF4444', 'Staff': '#10B981', 'Other': '#94A3B8',
+    'Tiền phòng': '#8B5CF6',
+    'Tiền điện': '#2563EB',
+    'Tiền nước': '#06B6D4',
+    'Dụng cụ dọn dẹp': '#10B981',
+    'Sửa chữa & Bảo trì': '#EF4444',
+    'Đồ dùng Homestay (Nước giặt, gia vị...)': '#F59E0B',
+    'Internet / Wifi': '#EC4899',
+    'Chi phí khác': '#64748B',
+    // Fallback cho dữ liệu cũ
+    'Điện': '#2563EB',
+    'Nước': '#06B6D4',
+    'Cleaning supplies': '#10B981',
+    'Cleaning Supplies': '#10B981',
+    'Repair': '#EF4444',
+    'Repairs': '#EF4444',
+    'Electricity': '#2563EB',
+    'Water': '#06B6D4',
+    'Internet': '#EC4899',
+    'Staff': '#8B5CF6',
+    'Khác': '#64748B',
+    'Other': '#64748B',
   };
 
   const bg = darkMode ? '#1E293B' : '#fff';
