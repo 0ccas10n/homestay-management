@@ -220,17 +220,45 @@ export default function Reports() {
   const isProfitPositive = currentMonthNetProfit >= 0;
   const summaryStats = [
     {
-      label: `Thu ${formatVnd(monthRevenue)} · Chi ${formatVnd(currentMonthExpensesTotal)}`,
+      title: 'Doanh thu tháng',
+      value: formatVnd(monthRevenue),
+      sub: 'Doanh thu tháng',
+      label: 'Tháng này',
+      icon: '🗓',
+      color: '#2563EB',
+    },
+    {
+      title: 'Tổng chi phí',
+      value: formatVnd(currentMonthExpensesTotal),
+      sub: 'Đã chi tháng này',
+      label: 'Chi phí vận hành',
+      icon: '🧾',
+      color: '#EF4444',
+    },
+    {
+      title: 'Lợi nhuận tháng',
       value: `${isProfitPositive ? '+' : ''}${formatVnd(currentMonthNetProfit)}`,
       sub: `${currentMonthProfitMargin}% Profit Margin`,
-      title: 'Lợi nhuận tháng này',
+      label: `Thu ${formatVnd(monthRevenue)} · Chi ${formatVnd(currentMonthExpensesTotal)}`,
       icon: '💵',
       color: isProfitPositive ? '#10B981' : '#EF4444',
     },
-    { label: 'Doanh thu tháng', value: formatVnd(monthRevenue), sub: 'Tháng này', title: 'Doanh thu tháng', icon: '🗓', color: '#8B5CF6' },
-    { label: 'Doanh thu tuần', value: formatVnd(weekRevenue), sub: 'Tuần này', title: 'Doanh thu tuần', icon: '📆', color: '#2563EB' },
-    { label: 'Khách lưu trú', value: `${avgStay} đêm`, sub: 'Thời gian ở TB', title: 'Thời gian ở TB', icon: '🌙', color: '#F59E0B' },
-    { label: 'Tháng này', value: `${occupancyRate}%`, sub: 'Công suất phòng', title: 'Công suất phòng', icon: '🏠', color: '#EC4899' },
+    {
+      title: 'Công suất phòng',
+      value: `${occupancyRate}%`,
+      sub: 'Công suất phòng',
+      label: 'Tháng này',
+      icon: '🏠',
+      color: '#EC4899',
+    },
+    {
+      title: 'Thời gian ở TB',
+      value: `${avgStay} đêm`,
+      sub: 'Thời gian ở TB',
+      label: 'Khách lưu trú',
+      icon: '🌙',
+      color: '#F59E0B',
+    },
   ];
 
   const bdr = darkMode ? '#334155' : '#E2E8F0';

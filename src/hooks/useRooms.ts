@@ -3,10 +3,14 @@
 // Fetches and manages rooms from the API.
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { roomsApi } from '@/services/api';
 import type { Room } from '@/types/index';
 import { ApiError } from '@/services/api';
+
+interface UseRoomsOptions {
+  autoFetch?: boolean;
+}
 
 interface UseRoomsReturn {
   rooms: Room[];
@@ -18,7 +22,7 @@ interface UseRoomsReturn {
   deleteRoom: (id: string) => Promise<void>;
 }
 
-export function useRooms(): UseRoomsReturn {
+export function useRooms(options?: UseRoomsOptions): UseRoomsReturn {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +39,12 @@ export function useRooms(): UseRoomsReturn {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (options?.autoFetch !== false) {
+      refetch().catch(() => {});
+    }
+  }, [refetch, options?.autoFetch]);
 
   const createRoom = useCallback(async (data: Omit<Room, 'roomId' | 'createdAt' | 'updatedAt'>) => {
     const created = await roomsApi.create(data);
