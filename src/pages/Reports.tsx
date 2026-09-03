@@ -56,6 +56,14 @@ export default function Reports() {
     refetchExpenses().catch(() => {});
   }, [refetchBookings, refetchExpenses]);
 
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const now = new Date();
   const todayStr = formatDateStr(now);
 
@@ -285,13 +293,15 @@ export default function Reports() {
   const revenueTrend = trailing6Months.map((mKey) => {
     const [y, m] = mKey.split('-');
     const isCurrent = mKey === currentMonthStr;
-    const label = `Thg ${Number(m)}/${y}${isCurrent ? ' *' : ''}`;
+    const label = isMobile ? `T${Number(m)}${isCurrent ? '*' : ''}` : `Thg ${Number(m)}/${y}${isCurrent ? ' *' : ''}`;
+    const fullLabel = `Tháng ${Number(m)}/${y}${isCurrent ? ' (Hiện tại)' : ''}`;
     const rev = revenueByMonth[mKey] ?? 0;
     const exp = expensesByMonth[mKey] ?? 0;
     const profit = rev - exp;
     const margin = rev > 0 ? Math.round((profit / rev) * 100) : null;
     return {
       month: label,
+      fullLabel,
       revenue: rev,
       expenses: exp,
       profit,
@@ -528,38 +538,38 @@ export default function Reports() {
 
       {/* ─── 3. BIỂU ĐỒ XU HƯỚNG 6 THÁNG (Doanh thu vs Chi phí & Biên LN) ─── */}
       <div style={card}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span>Báo cáo Doanh thu & Chi phí (6 tháng)</span>
-              <span style={{ fontSize: 11, fontWeight: 600, background: darkMode ? '#78350F40' : '#FEF3C7', color: '#D97706', padding: '2px 8px', borderRadius: 6, border: '1px solid #FCD34D' }}>
-                (*) Tháng hiện tại là số liệu tạm tính (Cost Lag)
+            <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span>Doanh thu & Chi phí (6 tháng)</span>
+              <span style={{ fontSize: 10, fontWeight: 600, background: darkMode ? '#78350F40' : '#FEF3C7', color: '#D97706', padding: '1px 6px', borderRadius: 4, border: '1px solid #FCD34D' }}>
+                (*) Tháng hiện tại là tạm tính (Cost Lag)
               </span>
             </div>
-            <div style={{ fontSize: 12, color: textMuted, marginTop: 2 }}>So sánh Doanh thu (Cột xanh) vs Chi phí (Cột đỏ) & Đường Biên lợi nhuận ròng (%)</div>
+            <div style={{ fontSize: 12, color: textMuted, marginTop: 2 }}>Doanh thu (Xanh) vs Chi phí (Đỏ) & Biên lợi nhuận (%)</div>
           </div>
-          <div style={{ display: 'flex', gap: 14, fontSize: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: '#2563EB' }} />
-              <span style={{ color: textPrimary, fontWeight: 600 }}>Doanh thu (Cột xanh)</span>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: '#2563EB' }} />
+              <span style={{ color: textPrimary, fontWeight: 600 }}>Doanh thu</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: '#EF4444' }} />
-              <span style={{ color: textPrimary, fontWeight: 600 }}>Chi phí (Cột đỏ)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: '#EF4444' }} />
+              <span style={{ color: textPrimary, fontWeight: 600 }}>Chi phí</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#8B5CF6' }} />
-              <span style={{ color: textPrimary, fontWeight: 600 }}>Biên LN (%) (Đường)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#8B5CF6' }} />
+              <span style={{ color: textPrimary, fontWeight: 600 }}>Biên LN (%)</span>
             </div>
           </div>
         </div>
         {revenueTrend.length > 0 ? (
-          <ResponsiveContainer width="100%" height={280}>
-            <ComposedChart data={revenueTrend} margin={{ top: 15, right: 10, left: 10, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={270}>
+            <ComposedChart data={revenueTrend} margin={{ top: 15, right: isMobile ? 0 : 10, left: isMobile ? -10 : 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
               <XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" width={65} tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={formatShortVnd} />
-              <YAxis yAxisId="right" width={45} orientation="right" tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
+              <YAxis yAxisId="left" width={isMobile ? 48 : 64} tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={formatShortVnd} />
+              <YAxis yAxisId="right" width={isMobile ? 38 : 46} orientation="right" tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
               <Tooltip
                 contentStyle={tooltipStyle}
                 content={({ active, payload, label }) => {
@@ -569,52 +579,52 @@ export default function Reports() {
                   const profit = data?.profit ?? 0;
                   const margin = data?.margin;
                   return (
-                    <div style={{ ...tooltipStyle, padding: '10px 14px', minWidth: 220 }}>
-                      <div style={{ fontWeight: 700, color: textPrimary, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span>{label}</span>
+                    <div style={{ ...tooltipStyle, padding: '8px 12px', minWidth: 190 }}>
+                      <div style={{ fontWeight: 700, color: textPrimary, marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
+                        <span>{data?.fullLabel || label}</span>
                         {isCur && (
-                          <span style={{ fontSize: 10, background: '#FEF3C7', color: '#B45309', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
-                            Đang diễn ra
+                          <span style={{ fontSize: 9, background: '#FEF3C7', color: '#B45309', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                            Đang chạy
                           </span>
                         )}
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: '#2563EB', marginBottom: 2 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#2563EB', fontSize: 11, marginBottom: 2 }}>
                         <span>Doanh thu:</span>
                         <span style={{ fontWeight: 700 }}>{formatVnd(data?.revenue ?? 0)}</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: '#EF4444', marginBottom: 2 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#EF4444', fontSize: 11, marginBottom: 2 }}>
                         <span>Chi phí:</span>
                         <span style={{ fontWeight: 700 }}>{formatVnd(data?.expenses ?? 0)}</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: profit >= 0 ? '#10B981' : '#EF4444', marginBottom: 2 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: profit >= 0 ? '#10B981' : '#EF4444', fontSize: 11, marginBottom: 2 }}>
                         <span>Lợi nhuận ròng:</span>
                         <span style={{ fontWeight: 700 }}>{profit >= 0 ? '+' : ''}{formatVnd(profit)}</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: '#8B5CF6', fontWeight: 700, paddingTop: 4, borderTop: `1px solid ${bdr}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#8B5CF6', fontWeight: 700, fontSize: 11, paddingTop: 3, borderTop: `1px solid ${bdr}` }}>
                         <span>Biên lợi nhuận:</span>
                         <span>{margin !== null && margin !== undefined ? `${margin}%` : '—'}</span>
                       </div>
                       {isCur && (
-                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px dashed ${bdr}`, fontSize: 11, color: '#F59E0B', lineHeight: 1.3 }}>
-                          ⚠️ Tháng chưa chốt sổ (Chi phí cố định tiền nhà, điện nước chưa kết toán hết)
+                        <div style={{ marginTop: 4, paddingTop: 4, borderTop: `1px dashed ${bdr}`, fontSize: 10, color: '#F59E0B', lineHeight: 1.2 }}>
+                          ⚠️ Chưa kết toán hết tiền nhà, điện nước
                         </div>
                       )}
                     </div>
                   );
                 }}
               />
-              <Bar yAxisId="left" dataKey="revenue" name="Doanh thu" fill="#2563EB" radius={[4, 4, 0, 0]} barSize={16} />
-              <Bar yAxisId="left" dataKey="expenses" name="Chi phí" fill="#EF4444" radius={[4, 4, 0, 0]} barSize={16} />
+              <Bar yAxisId="left" dataKey="revenue" name="Doanh thu" fill="#2563EB" radius={[4, 4, 0, 0]} barSize={isMobile ? 12 : 22} />
+              <Bar yAxisId="left" dataKey="expenses" name="Chi phí" fill="#EF4444" radius={[4, 4, 0, 0]} barSize={isMobile ? 12 : 22} />
               <Line
                 yAxisId="right"
                 type="monotone"
                 dataKey="margin"
                 name="Biên lợi nhuận"
                 stroke="#8B5CF6"
-                strokeWidth={3}
+                strokeWidth={2.5}
                 connectNulls={true}
-                dot={{ r: 5, fill: '#8B5CF6', stroke: darkMode ? '#1E293B' : '#fff', strokeWidth: 2 }}
-                activeDot={{ r: 7 }}
+                dot={{ r: 4, fill: '#8B5CF6', stroke: darkMode ? '#1E293B' : '#fff', strokeWidth: 1.5 }}
+                activeDot={{ r: 6 }}
               />
             </ComposedChart>
           </ResponsiveContainer>
