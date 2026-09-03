@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useBookings } from '@/hooks/useBookings';
 import { useCustomers } from '@/hooks/useCustomers';
@@ -118,6 +118,68 @@ export default function Dashboard() {
 
   const { customers } = useCustomers();
   const customerMap = React.useMemo(() => new Map(customers.map(c => [c.customerId, c.name])), [customers]);
+
+  // Tỉ trọng kênh bán (Channel Mix)
+  const channelMixData = React.useMemo(() => {
+    const counts: Record<string, number> = {
+      'FACEBOOK': 0,
+      'ZALO': 0,
+      'TIKTOK': 0,
+      'INSTAGRAM': 0,
+      'DIRECT / KHÁC': 0,
+    };
+
+    let total = 0;
+    customers.forEach(c => {
+      const src = (c.source || '').toUpperCase();
+      if (src === 'FACEBOOK') { counts['FACEBOOK']++; total++; }
+      else if (src === 'ZALO') { counts['ZALO']++; total++; }
+      else if (src === 'TIKTOK') { counts['TIKTOK']++; total++; }
+      else if (src === 'INSTAGRAM') { counts['INSTAGRAM']++; total++; }
+      else if (src) { counts['DIRECT / KHÁC']++; total++; }
+    });
+
+    const CHANNEL_COLORS: Record<string, string> = {
+      'FACEBOOK': '#1877F2',                                      // Xanh đậm Facebook
+      'ZALO': '#38BDF8',                                          // Xanh nhạt Sky Blue (Zalo)
+      'TIKTOK': darkMode ? '#F1F5F9' : '#000000',                 // Đen TikTok (Trắng sáng trên DarkMode để không bị chìm)
+      'INSTAGRAM': '#F56040',                                     // Cam hồng Instagram
+      'DIRECT / KHÁC': '#64748B',                                 // Xám trung tính (Chuẩn UX cho mục "Khác")
+    };
+
+    const result = Object.entries(counts)
+      .filter(([_, count]) => count > 0)
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+        color: CHANNEL_COLORS[name] || '#64748B',
+      }));
+
+    if (result.length === 0) {
+      return [{ name: 'DIRECT / KHÁC', count: customers.length || 1, percentage: 100, color: '#64748B' }];
+    }
+    return result;
+  }, [customers, darkMode]);
+
+  // Doanh thu theo từng phòng
+  const revenueByRoomData = React.useMemo(() => {
+    const activeRooms = rooms.filter(r => r.active && r.status !== 'inactive');
+    const revMap = new Map<string, number>();
+
+    bookings.forEach(b => {
+      if (b.status === 'cancelled') return;
+      const amount = getBookingTotal(b);
+      revMap.set(b.roomId, (revMap.get(b.roomId) || 0) + amount);
+    });
+
+    return activeRooms
+      .map(r => ({
+        name: r.name,
+        revenue: revMap.get(r.id) || revMap.get(r.roomId) || 0,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [rooms, bookings]);
 
   const getGuestName = (booking: Booking): string => {
     return booking.guestName || customerMap.get(booking.customerId) || booking.customerId;
@@ -280,134 +342,245 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Charts Row */}
-      {!isMobile && <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+      {/* Today's Arrivals & Departures */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+        {/* Checking In */}
         <div style={card(darkMode)}>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Revenue vs Expenses</div>
-            <div style={{ fontSize: 12, color: textMuted }}>Last 6 months</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Checking In Today</div>
+            <span style={{ background: '#DBEAFE', color: '#1E40AF', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>{checkingIn.length}</span>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={monthlyRevenue}>
-              <defs>
-                <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="exp" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#EF4444" stopOpacity={0.1} />
-                  <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#F1F5F9'} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} />
-              {/* Y-axis ticks and tooltip both render values through formatVnd
-                  so the scale shows formatted VND (e.g. "15.000.000 ₫") rather
-                  than raw numeric magnitudes. */}
-              <YAxis tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={v => formatVnd(v as number)} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }} formatter={(v: unknown) => [formatVnd(v as number), '']} />
-              <Area type="monotone" dataKey="revenue" stroke="#2563EB" strokeWidth={2} fill="url(#rev)" name="Revenue" />
-              <Area type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} fill="url(#exp)" name="Expenses" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {checkingIn.length === 0 ? (
+            <p style={{ color: textMuted, fontSize: 13, margin: 0 }}>No arrivals today</p>
+          ) : checkingIn.map(b => (
+            <div key={b.bookingId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${borderColor}` }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>{getGuestName(b)}</div>
+                <div style={{ fontSize: 12, color: textMuted }}>Room {getRoomNumber(b)} · {b.checkInAt.slice(11, 16)} · {b.numGuests ?? 1} khách</div>
+              </div>
+              <StatusBadge status={b.status} />
+            </div>
+          ))}
         </div>
 
+        {/* Checking Out */}
         <div style={card(darkMode)}>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Weekly Occupancy</div>
-            <div style={{ fontSize: 12, color: textMuted }}>This week %</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Checking Out Today</div>
+            <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>{checkingOut.length}</span>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={weeklyOccupancy} barSize={18}>
-              <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#F1F5F9'} />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} domain={[0, 100]} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }} formatter={(v: unknown) => [`${v}%`, 'Occupancy']} />
-              <Bar dataKey="rate" fill="#10B981" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {checkingOut.length === 0 ? (
+            <p style={{ color: textMuted, fontSize: 13, margin: 0 }}>No departures today</p>
+          ) : checkingOut.map(b => (
+            <div key={b.bookingId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${borderColor}` }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>{getGuestName(b)}</div>
+                <div style={{ fontSize: 12, color: textMuted }}>Room {getRoomNumber(b)} · {b.expectedCheckOutAt.slice(11, 16)} · Tổng: {formatVnd(getBookingTotal(b))}</div>
+              </div>
+              <StatusBadge status="Checked In" />
+            </div>
+          ))}
         </div>
-      </div>}
+      </div>
 
-      {/* Sơ đồ phòng (Room Rack) */}
-      <div>
-        <h3 style={{ fontSize: 16, fontWeight: 700, color: textPrimary, marginBottom: 16 }}>Sơ đồ phòng (Room Rack)</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-          {rooms.filter(r => r.active && r.status !== 'inactive').map(room => {
-            const currentBooking = bookings.find(b => b.roomId === room.id && b.status === 'checked_in');
-            const cleaningTask = cleaningTasks.find(t => t.roomId === room.id && t.status !== 'completed');
-            const incoming = checkingIn.find(b => b.roomId === room.id);
-
-            let statusText = 'Trống';
-            let bgLight = darkMode ? '#064E3B' : '#ECFDF5';
-            let borderColor = darkMode ? '#047857' : '#A7F3D0';
-            let textColor = darkMode ? '#34D399' : '#065F46';
-
-            if (currentBooking) {
-              statusText = 'Có khách';
-              bgLight = darkMode ? '#7F1D1D' : '#FEF2F2';
-              borderColor = darkMode ? '#B91C1C' : '#FECACA';
-              textColor = darkMode ? '#F87171' : '#991B1B';
-            } else if (room.status === 'needs_cleaning' || cleaningTask) {
-              statusText = 'Cần dọn';
-              bgLight = darkMode ? '#78350F' : '#FFFBEB';
-              borderColor = darkMode ? '#D97706' : '#FDE68A';
-              textColor = darkMode ? '#FBBF24' : '#92400E';
-            } else if (room.status === 'maintenance') {
-              statusText = 'Bảo trì';
-              bgLight = darkMode ? '#334155' : '#F1F5F9';
-              borderColor = darkMode ? '#475569' : '#E2E8F0';
-              textColor = darkMode ? '#94A3B8' : '#64748B';
-            } else if (incoming) {
-              statusText = 'Khách sắp đến';
-              bgLight = darkMode ? '#1E3A8A' : '#EFF6FF';
-              borderColor = darkMode ? '#1D4ED8' : '#BFDBFE';
-              textColor = darkMode ? '#60A5FA' : '#1E40AF';
-            }
-
-            const live = currentBooking ? getLiveCheckoutTotal(currentBooking) : null;
-            const isOverdue = live && live.overtimeMinutes > 0;
-
-            return (
-              <div key={room.id} style={{
-                background: darkMode ? '#1E293B' : '#FFFFFF',
-                borderRadius: 12,
-                border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column'
-              }}>
-                <div style={{ padding: '10px 14px', background: bgLight, borderBottom: `1px solid ${borderColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 700, color: textColor, fontSize: 14 }}>{room.name}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: textColor, background: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.6)', padding: '2px 8px', borderRadius: 12 }}>{statusText}</span>
+      {/* ─── Cụm 2: Báo cáo & Phân tích Doanh thu (Song song) ────────────────────────── */}
+      {!isMobile && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: textPrimary, margin: '8px 0 0 0' }}>Báo cáo & Phân tích Doanh thu</h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16 }}>
+            {/* Doanh thu vs Chi phí (6 tháng) */}
+            <div style={card(darkMode)}>
+              <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Doanh thu vs Chi phí</div>
+                  <div style={{ fontSize: 12, color: textMuted }}>6 tháng gần nhất</div>
                 </div>
-                <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
-                  {currentBooking ? (
-                    <>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: textPrimary }}>{getGuestName(currentBooking)}</div>
-                      <div style={{ fontSize: 12, color: isOverdue ? '#EF4444' : textMuted }}>Check-out: {currentBooking.expectedCheckOutAt.slice(11, 16)} {isOverdue && '(Quá giờ)'}</div>
-                      <div style={{ fontSize: 13, color: textMuted, marginTop: 'auto', paddingTop: 8 }}>Tổng: <strong style={{ color: isOverdue ? '#EF4444' : textPrimary }}>{formatVnd(live?.total || 0)}</strong></div>
-                    </>
-                  ) : cleaningTask ? (
-                    <>
-                      <div style={{ fontSize: 13, color: textPrimary }}>Phòng dơ sau khi khách check-out</div>
-                      <button onClick={() => setModal('cleaned')} style={{ marginTop: 'auto', background: '#F59E0B', color: '#fff', border: 'none', padding: '6px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Đánh dấu đã dọn</button>
-                    </>
-                  ) : incoming ? (
-                    <>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: textPrimary }}>{getGuestName(incoming)}</div>
-                      <div style={{ fontSize: 12, color: textMuted }}>Giờ Check-in: {incoming.checkInAt.slice(11, 16)}</div>
-                      <button onClick={() => setModal('check-in')} style={{ marginTop: 'auto', background: '#3B82F6', color: '#fff', border: 'none', padding: '6px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Check-in Ngay</button>
-                    </>
-                  ) : room.status === 'maintenance' ? (
-                    <div style={{ fontSize: 13, color: textMuted, fontStyle: 'italic', display: 'flex', flex: 1, alignItems: 'center' }}>Phòng đang tạm khóa để sửa chữa.</div>
-                  ) : (
-                    <div style={{ fontSize: 13, color: textMuted, fontStyle: 'italic', display: 'flex', flex: 1, alignItems: 'center' }}>Phòng trống, sẵn sàng đón khách.</div>
-                  )}
+                <div style={{ display: 'flex', gap: 14, fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#2563EB' }} />
+                    <span style={{ color: textPrimary, fontWeight: 600 }}>Doanh thu</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#EF4444' }} />
+                    <span style={{ color: textPrimary, fontWeight: 600 }}>Chi phí</span>
+                  </div>
                 </div>
               </div>
-            );
-          })}
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={monthlyRevenue} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2563EB" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="exp" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#F1F5F9'} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={v => formatVnd(v as number)} />
+                  <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }} formatter={(v: unknown) => [formatVnd(v as number), '']} />
+                  <Area type="monotone" dataKey="revenue" stroke="#2563EB" strokeWidth={2.5} fill="url(#rev)" name="Doanh thu" />
+                  <Area type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} fill="url(#exp)" name="Chi phí" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Doanh thu từng phòng (Cột đứng) */}
+            <div style={card(darkMode)}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Doanh thu theo từng phòng</div>
+                <div style={{ fontSize: 12, color: textMuted }}>Xếp hạng doanh thu thực tế</div>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={revenueByRoomData} barSize={22} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#F1F5F9'} vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: textPrimary, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={v => formatVnd(v as number)} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }}
+                    formatter={(v: unknown) => [formatVnd(v as number), 'Doanh thu']}
+                  />
+                  <Bar dataKey="revenue" fill="#6366F1" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Cụm 1: Sơ đồ phòng & Tỉ trọng nguồn khách (Kế bên nhau) ─────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.3fr 1fr', gap: 16 }}>
+        {/* Sơ đồ phòng (Room Rack) */}
+        <div style={card(darkMode)}>
+          <div style={{ marginBottom: 14 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: textPrimary, margin: '0 0 4px 0' }}>Sơ đồ phòng (Room Rack)</h3>
+            <div style={{ fontSize: 12, color: textMuted }}>Trạng thái phòng hiện tại</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+            {rooms.filter(r => r.active && r.status !== 'inactive').map(room => {
+              const currentBooking = bookings.find(b => (b.roomId === room.roomId || b.roomId === (room as any).id) && b.status === 'checked_in');
+              const cleaningTask = cleaningTasks.find(t => (t.roomId === room.roomId || t.roomId === (room as any).id) && t.status !== 'completed');
+              const incoming = checkingIn.find(b => (b.roomId === room.roomId || b.roomId === (room as any).id));
+
+              let statusText = 'Trống';
+              let bgLight = darkMode ? '#064E3B' : '#ECFDF5';
+              let borderColor = darkMode ? '#047857' : '#A7F3D0';
+              let textColor = darkMode ? '#34D399' : '#065F46';
+
+              if (currentBooking) {
+                statusText = 'Có khách';
+                bgLight = darkMode ? '#7F1D1D' : '#FEF2F2';
+                borderColor = darkMode ? '#B91C1C' : '#FECACA';
+                textColor = darkMode ? '#F87171' : '#991B1B';
+              } else if (room.status === 'needs_cleaning' || cleaningTask) {
+                statusText = 'Cần dọn';
+                bgLight = darkMode ? '#78350F' : '#FFFBEB';
+                borderColor = darkMode ? '#D97706' : '#FDE68A';
+                textColor = darkMode ? '#FBBF24' : '#92400E';
+              } else if (room.status === 'maintenance') {
+                statusText = 'Bảo trì';
+                bgLight = darkMode ? '#334155' : '#F1F5F9';
+                borderColor = darkMode ? '#475569' : '#E2E8F0';
+                textColor = darkMode ? '#94A3B8' : '#64748B';
+              } else if (incoming) {
+                statusText = 'Sắp đến';
+                bgLight = darkMode ? '#1E3A8A' : '#EFF6FF';
+                borderColor = darkMode ? '#1D4ED8' : '#BFDBFE';
+                textColor = darkMode ? '#60A5FA' : '#1E40AF';
+              }
+
+              const live = currentBooking ? getLiveCheckoutTotal(currentBooking) : null;
+              const isOverdue = live && live.overtimeMinutes > 0;
+
+              return (
+                <div key={room.roomId || (room as any).id} style={{
+                  background: darkMode ? '#0F172A' : '#F8FAFC',
+                  borderRadius: 10,
+                  border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <div style={{ padding: '6px 10px', background: bgLight, borderBottom: `1px solid ${borderColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, color: textColor, fontSize: 13 }}>{room.name}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: textColor, background: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)', padding: '1px 6px', borderRadius: 8 }}>{statusText}</span>
+                  </div>
+                  <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 72 }}>
+                    {currentBooking ? (
+                      <>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getGuestName(currentBooking)}</div>
+                        <div style={{ fontSize: 11, color: isOverdue ? '#EF4444' : textMuted }}>Out: {currentBooking.expectedCheckOutAt.slice(11, 16)} {isOverdue && '(Quá giờ)'}</div>
+                        <div style={{ fontSize: 11, color: textMuted, marginTop: 'auto' }}>Tổng: <strong style={{ color: isOverdue ? '#EF4444' : textPrimary }}>{formatVnd(live?.total || 0)}</strong></div>
+                      </>
+                    ) : cleaningTask ? (
+                      <>
+                        <div style={{ fontSize: 11, color: textPrimary }}>Phòng đang đợi dọn</div>
+                        <button onClick={() => setModal('cleaned')} style={{ marginTop: 'auto', background: '#F59E0B', color: '#fff', border: 'none', padding: '4px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Đã dọn xong</button>
+                      </>
+                    ) : incoming ? (
+                      <>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getGuestName(incoming)}</div>
+                        <div style={{ fontSize: 11, color: textMuted }}>In: {incoming.checkInAt.slice(11, 16)}</div>
+                        <button onClick={() => setModal('check-in')} style={{ marginTop: 'auto', background: '#3B82F6', color: '#fff', border: 'none', padding: '4px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Check-in</button>
+                      </>
+                    ) : room.status === 'maintenance' ? (
+                      <div style={{ fontSize: 11, color: textMuted, fontStyle: 'italic', display: 'flex', flex: 1, alignItems: 'center' }}>Đang bảo trì</div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: textMuted, fontStyle: 'italic', display: 'flex', flex: 1, alignItems: 'center' }}>Phòng trống</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Tỉ trọng nguồn khách (Kế bên Sơ đồ phòng) */}
+        <div style={card(darkMode)}>
+          <div style={{ marginBottom: 14 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: textPrimary, margin: '0 0 4px 0' }}>Tỉ trọng nguồn khách</h3>
+            <div style={{ fontSize: 12, color: textMuted }}>Phân bổ theo kênh đặt phòng (Channel Mix)</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', height: 'calc(100% - 46px)' }}>
+            <div style={{ width: '100%', height: 160 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={channelMixData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={70}
+                    paddingAngle={3}
+                    dataKey="count"
+                  >
+                    {channelMixData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }}
+                    formatter={(v: unknown, name: string) => [`${v} khách (${channelMixData.find(c => c.name === name)?.percentage || 0}%)`, name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+              {channelMixData.map(item => (
+                <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, background: darkMode ? '#0F172A' : '#F8FAFC', padding: '6px 8px', borderRadius: 6, border: `1px solid ${borderColor}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+                    <span style={{ color: textPrimary, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
+                  </div>
+                  <span style={{ fontWeight: 700, color: item.color, marginLeft: 4 }}>{item.percentage}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
