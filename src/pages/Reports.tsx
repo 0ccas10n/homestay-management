@@ -1,9 +1,12 @@
 // ─── Reports.tsx ─────────────────────────────────────────────────────────────────────
 //
 // Financial Analytics & P&L Statement Dashboard
-// Derives all report data from live API calls:
-//   - useBookings  → summary stats + P&L calculations + chart data
-//   - useExpenses  → expense breakdown + P&L operational costs
+// Structured 5-Tier Architecture:
+//   1. Header & Dynamic Time Period Filters (Tháng này / Tháng trước / Quý / Năm / Tùy chọn) + Export Excel
+//   2. Top 4 KPI Metric Cards (Doanh thu | Chi phí | Lợi nhuận | Biên lợi nhuận %)
+//   3. 6-Month Macro Trend (Grouped Bar Revenue/Expenses + Margin Line %)
+//   4. 3 Period Structure Breakdown Charts (Công suất từng phòng | Nguồn khách Kênh | Cơ cấu Chi phí)
+//   5. Financial P&L Statement Table (Kế toán Quản trị Lời / Lỗ chi tiết)
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from 'react';
@@ -15,71 +18,76 @@ import {
 import { useBookings } from '@/hooks/useBookings';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useCustomers } from '@/hooks/useCustomers';
+import { useRooms } from '@/hooks/useRooms';
 import { formatVnd, getBookingTotal } from '@/utils/format';
 import type { BookingStatus } from '@/types/index';
 
 const PIE_COLORS = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B'];
 
-const REVENUE_STATUSES = new Set<BookingStatus>(['confirmed', 'checked_in', 'checked_out']);
+const REVENUE_STATUS_SET = new Set(['confirmed', 'checked_in', 'checked_out', 'checkedin', 'checkedout', 'completed', 'paid']);
 
-function isRevenueStatus(status: BookingStatus): boolean {
-  return REVENUE_STATUSES.has(status);
+function isRevenueStatus(status?: string): boolean {
+  if (!status) return false;
+  const s = String(status).toLowerCase().trim().replace(/[\s-]/g, '_');
+  return REVENUE_STATUS_SET.has(s) || s === 'checkedin' || s === 'checkedout';
 }
 
-function startOfDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function startOfWeek(date: Date): Date {
-  const d = startOfDay(date);
-  const dow = d.getDay();
-  const offsetToMonday = dow === 0 ? 6 : dow - 1;
-  d.setDate(d.getDate() - offsetToMonday);
-  return d;
+function formatDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 type TimeRange = 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
 
 export default function Reports() {
-  const { darkMode } = useOutletContext<{ darkMode: boolean }>();
+  const outletCtx = useOutletContext<{ darkMode?: boolean }>() || {};
+  const darkMode = Boolean(outletCtx.darkMode);
 
-  const { bookings, loading: bookingsLoading, refetch: refetchBookings } = useBookings();
-  const { expenses, loading: expensesLoading, refetch: refetchExpenses } = useExpenses();
-  const { customers } = useCustomers();
+  const { bookings = [], loading: bookingsLoading, refetch: refetchBookings } = useBookings();
+  const { expenses = [], loading: expensesLoading, refetch: refetchExpenses } = useExpenses();
+  const { customers = [] } = useCustomers();
+  const { rooms = [] } = useRooms();
+  const totalRoomsCount = rooms.length > 0 ? rooms.length : 6;
 
-  useEffect(() => { refetchBookings(); refetchExpenses(); }, [refetchBookings, refetchExpenses]);
+  useEffect(() => {
+    refetchBookings().catch(() => {});
+    refetchExpenses().catch(() => {});
+  }, [refetchBookings, refetchExpenses]);
 
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr = formatDateStr(now);
 
-  // Time Period state
+  // 1. Time Period state
   const [timeRange, setTimeRange] = useState<TimeRange>('this_month');
-  const [customStart, setCustomStart] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10));
+  const [customStart, setCustomStart] = useState(() => {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1);
+    return formatDateStr(d);
+  });
   const [customEnd, setCustomEnd] = useState(() => todayStr);
 
-  // Derive active date boundaries
+  // Derive active date boundaries (Timezone safe)
   const { startDate, endDate, periodLabel, isOngoingPeriod } = useMemo(() => {
     const y = now.getFullYear();
     const m = now.getMonth();
 
     if (timeRange === 'this_month') {
-      const start = new Date(y, m, 1).toISOString().slice(0, 10);
-      const end = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+      const start = formatDateStr(new Date(y, m, 1));
+      const end = formatDateStr(new Date(y, m + 1, 0));
       return { startDate: start, endDate: end, periodLabel: `Tháng này (Thg ${m + 1}/${y})`, isOngoingPeriod: true };
     }
     if (timeRange === 'last_month') {
-      const start = new Date(y, m - 1, 1).toISOString().slice(0, 10);
-      const end = new Date(y, m, 0).toISOString().slice(0, 10);
+      const start = formatDateStr(new Date(y, m - 1, 1));
+      const end = formatDateStr(new Date(y, m, 0));
       const lastMonthNum = m === 0 ? 12 : m;
       const lastMonthYear = m === 0 ? y - 1 : y;
       return { startDate: start, endDate: end, periodLabel: `Tháng trước (Thg ${lastMonthNum}/${lastMonthYear})`, isOngoingPeriod: false };
     }
     if (timeRange === 'this_quarter') {
       const q = Math.floor(m / 3);
-      const start = new Date(y, q * 3, 1).toISOString().slice(0, 10);
-      const end = new Date(y, (q + 1) * 3, 0).toISOString().slice(0, 10);
+      const start = formatDateStr(new Date(y, q * 3, 1));
+      const end = formatDateStr(new Date(y, (q + 1) * 3, 0));
       return { startDate: start, endDate: end, periodLabel: `Quý ${q + 1}/${y}`, isOngoingPeriod: true };
     }
     if (timeRange === 'this_year') {
@@ -94,10 +102,10 @@ export default function Reports() {
       periodLabel: `${customStart} ➔ ${customEnd}`,
       isOngoingPeriod: customEnd >= todayStr,
     };
-  }, [timeRange, customStart, customEnd, now, todayStr]);
+  }, [timeRange, customStart, customEnd, todayStr]);
 
   // Revenue-eligible bookings
-  const revenueBookings = useMemo(() => bookings.filter(b => isRevenueStatus(b.status)), [bookings]);
+  const revenueBookings = useMemo(() => (bookings || []).filter(b => isRevenueStatus(b.status)), [bookings]);
 
   // Filtered by Selected Period
   const periodBookings = useMemo(() => {
@@ -108,7 +116,7 @@ export default function Reports() {
   }, [revenueBookings, startDate, endDate]);
 
   const periodExpenses = useMemo(() => {
-    return expenses.filter(e => {
+    return (expenses || []).filter(e => {
       if (!e.date || !e.amount) return false;
       const d = e.date.slice(0, 10);
       return d >= startDate && d <= endDate;
@@ -117,20 +125,21 @@ export default function Reports() {
 
   // Financial calculations for Selected Period
   const periodRevenue = useMemo(() => periodBookings.reduce((s, b) => s + getBookingTotal(b), 0), [periodBookings]);
-  const periodExpensesTotal = useMemo(() => periodExpenses.reduce((s, e) => s + e.amount, 0), [periodExpenses]);
+  const periodExpensesTotal = useMemo(() => periodExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0), [periodExpenses]);
   const periodNetProfit = periodRevenue - periodExpensesTotal;
   const periodProfitMargin = periodRevenue > 0 ? Math.round((periodNetProfit / periodRevenue) * 100) : 0;
   const isProfitPositive = periodNetProfit >= 0;
 
   // Surcharge & Base breakdown
-  const totalSurcharges = useMemo(() => periodBookings.reduce((s, b) => s + ((b as any).overtimeAmount || 0), 0), [periodBookings]);
+  const totalSurcharges = useMemo(() => periodBookings.reduce((s, b) => s + (Number((b as any).overtimeAmount) || 0), 0), [periodBookings]);
   const baseRoomRevenue = periodRevenue - totalSurcharges;
 
   // Category breakdown for Selected Period
   const periodExpenseByCategory = useMemo(() => {
     const totals: Record<string, number> = {};
     for (const e of periodExpenses) {
-      totals[e.category] = (totals[e.category] ?? 0) + e.amount;
+      const cat = e.category || 'Chi phí khác';
+      totals[cat] = (totals[cat] ?? 0) + (Number(e.amount) || 0);
     }
     return Object.entries(totals)
       .map(([name, value]) => ({ name, value }))
@@ -139,7 +148,7 @@ export default function Reports() {
   }, [periodExpenses]);
 
   // Channel mix for Selected Period
-  const customerSourceMap = useMemo(() => new Map(customers.map(c => [c.customerId, c.source])), [customers]);
+  const customerSourceMap = useMemo(() => new Map((customers || []).map(c => [c.customerId, c.source || ''])), [customers]);
   const CHANNEL_BRAND_COLORS: Record<string, string> = {
     'FACEBOOK': '#1877F2',
     'ZALO': '#38BDF8',
@@ -153,7 +162,8 @@ export default function Reports() {
       'FACEBOOK': 0, 'ZALO': 0, 'TIKTOK': 0, 'INSTAGRAM': 0, 'DIRECT / KHÁC': 0,
     };
     for (const b of periodBookings) {
-      const rawSrc = (customerSourceMap.get(b.customerId) || (b as any).source || 'DIRECT').toUpperCase();
+      const srcVal = customerSourceMap.get(b.customerId) || (b as any)?.source || 'DIRECT';
+      const rawSrc = String(srcVal || 'DIRECT').toUpperCase();
       const amount = getBookingTotal(b);
       if (rawSrc.includes('FACEBOOK') || rawSrc === 'FB') totals['FACEBOOK'] += amount;
       else if (rawSrc.includes('ZALO')) totals['ZALO'] += amount;
@@ -170,22 +180,76 @@ export default function Reports() {
       .filter(c => c.value > 0);
   }, [periodBookings, customerSourceMap, periodRevenue, darkMode]);
 
-  // Average stay (nights) for active bookings
-  const activeBookings = bookings.filter(b => b.status !== 'cancelled');
-  const avgStay = activeBookings.length > 0
-    ? (activeBookings.reduce((s, b) => {
-        const cin = new Date(b.checkInAt);
-        const cout = new Date(b.expectedCheckOutAt);
-        return s + (cout.getTime() - cin.getTime()) / 86400000;
-      }, 0) / activeBookings.length).toFixed(1)
-    : '0.0';
+  // Period-based Occupancy Rate %
+  const periodOccupancyRate = useMemo(() => {
+    if (!startDate || !endDate) return 0;
+    const pStart = new Date(startDate);
+    const pEnd = new Date(endDate);
+    const diffDays = Math.round((pEnd.getTime() - pStart.getTime()) / 86400000);
+    const totalDays = isNaN(diffDays) ? 30 : Math.max(1, diffDays + 1);
+    const totalAvailableRoomDays = Math.max(1, (totalRoomsCount || 6) * totalDays);
 
-  // Occupancy rate
-  const occupiedCount = activeBookings.filter(b => b.status === 'checked_in').length;
-  const uniqueRooms = new Set(activeBookings.map(b => b.roomId));
-  const occupancyRate = uniqueRooms.size > 0
-    ? Math.round((occupiedCount / uniqueRooms.size) * 100)
-    : 0;
+    if (!periodBookings || periodBookings.length === 0) return 0;
+
+    const occupiedRoomDays = new Set<string>();
+    for (let i = 0; i < totalDays; i++) {
+      const cur = new Date(pStart);
+      cur.setDate(cur.getDate() + i);
+      const dayStr = formatDateStr(cur);
+
+      for (const b of periodBookings) {
+        if (!b.roomId || !b.checkInAt) continue;
+        const cinDate = b.checkInAt.slice(0, 10);
+        const coutDate = (b.expectedCheckOutAt || b.checkInAt).slice(0, 10);
+        const isOccupied = (cinDate <= dayStr && coutDate > dayStr) || (cinDate === dayStr && coutDate === dayStr);
+        if (isOccupied) {
+          occupiedRoomDays.add(`${b.roomId}:${dayStr}`);
+        }
+      }
+    }
+
+    const rate = Math.round((occupiedRoomDays.size / totalAvailableRoomDays) * 100);
+    return Math.min(100, Math.max(rate, periodBookings.length > 0 && rate === 0 ? 1 : rate));
+  }, [startDate, endDate, totalRoomsCount, periodBookings]);
+
+  // Room-by-room Occupancy Breakdown in Selected Period
+  const roomOccupancyData = useMemo(() => {
+    if (!startDate || !endDate) return [];
+    const pStart = new Date(startDate);
+    const pEnd = new Date(endDate);
+    const diffDays = Math.round((pEnd.getTime() - pStart.getTime()) / 86400000);
+    const totalDays = isNaN(diffDays) ? 30 : Math.max(1, diffDays + 1);
+
+    const activeRooms = rooms.filter(r => r.active !== false && r.status !== 'inactive');
+    const roomList = activeRooms.length > 0 ? activeRooms : rooms;
+
+    return roomList.map(r => {
+      let occupiedDays = 0;
+      for (let i = 0; i < totalDays; i++) {
+        const cur = new Date(pStart);
+        cur.setDate(cur.getDate() + i);
+        const dayStr = formatDateStr(cur);
+
+        const hasGuest = periodBookings.some(b => {
+          if (b.roomId !== r.roomId || !b.checkInAt) return false;
+          const cinDate = b.checkInAt.slice(0, 10);
+          const coutDate = (b.expectedCheckOutAt || b.checkInAt).slice(0, 10);
+          return (cinDate <= dayStr && coutDate > dayStr) || (cinDate === dayStr && coutDate === dayStr);
+        });
+
+        if (hasGuest) occupiedDays++;
+      }
+
+      const rate = Math.min(100, Math.round((occupiedDays / totalDays) * 100));
+      return {
+        roomId: r.roomId,
+        name: r.name || r.roomId,
+        rate,
+        occupiedDays,
+        totalDays,
+      };
+    });
+  }, [startDate, endDate, rooms, periodBookings]);
 
   // 6-Month Trend Data
   const formatShortVnd = (v: number) => {
@@ -198,16 +262,17 @@ export default function Reports() {
 
   const revenueByMonth: Record<string, number> = {};
   for (const b of revenueBookings) {
+    if (!b.checkInAt) continue;
     const m = b.checkInAt.slice(0, 7);
     revenueByMonth[m] = (revenueByMonth[m] ?? 0) + getBookingTotal(b);
   }
 
   const expensesByMonth: Record<string, number> = {};
-  for (const e of expenses) {
+  for (const e of (expenses || [])) {
     if (!e.date || !e.amount) continue;
     const m = e.date.slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(m)) continue;
-    expensesByMonth[m] = (expensesByMonth[m] ?? 0) + e.amount;
+    expensesByMonth[m] = (expensesByMonth[m] ?? 0) + (Number(e.amount) || 0);
   }
 
   const trailing6Months: string[] = [];
@@ -235,36 +300,7 @@ export default function Reports() {
     };
   });
 
-  // Daily occupancy for this week
-  const weekStart = startOfWeek(now);
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart);
-    d.setDate(d.getDate() + i);
-    return d.toLocaleString('vi-VN', { weekday: 'short' });
-  });
-  const dailyOccupancy = weekDays.map((day, i) => {
-    const dayStart = new Date(weekStart);
-    dayStart.setDate(dayStart.getDate() + i);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
-    const occupiedRoomIds = new Set<string>();
-    for (const b of activeBookings) {
-      if (!b.roomId) continue;
-      const checkInDate = new Date(b.checkInAt);
-      const checkOutDate = new Date(b.expectedCheckOutAt);
-      if (checkInDate < dayEnd && checkOutDate > dayStart) {
-        occupiedRoomIds.add(b.roomId);
-      }
-    }
-    return {
-      day,
-      rate: uniqueRooms.size > 0
-        ? Math.round((occupiedRoomIds.size / uniqueRooms.size) * 100)
-        : 0,
-    };
-  });
-
-  // Top 5 Metric Cards
+  // 2. Top 4 KPI Metric Cards
   const summaryStats = [
     {
       title: 'Doanh thu trong kỳ',
@@ -294,26 +330,21 @@ export default function Reports() {
       tagBg: darkMode ? '#064E3B' : '#DCFCE7',
       tagColor: '#10B981',
       value: `${isProfitPositive ? '+' : ''}${formatVnd(periodNetProfit)}`,
-      sub: `${periodProfitMargin}% Margin ${isOngoingPeriod ? '(Tạm tính)' : ''}`,
+      sub: isProfitPositive ? 'Kinh doanh có lãi' : 'Đang thâm hụt',
       label: `Thu ${formatVnd(periodRevenue)} · Chi ${formatVnd(periodExpensesTotal)}`,
       icon: '💵',
       color: isProfitPositive ? '#10B981' : '#EF4444',
     },
     {
-      title: 'Công suất phòng',
-      value: `${occupancyRate}%`,
-      sub: 'Tỷ lệ lấp đầy',
-      label: 'Hiện tại',
-      icon: '🏠',
-      color: '#EC4899',
-    },
-    {
-      title: 'Thời gian ở TB',
-      value: `${avgStay} đêm`,
-      sub: 'Thời gian ở TB',
-      label: 'Khách lưu trú',
-      icon: '🌙',
-      color: '#F59E0B',
+      title: 'Biên lợi nhuận (Margin)',
+      tag: `${periodProfitMargin}%`,
+      tagBg: darkMode ? '#4C1D95' : '#EDE9FE',
+      tagColor: '#8B5CF6',
+      value: `${periodProfitMargin}%`,
+      sub: isOngoingPeriod ? 'Tạm tính (Cost Lag)' : 'Tỷ suất sinh lời ròng',
+      label: isProfitPositive ? 'Hiệu quả tài chính tốt' : 'Cần tối ưu chi phí',
+      icon: '📈',
+      color: '#8B5CF6',
     },
   ];
 
@@ -396,7 +427,7 @@ export default function Reports() {
 
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* ─── Header & Time Period Filters + Export ─────────────────────────── */}
+      {/* ─── 1. HEADER & BỘ LỌC THỜI GIAN ─────────────────────────────────── */}
       <div style={{
         ...card, padding: '16px 20px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14,
@@ -469,10 +500,10 @@ export default function Reports() {
         </button>
       </div>
 
-      {/* Top 5 Metric Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+      {/* ─── 2. HÀNG 4 THẺ KPI TỔNG QUAN ─────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         {isLoading ? (
-          Array.from({ length: 5 }).map((_, i) => (
+          Array.from({ length: 4 }).map((_, i) => (
             <div key={i} style={{ ...card, padding: '16px 18px', minHeight: 80 }} />
           ))
         ) : summaryStats.map(s => (
@@ -495,7 +526,7 @@ export default function Reports() {
         ))}
       </div>
 
-      {/* 6-Month Revenue, Expenses & Profit Trend (Grouped Bar + Margin Line) */}
+      {/* ─── 3. BIỂU ĐỒ XU HƯỚNG 6 THÁNG (Doanh thu vs Chi phí & Biên LN) ─── */}
       <div style={card}>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div>
@@ -505,7 +536,7 @@ export default function Reports() {
                 (*) Tháng hiện tại là số liệu tạm tính (Cost Lag)
               </span>
             </div>
-            <div style={{ fontSize: 12, color: textMuted, marginTop: 2 }}>So sánh Doanh thu (Xanh) vs Chi phí (Đỏ) & Đường Biên lợi nhuận ròng (%)</div>
+            <div style={{ fontSize: 12, color: textMuted, marginTop: 2 }}>So sánh Doanh thu (Cột xanh) vs Chi phí (Cột đỏ) & Đường Biên lợi nhuận ròng (%)</div>
           </div>
           <div style={{ display: 'flex', gap: 14, fontSize: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -517,7 +548,7 @@ export default function Reports() {
               <span style={{ color: textPrimary, fontWeight: 600 }}>Chi phí (Cột đỏ)</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} />
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#8B5CF6' }} />
               <span style={{ color: textPrimary, fontWeight: 600 }}>Biên LN (%) (Đường)</span>
             </div>
           </div>
@@ -559,7 +590,7 @@ export default function Reports() {
                         <span>Lợi nhuận ròng:</span>
                         <span style={{ fontWeight: 700 }}>{profit >= 0 ? '+' : ''}{formatVnd(profit)}</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: '#10B981', fontWeight: 700, paddingTop: 4, borderTop: `1px solid ${bdr}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: '#8B5CF6', fontWeight: 700, paddingTop: 4, borderTop: `1px solid ${bdr}` }}>
                         <span>Biên lợi nhuận:</span>
                         <span>{margin !== null && margin !== undefined ? `${margin}%` : '—'}</span>
                       </div>
@@ -579,10 +610,10 @@ export default function Reports() {
                 type="monotone"
                 dataKey="margin"
                 name="Biên lợi nhuận"
-                stroke="#10B981"
+                stroke="#8B5CF6"
                 strokeWidth={3}
                 connectNulls={true}
-                dot={{ r: 5, fill: '#10B981', stroke: darkMode ? '#1E293B' : '#fff', strokeWidth: 2 }}
+                dot={{ r: 5, fill: '#8B5CF6', stroke: darkMode ? '#1E293B' : '#fff', strokeWidth: 2 }}
                 activeDot={{ r: 7 }}
               />
             </ComposedChart>
@@ -594,28 +625,39 @@ export default function Reports() {
         )}
       </div>
 
-      {/* Row 2: 3 Balanced Analytics Cards (Occupancy, Channel Mix, Expense Breakdown) */}
+      {/* ─── 4. HÀNG 3 BIỂU ĐỒ CƠ CẤU (CÙNG KỲ ĐƯỢC CHỌN) ─────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
 
-        {/* 1. Công suất phòng theo tuần */}
+        {/* 1. Công suất theo từng phòng trong kỳ */}
         <div style={card}>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Công suất phòng theo tuần</div>
-            <div style={{ fontSize: 12, color: textMuted }}>Tỷ lệ lấp đầy các ngày trong tuần này</div>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Công suất từng phòng</div>
+              <div style={{ fontSize: 12, color: textMuted }}>Tỷ lệ lấp đầy trong {periodLabel}</div>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, background: darkMode ? '#064E3B' : '#DCFCE7', color: '#10B981', padding: '2px 8px', borderRadius: 6 }}>
+              TB: {periodOccupancyRate}%
+            </span>
           </div>
-          {dailyOccupancy.length > 0 ? (
+          {roomOccupancyData.length > 0 ? (
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={dailyOccupancy} barSize={20} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
+              <BarChart data={roomOccupancyData} barSize={20} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                <XAxis dataKey="day" tick={tickStyle} axisLine={false} tickLine={false} />
+                <XAxis dataKey="name" tick={tickStyle} axisLine={false} tickLine={false} />
                 <YAxis tick={tickStyle} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={v => `${v}%`} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v}%`, 'Công suất']} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(v: unknown, _: unknown, item: any) => [
+                    `${v}% (${item?.payload?.occupiedDays || 0}/${item?.payload?.totalDays || 0} ngày)`,
+                    'Công suất',
+                  ]}
+                />
                 <Bar dataKey="rate" fill="#10B981" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
             <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textMuted }}>
-              Chưa có dữ liệu
+              Chưa có dữ liệu phòng
             </div>
           )}
         </div>
@@ -623,7 +665,7 @@ export default function Reports() {
         {/* 2. Doanh thu theo Kênh bán (Revenue by Channel in Period) */}
         <div style={card}>
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Doanh thu theo Kênh bán</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Nguồn khách theo Kênh</div>
             <div style={{ fontSize: 12, color: textMuted }}>Nguồn khách trong {periodLabel}</div>
           </div>
           {periodRevenueByChannel.length > 0 ? (
@@ -704,7 +746,7 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* ─── Row 3: Bảng Báo cáo Lời / Lỗ Thực tế (P&L Summary Table) ───────── */}
+      {/* ─── 5. BẢNG BÁO CÁO LỜI / LỖ THỰC TẾ (P&L STATEMENT) ───────────────── */}
       <div style={card}>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
           <div>
