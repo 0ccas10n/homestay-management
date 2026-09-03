@@ -348,6 +348,8 @@ interface RoomFormModalProps {
 }
 
 function RoomFormModal({ onClose, onSave, initial, darkMode, inputStyle, textMuted, border, bg, textPrimary }: RoomFormModalProps) {
+  const AMENITIES = ['Sofa', 'Smart TV', 'Máy chiếu', 'Ban công', 'Cửa Sổ', 'Bếp', 'Microwave', 'Nồi Chiên Không Dầu', 'Bồn Tắm'];
+
   const [form, setForm] = useState({
     name: initial?.name ?? '',
     description: initial?.description ?? '',
@@ -357,16 +359,15 @@ function RoomFormModal({ onClose, onSave, initial, darkMode, inputStyle, textMut
     status: initial?.status ?? 'available',
     active: initial?.active ?? true,
     floor: initial?.floor ?? 1,
-    amenities: initial?.amenities ?? [],
+    amenities: (initial?.amenities ?? []).filter(a => AMENITIES.includes(a)),
     notes: initial?.notes ?? '',
     imageUrl: initial?.imageUrl ?? '',
   });
-  const [amenitiesReplaced, setAmenitiesReplaced] = useState(!initial);
 
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(prev => ({ ...prev, [k]: v }));
 
-  const AMENITIES = ['Sofa','Smart TV', 'Máy chiếu', 'Ban công','Cửa Sổ', 'Bếp',  'Microwave', 'Nồi Chiên Không Dầu','Bồn Tắm'];  const handleSave = () => {
+  const handleSave = () => {
     if (!form.name.trim()) return;
     onSave({ ...form });
   };
@@ -405,17 +406,16 @@ function RoomFormModal({ onClose, onSave, initial, darkMode, inputStyle, textMut
             </div>
           </div>
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: textMuted }}>Amenities</label>
               <button
                 type="button"
-                onClick={() => { set('amenities', []); setAmenitiesReplaced(true); }}
+                onClick={() => set('amenities', [])}
                 style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: 0 }}
               >
                 Clear all
               </button>
             </div>
-            <div style={{ fontSize: 11, color: textMuted, marginTop: 5 }}>Lần chọn đầu tiên sẽ thay thế danh sách cũ. Chọn thêm để bổ sung.</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {AMENITIES.map(a => {
                 const on = form.amenities.includes(a);
@@ -424,12 +424,7 @@ function RoomFormModal({ onClose, onSave, initial, darkMode, inputStyle, textMut
                     key={a}
                     type="button"
                     onClick={() => {
-                      if (!amenitiesReplaced && !on) {
-                        set('amenities', [a]);
-                      } else {
-                        set('amenities', on ? form.amenities.filter(x => x !== a) : [...form.amenities, a]);
-                      }
-                      setAmenitiesReplaced(true);
+                      set('amenities', on ? form.amenities.filter(x => x !== a) : [...form.amenities, a]);
                     }}
                     style={{
                       padding: '5px 12px', borderRadius: 99, fontSize: 12, fontWeight: 600,
