@@ -656,7 +656,7 @@ async function recalculateTotal(
               <option value="TIKTOK">TIKTOK</option>
               <option value="ZALO">ZALO</option>
               <option value="FACEBOOK">FACEBOOK</option>
-              <option value="KHÁC">KHAC</option>
+              <option value="KHAC">KHÁC</option>
             </select>
           </div>
         </div>
@@ -687,7 +687,7 @@ async function recalculateTotal(
                     boxShadow: selected ? '0 1px 3px rgba(37,99,235,0.3)' : 'none',
                   }}
                 >
-                  {t === 'daily' ? 'Daily (auto price)' : 'Hourly (manual price)'}
+                  {t === 'daily' ? 'Combo cố định' : 'Combo Linh Hoạt'}
                 </button>
               );
             })}

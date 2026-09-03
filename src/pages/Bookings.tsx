@@ -202,7 +202,7 @@ export default function Bookings() {
                       <button onClick={() => handleCheckIn(b.bookingId)} style={{ background: '#D1FAE5', border: '1px solid #6EE7B7', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#047857', marginRight: 4 }}>Check-in</button>
                     )}
                     {b.status === 'checked_in' && (
-                      <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: 'none', border: '1px solid #FCD34D', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#D97706', marginRight: 4 }}>Check-out</button>
+                      <button onClick={() => handleCheckOut(b.bookingId)} style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#B45309', marginRight: 4 }}>Check-out</button>
                     )}
                     {(b.status === 'inquiry' || b.status === 'confirmed') && (
                       <button onClick={() => handleNoShow(b.bookingId)} style={{ background: 'none', border: '1px solid #FDE68A', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#B45309', marginRight: 4 }}>No-show</button>

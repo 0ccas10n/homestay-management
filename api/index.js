@@ -1917,7 +1917,6 @@ async function optionalAuth(request) {
 // src/pages/api/dashboard.ts
 var SPREADSHEET_ID2 = process.env.SPREADSHEET_ID;
 var LOC_TZ_OFFSET = "+07:00";
-var MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 var DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 var COUNTED_STATUSES = /* @__PURE__ */ new Set(["confirmed", "checked_in", "checked_out"]);
 function trailingMonthKeys(now) {
@@ -1929,8 +1928,8 @@ function trailingMonthKeys(now) {
   return keys;
 }
 function monthLabelFromKey(key) {
-  const monthNum = Number(key.slice(5, 7));
-  return MONTH_LABELS[monthNum - 1];
+  const [year, month] = key.split("-");
+  return `Thg ${Number(month)}/${year}`;
 }
 function buildMonthlyRevenue(bookings2, expenses2, monthKeys) {
   const revenueByKey = {};
