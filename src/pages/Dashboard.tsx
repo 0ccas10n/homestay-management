@@ -7,7 +7,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useBookings } from '@/hooks/useBookings';
@@ -25,6 +25,7 @@ const TODAY_DATE = new Date().toISOString().slice(0, 10);
 
 export default function Dashboard() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
+  const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const { data: dashboard, loading: dashLoading } = useDashboard();
   const monthlyRevenue = dashboard?.monthlyRevenue ?? [];
@@ -405,7 +406,19 @@ export default function Dashboard() {
       {/* ─── Cụm 2: Báo cáo & Phân tích Doanh thu (Song song) ────────────────────────── */}
       {!isMobile && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: textPrimary, margin: '8px 0 0 0' }}>Báo cáo & Phân tích Doanh thu</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0 0 0' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: textPrimary, margin: 0 }}>Báo cáo & Phân tích Doanh thu</h3>
+            <button
+              onClick={() => navigate('/app/reports')}
+              style={{
+                background: 'none', border: 'none', color: '#2563EB', fontSize: 13,
+                fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                padding: '4px 8px', borderRadius: 6,
+              }}
+            >
+              Xem phân tích chi tiết & P&L ➔
+            </button>
+          </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16 }}>
             {/* Doanh thu vs Chi phí (6 tháng) */}
