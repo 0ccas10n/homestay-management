@@ -222,7 +222,7 @@ export const notifications: Notification[] = [
 import type { Location } from '../types/index';
 
 export const locations: Location[] = [
-  { locationId: 'LOC-0001', name: 'Bình Lợi Trung', description: 'Cụm homestay Bình Lợi Trung', publicAddress: 'Bình Lợi Trung, Bình Chánh, Hồ Chí Minh', phone: '+84 28 0000 0001', active: true, createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-01-01T00:00:00+07:00' },
+  { locationId: 'LOC-0001', name: 'Bình Lợi Trung', description: 'Cụm homestay Bình Lợi Trung', publicAddress: 'Bình Lợi Trung, Bình Thạnh, Hồ Chí Minh', phone: '+84 28 0000 0001', active: true, createdAt: '2026-01-01T00:00:00+07:00', updatedAt: '2026-01-01T00:00:00+07:00' },
 ];
 
 // ─── Rate Plans ─────────────────────────────────────────────────────────────────
@@ -235,7 +235,7 @@ import type { RatePlan } from '../types/index';
 export const ratePlans: RatePlan[] = [
   { ratePlanId: 'RP-0001', name: 'Combo 4H',   type: 'hourly',    baseMinutes: 240,  baseAmount: 250_000, extraMinutePrice: 0, overtimeMinutePrice: 0, active: true },
   { ratePlanId: 'RP-0002', name: 'Combo 6H',   type: 'hourly',    baseMinutes: 360,  baseAmount: 350_000, extraMinutePrice: 0, overtimeMinutePrice: 0, active: true },
-  { ratePlanId: 'RP-0003', name: 'Overnight',  type: 'overnight', baseMinutes: 780,  baseAmount: 400_000, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: '21:00', overnightEnd: '10:00', active: true },
+  { ratePlanId: 'RP-0003', name: 'Overnight',  type: 'overnight', baseMinutes: 780,  baseAmount: 400_000, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: '17:00', overnightEnd: '10:00', active: true },
   { ratePlanId: 'RP-0004', name: 'Full Day',   type: 'daily',     baseMinutes: 1320, baseAmount: 550_000, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: '14:00', overnightEnd: '12:00', active: true },
 ];
 

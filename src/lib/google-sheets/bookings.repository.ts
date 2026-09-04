@@ -287,8 +287,9 @@ export async function create(
     totalAmount = baseAmount;
   }
 
-  const bookingId = await generateId('BOOK', 'Bookings', spreadsheetId);
-  const { createdAt, updatedAt } = timestamps();
+  const depositAmount = input.depositAmount ?? 0;
+  const paidAmount = input.paidAmount ?? depositAmount;
+  const paymentStatus: Booking['paymentStatus'] = input.paymentStatus ?? (paidAmount >= totalAmount ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'));
 
   const booking: Booking = {
     ...input,
@@ -298,6 +299,11 @@ export async function create(
     baseAmount,
     overtimeMinutes: undefined,
     overtimeAmount: undefined,
+    extraServicesAmount: input.extraServicesAmount,
+    extraServicesNote: input.extraServicesNote,
+    depositAmount,
+    paidAmount,
+    paymentStatus,
     totalAmount,
     unitPriceAtBooking,
     createdAt,
@@ -449,6 +455,14 @@ export async function checkout(
   spreadsheetId: string,
   bookingId: string,
   actualCheckOutAt: string,
+  extras?: {
+    baseAmount?: number;
+    totalAmount?: number;
+    extraServicesAmount?: number;
+    extraServicesNote?: string;
+    paidAmount?: number;
+    paymentStatus?: 'paid' | 'partial' | 'unpaid';
+  },
 ): Promise<{ booking: Booking; overtimeMinutes: number; overtimeAmount: number } | null> {
   const all = await readAll(spreadsheetId);
   const idx = all.findIndex(b => b.bookingId === bookingId);
@@ -458,12 +472,15 @@ export async function checkout(
 
   let overtimeMinutes = 0;
   let overtimeAmount = 0;
-  let totalAmount = existing.totalAmount;
+  const extraServicesAmount = extras?.extraServicesAmount ?? existing.extraServicesAmount ?? 0;
+  const extraServicesNote = extras?.extraServicesNote ?? existing.extraServicesNote;
+  const baseAmount = extras?.baseAmount !== undefined ? extras.baseAmount : existing.baseAmount;
 
   const isHourly =
     existing.bookingType === 'hourly' ||
     existing.ratePlanId === CUSTOM_RATE_PLAN_ID;
 
+  let totalAmount = existing.totalAmount;
   if (!isHourly) {
     // Overtime = how many minutes past expectedCheckOutAt the guest actually left.
     // DATABASE.md §10: overtimeMinutes = actualCheckOutAt − expectedCheckOutAt
@@ -471,14 +488,31 @@ export async function checkout(
     overtimeMinutes = Math.max(0, Math.round(overtimeMs / 60_000));
     const overtimeHours = Math.ceil(overtimeMinutes / 60);
     overtimeAmount = overtimeHours * OVERTIME_HOURLY_RATE;
-    totalAmount = existing.baseAmount + overtimeAmount;
+    totalAmount = baseAmount + overtimeAmount + extraServicesAmount;
+  } else {
+    totalAmount = baseAmount + extraServicesAmount;
   }
+
+  if (extras?.totalAmount !== undefined && extras.totalAmount > 0) {
+    totalAmount = extras.totalAmount;
+  }
+
+  const paidAmount = extras?.paidAmount !== undefined
+    ? extras.paidAmount
+    : (existing.paidAmount ?? totalAmount);
+  const paymentStatus: Booking['paymentStatus'] = extras?.paymentStatus ?? (paidAmount >= totalAmount ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'));
 
   const updated: Booking = {
     ...existing,
+    baseAmount,
     actualCheckOutAt,
     overtimeMinutes: overtimeMinutes > 0 ? overtimeMinutes : undefined,
     overtimeAmount: overtimeAmount > 0 ? overtimeAmount : undefined,
+    extraServicesAmount: extraServicesAmount > 0 ? extraServicesAmount : undefined,
+    extraServicesNote: extraServicesNote || undefined,
+    depositAmount: existing.depositAmount ?? (existing.paidAmount ?? 0),
+    paidAmount,
+    paymentStatus,
     totalAmount,
     status: 'checked_out',
     updatedAt: updatedTimestamp(),

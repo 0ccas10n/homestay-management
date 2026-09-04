@@ -24,6 +24,8 @@ import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import BookingFormModal from '@/components/BookingFormModal';
 import QuickEditModal from '@/components/QuickEditModal';
+import CheckOutModal from '@/components/CheckOutModal';
+import QuickRoomFinder from '@/components/QuickRoomFinder';
 import { assignLanes, bookingBlock } from '@/utils/timelineGeometry';
 import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 import { bookingsApi } from '@/services/api';
@@ -204,16 +206,54 @@ export default function Timeline() {
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
-  const [addBooking, setAddBooking] = useState<{ roomId?: string; date?: string } | null>(null);
+  const [showFinder, setShowFinder] = useState(false);
+  const [addBooking, setAddBooking] = useState<{
+    roomId?: string;
+    date?: string;
+    checkOutDate?: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    numGuests?: number;
+  } | null>(null);
+  const [checkOutTarget, setCheckOutTarget] = useState<Booking | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  const handleBookFromFinder = (prefill: {
+    roomId: string;
+    checkInDate: string;
+    checkOutDate: string;
+    checkInTime: string;
+    checkOutTime: string;
+    numGuests: number;
+  }) => {
+    setAddBooking({
+      roomId: prefill.roomId,
+      date: prefill.checkInDate,
+      checkOutDate: prefill.checkOutDate,
+      checkInTime: prefill.checkInTime,
+      checkOutTime: prefill.checkOutTime,
+      numGuests: prefill.numGuests,
+    });
+  };
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  const handleCheckOut = async (id: string) => {
+  const handleCheckOutConfirm = async (
+    bookingId: string,
+    payload: {
+      actualCheckOutAt: string;
+      extraServicesAmount: number;
+      extraServicesNote?: string;
+      paidAmount: number;
+      paymentStatus: 'paid' | 'partial' | 'unpaid';
+    }
+  ) => {
     try {
-      const res = await checkOutBooking(id);
+      await checkOutBooking(bookingId, payload);
       setSelectedBooking(null);
-      showToast(res.overtimeAmount > 0 ? `Đã check-out — phụ thu quá giờ ${formatVnd(res.overtimeAmount)}` : 'Check-out thành công');
+      setCheckOutTarget(null);
+      refetchBookings();
+      showToast('✅ Check-out thành công & đã quyết toán dòng tiền');
     } catch {
       showToast('Check-out thất bại');
     }
@@ -435,6 +475,21 @@ export default function Timeline() {
             <button onClick={goNext} style={navBtnStyle(border, textPrimary)} aria-label="Tiếp">›</button>
           </div>
 
+          <button
+            onClick={() => setShowFinder(prev => !prev)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 13px', borderRadius: 8,
+              border: showFinder ? '1px solid #2563EB' : `1px solid ${border}`,
+              background: showFinder ? (darkMode ? 'rgba(37,99,235,0.2)' : '#EFF6FF') : 'transparent',
+              color: showFinder ? '#2563EB' : textPrimary,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: "var(--font-sans)",
+            }}
+          >
+            ⚡ {showFinder ? 'Đóng tra cứu phòng' : 'Tra cứu phòng trống'}
+          </button>
+
           {!isMobile && <div style={{
             padding: '6px 12px', borderRadius: 8,
             border: `1px solid ${border}`, fontSize: 13, fontWeight: 600,
@@ -543,6 +598,22 @@ export default function Timeline() {
           darkMode={darkMode}
         /></>}
       </div>
+
+      {/* ── Tra cứu nhanh phòng trống ─────────────────────────────────────── */}
+      {showFinder && (
+        <div style={{
+          padding: isMobile ? '12px 16px' : '16px 24px',
+          borderBottom: `1px solid ${border}`,
+          background: darkMode ? '#0F172A' : '#F8FAFC',
+        }}>
+          <QuickRoomFinder
+            rooms={rooms}
+            bookings={bookings}
+            onBookRoom={handleBookFromFinder}
+            darkMode={darkMode}
+          />
+        </div>
+      )}
 
       {/* ── Scrollable grid ──────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto' }}>
@@ -663,7 +734,11 @@ export default function Timeline() {
             textPrimary={textPrimary}
             textMuted={textMuted}
             border={border}
-            onCheckOut={() => handleCheckOut(selectedBooking.bookingId)}
+            onCheckOut={() => {
+              const target = selectedBooking;
+              setSelectedBooking(null);
+              setCheckOutTarget(target);
+            }}
             onCheckIn={() => handleCheckIn(selectedBooking.bookingId)}
             onEdit={() => {
               setSelectedBooking(null);
@@ -672,6 +747,16 @@ export default function Timeline() {
           />
         )}
       </Modal>
+
+      {/* Smart Check-Out Modal with Extras & Settlement */}
+      <CheckOutModal
+        open={!!checkOutTarget}
+        onClose={() => setCheckOutTarget(null)}
+        booking={checkOutTarget}
+        room={checkOutTarget ? rooms.find(r => r.roomId === checkOutTarget.roomId) : null}
+        darkMode={darkMode}
+        onConfirmCheckOut={handleCheckOutConfirm}
+      />
 
       <QuickEditModal
         booking={editBooking}
@@ -690,6 +775,10 @@ export default function Timeline() {
         darkMode={darkMode}
         initialRoomId={addBooking?.roomId}
         initialDate={addBooking?.date}
+        initialCheckOutDate={addBooking?.checkOutDate}
+        initialCheckInTime={addBooking?.checkInTime}
+        initialCheckOutTime={addBooking?.checkOutTime}
+        initialGuests={addBooking?.numGuests}
         onCreated={() => {
           setAddBooking(null);
           refetchBookings();
@@ -1042,7 +1131,11 @@ function BookingDetail({
 }) {
   const effectiveStatus = getEffectiveBookingStatus(booking);
   const sameDay = booking.checkInAt.slice(0, 10) === booking.expectedCheckOutAt.slice(0, 10);
-  const rows: Array<[string, string]> = [
+  const totalAmt = getBookingTotal(booking);
+  const depositPaid = booking.paidAmount ?? booking.depositAmount ?? 0;
+  const remainingDue = Math.max(0, totalAmt - depositPaid);
+
+  const rows: Array<[string, React.ReactNode]> = [
     ['Booking ID', booking.bookingId],
     ['Khách', guestName ?? booking.customerId],
     ['Phòng', room?.name ?? booking.roomId],
@@ -1050,7 +1143,13 @@ function BookingDetail({
     ['Check-out', `${booking.expectedCheckOutAt.slice(0, 10)} ${fmtTime(booking.expectedCheckOutAt)} ${sameDay ? '(same day)' : ''}`],
     ['Số khách', String(booking.numGuests ?? 1)],
     ['Loại', booking.bookingType === 'hourly' ? 'Theo giờ' : 'Theo ngày'],
-    ['Tổng tiền', formatVnd(getBookingTotal(booking))],
+    ['Tổng tiền phòng', formatVnd(totalAmt)],
+    ['Đã thanh toán / Cọc', formatVnd(depositPaid)],
+    ['Còn phải thu', remainingDue > 0 ? (
+      <span style={{ color: '#EF4444', fontWeight: 700 }}>⚠️ {formatVnd(remainingDue)}</span>
+    ) : (
+      <span style={{ color: '#10B981', fontWeight: 700 }}>✅ Đã đủ 100%</span>
+    )],
   ];
 
   return (

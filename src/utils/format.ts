@@ -89,3 +89,12 @@ export function formatStatusLabel(status: string | undefined | null): string {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ');
 }
+
+export function formatMinutes(mins: number): string {
+  if (mins <= 0) return '0p';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}p`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}p`;
+}

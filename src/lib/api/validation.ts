@@ -104,6 +104,11 @@ export const createBookingSchema = z.object({
   bookingType:         z.enum(['daily', 'hourly']).default('daily'),
   /** Required when bookingType === 'hourly'; ignored otherwise. */
   totalAmount:         z.number().nonnegative('totalAmount must be ≥ 0').optional(),
+  depositAmount:       z.number().nonnegative().optional(),
+  paidAmount:          z.number().nonnegative().optional(),
+  paymentStatus:       z.enum(['unpaid', 'partial', 'paid']).optional(),
+  extraServicesAmount: z.number().nonnegative().optional(),
+  extraServicesNote:   z.string().max(500).optional(),
   numGuests:           z.number().int().min(1).max(20).optional(),
   note:                z.string().max(1000).optional(),
 }).refine(
@@ -118,11 +123,17 @@ export const createBookingSchema = z.object({
 export const updateBookingSchema = z.object({
   status:              z.enum(['inquiry', 'confirmed', 'cancelled', 'checked_in', 'checked_out']).optional(),
   roomId:              z.string().min(1).optional(),
+  guestName:           z.string().min(1).max(200).optional(),
   checkInAt:           isoDateTimeSchema.optional(),
   expectedCheckOutAt:  isoDateTimeSchema.optional(),
   ratePlanId:          z.string().min(1).optional(),
-  numGuests:           z.number().int().min(1).max(4).optional(),
+  numGuests:           z.number().int().min(1).max(20).optional(),
   actualCheckOutAt:    isoDateTimeSchema.optional(),
+  depositAmount:       z.number().nonnegative().optional(),
+  paidAmount:          z.number().nonnegative().optional(),
+  paymentStatus:       z.enum(['unpaid', 'partial', 'paid']).optional(),
+  extraServicesAmount: z.number().nonnegative().optional(),
+  extraServicesNote:   z.string().max(500).optional(),
   totalAmount:         z.number().nonnegative().optional(),
   note:                z.string().max(1000).optional(),
 });

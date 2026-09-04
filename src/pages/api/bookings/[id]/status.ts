@@ -52,6 +52,13 @@ export async function PATCH(request: Request) {
     const updated = await update(SPREADSHEET_ID, bookingId, { status });
     if (!updated) return jsonError(404, 'NOT_FOUND', `Booking ${bookingId} not found`);
 
+    if (status === 'checked_in') {
+      const room = await readRoom(SPREADSHEET_ID, updated.roomId);
+      if (room && room.status !== 'occupied') {
+        await updateRoom(SPREADSHEET_ID, updated.roomId, { status: 'occupied' });
+      }
+    }
+
     // Side effects when transitioning to 'cancelled':
     //   - Free the room: if the room was marked 'occupied' for this booking,
     //     transition it back to 'available' so other guests can book it now.

@@ -53,6 +53,9 @@ export async function GET(request: Request) {
         overtimeMinutes:         booking.overtimeMinutes,
         overtimeAmount:          booking.overtimeAmount,
         totalAmount:             booking.totalAmount,
+        depositAmount:           booking.depositAmount,
+        paidAmount:              booking.paidAmount,
+        paymentStatus:           booking.paymentStatus,
         unitPriceAtBooking:      booking.unitPriceAtBooking,
         numGuests:               booking.numGuests,
         note:                    booking.note,
@@ -82,7 +85,14 @@ export async function PATCH(request: Request) {
   try {
     // ── Checkout path: actualCheckOutAt is set ──────────────────────────────────
     if (parsed.actualCheckOutAt !== undefined) {
-      const result = await checkout(SPREADSHEET_ID, bookingId, parsed.actualCheckOutAt);
+      const result = await checkout(SPREADSHEET_ID, bookingId, parsed.actualCheckOutAt, {
+        baseAmount: parsed.totalAmount !== undefined ? parsed.totalAmount : undefined,
+        totalAmount: parsed.totalAmount,
+        extraServicesAmount: parsed.extraServicesAmount,
+        extraServicesNote: parsed.extraServicesNote,
+        paidAmount: parsed.paidAmount,
+        paymentStatus: parsed.paymentStatus,
+      });
       if (!result) return jsonError(404, 'NOT_FOUND', `Booking ${bookingId} not found`);
 
       const { booking, overtimeMinutes, overtimeAmount } = result;

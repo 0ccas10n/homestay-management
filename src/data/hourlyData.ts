@@ -20,7 +20,7 @@ import type { RatePlan, Booking } from '../types/index';
 export const ratePlans: RatePlan[] = [
   { ratePlanId: 'RP-0001', name: 'Combo 4H',  type: 'hourly',    baseMinutes: 240,  baseAmount: 250_000, extraMinutePrice: 0, overtimeMinutePrice: 0, active: true },
   { ratePlanId: 'RP-0002', name: 'Combo 6H',  type: 'hourly',    baseMinutes: 360,  baseAmount: 350_000, extraMinutePrice: 0, overtimeMinutePrice: 0, active: true },
-  { ratePlanId: 'RP-0003', name: 'Overnight', type: 'overnight', baseMinutes: 780,  baseAmount: 400_000, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: '21:00', overnightEnd: '10:00', active: true },
+  { ratePlanId: 'RP-0003', name: 'Overnight', type: 'overnight', baseMinutes: 780,  baseAmount: 400_000, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: '17:00', overnightEnd: '10:00', active: true },
   { ratePlanId: 'RP-0004', name: 'Full Day',  type: 'daily',     baseMinutes: 1320, baseAmount: 550_000, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: '14:00', overnightEnd: '12:00', active: true },
 ];
 

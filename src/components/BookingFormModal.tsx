@@ -52,6 +52,10 @@ interface BookingFormModalProps {
   darkMode: boolean;
   initialRoomId?: string;
   initialDate?: string;
+  initialCheckOutDate?: string;
+  initialCheckInTime?: string;
+  initialCheckOutTime?: string;
+  initialGuests?: string;
   /** Called after a successful create so the parent can refresh its data. */
   onCreated?: (booking: Booking) => void;
   /** Optional toast callback for error feedback. */
@@ -69,6 +73,7 @@ interface FormState {
   ratePlanId: string;
   numGuests: string; // kept as a string so the input can be blank
   totalAmount: string; // required when bookingType === 'hourly'
+  depositAmount: string; // Tiền cọc / Đã trả trước
   checkInDate: string;
   checkInTime: string;
   checkOutDate: string;
@@ -122,15 +127,15 @@ function getPlanDurationMinutes(plan: RatePlan | undefined): number | null {
   if (!plan) return null;
   if (plan.ratePlanId === 'RP-0001') return 4 * 60;
   if (plan.ratePlanId === 'RP-0002') return 6 * 60;
-  if (plan.ratePlanId === 'RP-0003' || plan.type === 'overnight') return 13 * 60;
-  if (plan.ratePlanId === 'RP-0004' || plan.type === 'daily') return 22 * 60;
+  if (plan.ratePlanId === 'RP-0003' || plan.type === 'overnight') return 13 * 60; // 13 tiếng = 780 phút
+  if (plan.ratePlanId === 'RP-0004' || plan.type === 'daily') return 22 * 60; // 22 tiếng = 1320 phút (14:00 -> 12:00)
   return plan.baseMinutes || null;
 }
 
 /**
  * Produce the auto-filled check-in/out date+time strings for a rate plan.
- * - Overnight (RP-0003): 21:00 → 10:00 (checkout on next day, +13h)
- * - Full Day (RP-0004 / daily): 14:00 → 12:00 (checkout on next day, +22h)
+ * - Overnight (RP-0003): 17:00 (hoặc linh hoạt từ 17:00) + 13 tiếng
+ * - Full Day (RP-0004 / daily): 14:00 → 12:00 (checkout on next day, 22 tiếng)
  * - Or any plan with overnightStart & overnightEnd configured in CSDL.
  */
 function autoFillTimesForPlan(
@@ -155,8 +160,13 @@ function autoFillTimesForPlan(
     : undefined;
 
   if (isOvernight) {
-    startTime = startTime || '21:00';
-    endTime = endTime || '10:00';
+    startTime = startTime || '17:00';
+    // Tính 13 tiếng từ startTime
+    const [sH, sM] = startTime.split(':').map(Number);
+    const endTotalMin = ((sH * 60 + (sM || 0) + 13 * 60) % 1440 + 1440) % 1440;
+    const endH = Math.floor(endTotalMin / 60);
+    const endM = endTotalMin % 60;
+    endTime = `${pad2(endH)}:${pad2(endM)}`;
   } else if (isDaily) {
     startTime = startTime || '14:00';
     endTime = endTime || '12:00';
@@ -197,8 +207,15 @@ function validate(
 
   const checkIn = combineToIso(state.checkInDate, state.checkInTime);
   const checkOut = combineToIso(state.checkOutDate, state.checkOutTime);
-  if (new Date(checkIn) >= new Date(checkOut)) {
+  const durationMinutes = (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 60_000;
+
+  if (durationMinutes <= 0) {
     return 'Check-out must be after check-in';
+  }
+
+  // Chặn trường hợp chọn gói theo giờ (4H, 6H) nhưng lại đặt thời gian qua đêm hoặc nhiều ngày
+  if ((state.ratePlanId === 'RP-0001' || state.ratePlanId === 'RP-0002') && durationMinutes > 12 * 60) {
+    return 'Gói Combo theo giờ (4H / 6H) chỉ áp dụng trong ngày (< 12 tiếng). Để đặt qua đêm hoặc nhiều ngày, vui lòng chọn gói Overnight (RP-0003) hoặc Full Day (RP-0004).';
   }
 
   if (state.numGuests) {
@@ -238,13 +255,17 @@ export default function BookingFormModal({
   darkMode,
   initialRoomId,
   initialDate,
+  initialCheckOutDate,
+  initialCheckInTime,
+  initialCheckOutTime,
+  initialGuests,
   onCreated,
   onError,
 }: BookingFormModalProps) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const initial = useMemo(() => {
     const checkIn = initialDate ? new Date(initialDate + 'T14:00:00') : new Date();
-    const checkOut = new Date(checkIn.getTime() + 4 * 60 * 60 * 1000);
+    const checkOut = initialCheckOutDate ? new Date(initialCheckOutDate + 'T12:00:00') : new Date(checkIn.getTime() + 4 * 60 * 60 * 1000);
     return {
       bookingType: 'daily' as BookingType,
       guestName: '',
@@ -252,14 +273,15 @@ export default function BookingFormModal({
       note: '',
       roomId: initialRoomId ?? '',
       ratePlanId: '',
-      numGuests: '2',
+      numGuests: initialGuests ?? '2',
       totalAmount: '',
-      checkInDate: toDateInputValue(checkIn),
-      checkInTime: toTimeInputValue(checkIn),
-      checkOutDate: toDateInputValue(checkOut),
-      checkOutTime: toTimeInputValue(checkOut),
+      depositAmount: '',
+      checkInDate: initialDate ?? toDateInputValue(checkIn),
+      checkInTime: initialCheckInTime ?? toTimeInputValue(checkIn),
+      checkOutDate: initialCheckOutDate ?? toDateInputValue(checkOut),
+      checkOutTime: initialCheckOutTime ?? toTimeInputValue(checkOut),
     };
-  }, [initialDate, initialRoomId]);
+  }, [initialDate, initialRoomId, initialCheckOutDate, initialCheckInTime, initialCheckOutTime, initialGuests]);
 
   const [state, setState] = useState<FormState>(initial);
   const [submitting, setSubmitting] = useState(false);
@@ -357,8 +379,18 @@ export default function BookingFormModal({
         }
       }
 
-      if (key === 'checkOutDate' && (value as string) < prev.checkInDate) {
-        next.checkInDate = value as string;
+      if (key === 'checkOutDate') {
+        const outDate = value as string;
+        if (outDate < prev.checkInDate) {
+          next.checkInDate = outDate;
+        } else if (outDate > prev.checkInDate && (prev.ratePlanId === 'RP-0001' || prev.ratePlanId === 'RP-0002')) {
+          // Tự động chuyển từ gói theo giờ sang Full Day nếu lưu trú qua ngày
+          const dailyPlan = ratePlans.find(p => p.type === 'daily' || p.ratePlanId === 'RP-0004');
+          if (dailyPlan) {
+            next.ratePlanId = dailyPlan.ratePlanId;
+            next.bookingType = 'daily';
+          }
+        }
       }
       return next;
     });
@@ -532,6 +564,10 @@ async function recalculateTotal(
 
     setSubmitting(true);
     try {
+      const deposit = state.depositAmount ? Number(state.depositAmount) : 0;
+      const totalEst = state.totalAmount ? Number(state.totalAmount) : 0;
+      const paymentStatus = deposit >= totalEst && totalEst > 0 ? 'paid' : (deposit > 0 ? 'partial' : 'unpaid');
+
       const created = await bookingsApi.create({
         roomId: state.roomId,
         guestName: state.guestName.trim(),
@@ -539,6 +575,9 @@ async function recalculateTotal(
         expectedCheckOutAt: combineToIso(state.checkOutDate, state.checkOutTime),
         ratePlanId: state.ratePlanId,
         bookingType: state.bookingType,
+        depositAmount: deposit,
+        paidAmount: deposit,
+        paymentStatus,
         // ❗ Chỉ gửi totalAmount khi hourly (nhập tay).
         // Với daily, để undefined → server tự tính từ RatePlanPrices sheet.
         ...(state.bookingType === 'hourly'
@@ -771,7 +810,7 @@ async function recalculateTotal(
         )}
         {state.bookingType === 'daily' && (
           <div>
-            <label style={labelStyle}>Giá ước tính (VND) — tham khảo, server tự tính chính xác</label>
+            <label style={labelStyle}>Giá ước tính (VND)</label>
             <div style={{ position: 'relative' }}>
               <input
                 type="number"
@@ -800,6 +839,116 @@ async function recalculateTotal(
             </div>
           </div>
         )}
+
+        {/* Deposit & Balance Section */}
+        {(() => {
+          const totalVal = Number(state.totalAmount) || 0;
+          const depositVal = Number(state.depositAmount) || 0;
+          const balanceVal = Math.max(0, totalVal - depositVal);
+
+          return (
+            <div style={{
+              background: darkMode ? '#0F172A' : '#F8FAFC',
+              border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
+              borderRadius: 10, padding: '12px 14px',
+              display: 'flex', flexDirection: 'column', gap: 10,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <label style={{ ...labelStyle, marginBottom: 0, fontWeight: 700, color: darkMode ? '#F1F5F9' : '#1E293B' }}>
+                  💵 Tiền cọc / Khách đã thanh toán trước (VND)
+                </label>
+                {/* Quick percentage buttons */}
+                {totalVal > 0 && (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => update('depositAmount', '0')}
+                      style={{
+                        background: depositVal === 0 ? (darkMode ? '#334155' : '#E2E8F0') : 'transparent',
+                        color: darkMode ? '#94A3B8' : '#64748B',
+                        border: `1px solid ${darkMode ? '#334155' : '#CBD5E1'}`,
+                        borderRadius: 4, padding: '2px 6px', fontSize: 11, cursor: 'pointer',
+                      }}
+                    >
+                      Chưa cọc (0₫)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => update('depositAmount', String(Math.round(totalVal * 0.5)))}
+                      style={{
+                        background: depositVal === Math.round(totalVal * 0.5) ? '#2563EB' : 'transparent',
+                        color: depositVal === Math.round(totalVal * 0.5) ? '#fff' : (darkMode ? '#93C5FD' : '#2563EB'),
+                        border: `1px solid ${depositVal === Math.round(totalVal * 0.5) ? '#2563EB' : (darkMode ? '#1E3A8A' : '#BFDBFE')}`,
+                        borderRadius: 4, padding: '2px 6px', fontSize: 11, cursor: 'pointer', fontWeight: 600,
+                      }}
+                    >
+                      Cọc 50% ({formatVnd(Math.round(totalVal * 0.5))})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => update('depositAmount', String(totalVal))}
+                      style={{
+                        background: depositVal === totalVal ? '#10B981' : 'transparent',
+                        color: depositVal === totalVal ? '#fff' : (darkMode ? '#6EE7B7' : '#059669'),
+                        border: `1px solid ${depositVal === totalVal ? '#10B981' : (darkMode ? '#064E3B' : '#A7F3D0')}`,
+                        borderRadius: 4, padding: '2px 6px', fontSize: 11, cursor: 'pointer', fontWeight: 600,
+                      }}
+                    >
+                      Đã trả đủ (100%)
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="number"
+                  min={0}
+                  step={10000}
+                  value={state.depositAmount}
+                  onChange={e => update('depositAmount', e.target.value)}
+                  placeholder="Nhập số tiền khách đã cọc hoặc thanh toán..."
+                  style={inputStyle}
+                />
+                {depositVal > 0 && (
+                  <div style={{
+                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                    fontSize: 12, fontWeight: 700, color: '#2563EB',
+                    background: darkMode ? '#1E293B' : '#EFF6FF',
+                    padding: '2px 8px', borderRadius: 6, pointerEvents: 'none',
+                  }}>
+                    {formatVnd(depositVal)}
+                  </div>
+                )}
+              </div>
+
+              {/* Balance Due Notice */}
+              {totalVal > 0 && (
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '8px 10px', borderRadius: 6,
+                  background: balanceVal > 0 ? (darkMode ? '#7F1D1D30' : '#FEF2F2') : (darkMode ? '#064E3B30' : '#ECFDF5'),
+                  border: `1px solid ${balanceVal > 0 ? (darkMode ? '#7F1D1D' : '#FECACA') : (darkMode ? '#064E3B' : '#A7F3D0')}`,
+                  fontSize: 12,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>{balanceVal > 0 ? '⚠️' : '✅'}</span>
+                    <span style={{ color: balanceVal > 0 ? (darkMode ? '#FCA5A5' : '#991B1B') : (darkMode ? '#6EE7B7' : '#065F46'), fontWeight: 600 }}>
+                      {balanceVal > 0 ? 'Còn phải thu khi Check-in / Check-out:' : 'Khách đã thanh toán đủ 100%'}
+                    </span>
+                  </div>
+                  <div style={{
+                    fontWeight: 800,
+                    fontSize: 13,
+                    color: balanceVal > 0 ? '#EF4444' : '#10B981',
+                  }}>
+                    {formatVnd(balanceVal)}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <div style={{ display: 'grid', gridTemplateColumns: gridColumns, gap: 12 }}>
           <div>

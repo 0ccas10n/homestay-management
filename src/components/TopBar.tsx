@@ -47,13 +47,13 @@ export default function TopBar({ activePage, darkMode, onToggleDark, onNavigate,
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
 
-  const roomMap = useMemo(() => new Map(rooms.map(r => [r.roomId, r.name])), [rooms]);
-  const customerMap = useMemo(() => new Map(customers.map(c => [c.customerId, c.name])), [customers]);
+  const roomMap = useMemo(() => new Map((rooms || []).filter(Boolean).map(r => [r.roomId, r.name])), [rooms]);
+  const customerMap = useMemo(() => new Map((customers || []).filter(Boolean).map(c => [c.customerId, c.name])), [customers]);
 
   const customerBookingStats = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const b of bookings) {
-      if (b.customerId) {
+    for (const b of (bookings || [])) {
+      if (b && b.customerId) {
         counts.set(b.customerId, (counts.get(b.customerId) ?? 0) + 1);
       }
     }
@@ -75,7 +75,8 @@ export default function TopBar({ activePage, darkMode, onToggleDark, onNavigate,
 
   const matchingBookings = useMemo(() => {
     if (!query) return [];
-    return bookings.filter(b => {
+    return (bookings || []).filter(b => {
+      if (!b) return false;
       const gName = (customerMap.get(b.customerId) || (b as any).guestName || '').toLowerCase();
       const bId = (b.bookingId || '').toLowerCase();
       const rName = (roomMap.get(b.roomId) || '').toLowerCase();
@@ -86,7 +87,8 @@ export default function TopBar({ activePage, darkMode, onToggleDark, onNavigate,
 
   const matchingCustomers = useMemo(() => {
     if (!query) return [];
-    return customers.filter(c => {
+    return (customers || []).filter(c => {
+      if (!c) return false;
       const name = (c.name || '').toLowerCase();
       const phone = (c.phone || '').toLowerCase();
       const email = (c.email || '').toLowerCase();
@@ -97,7 +99,8 @@ export default function TopBar({ activePage, darkMode, onToggleDark, onNavigate,
 
   const matchingRooms = useMemo(() => {
     if (!query) return [];
-    return rooms.filter(r => {
+    return (rooms || []).filter(r => {
+      if (!r) return false;
       const name = (r.name || '').toLowerCase();
       const desc = (r.description || '').toLowerCase();
       const id = (r.roomId || '').toLowerCase();

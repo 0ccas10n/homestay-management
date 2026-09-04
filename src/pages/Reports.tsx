@@ -155,6 +155,38 @@ export default function Reports() {
       .filter(c => c.value > 0);
   }, [periodExpenses]);
 
+  // Fixed vs Variable breakdown for Period (MECE principle)
+  const periodFixedExpenses = useMemo(() => {
+    return periodExpenses.filter(e => {
+      const cat = (e.category || '').toLowerCase();
+      if ((e as any).costType === 'fixed') return true;
+      if ((e as any).costType === 'variable') return false;
+      return (
+        cat.includes('thuê') ||
+        cat.includes('mặt bằng') ||
+        cat.includes('phòng') ||
+        cat.includes('nhà') ||
+        cat.includes('wifi') ||
+        cat.includes('internet') ||
+        cat.includes('lương') ||
+        cat.includes('staff') ||
+        cat.includes('bảo hiểm')
+      );
+    });
+  }, [periodExpenses]);
+
+  const periodVariableExpenses = useMemo(() => {
+    const fixedSet = new Set(periodFixedExpenses.map(e => e.expenseId));
+    return periodExpenses.filter(e => !fixedSet.has(e.expenseId));
+  }, [periodExpenses, periodFixedExpenses]);
+
+  const fixedCostTotal = useMemo(() => periodFixedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0), [periodFixedExpenses]);
+  const variableCostTotal = useMemo(() => periodVariableExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0), [periodVariableExpenses]);
+
+  // Contribution Margin = Revenue - Variable Costs
+  const contributionMargin = periodRevenue - variableCostTotal;
+  const contributionMarginPct = periodRevenue > 0 ? Math.round((contributionMargin / periodRevenue) * 100) : 0;
+
   // Channel mix for Selected Period
   const customerSourceMap = useMemo(() => new Map((customers || []).map(c => [c.customerId, c.source || ''])), [customers]);
   const CHANNEL_BRAND_COLORS: Record<string, string> = {
@@ -809,36 +841,71 @@ export default function Reports() {
                 </td>
               </tr>
 
-              {/* II. CHI PHÍ VẬN HÀNH */}
+              {/* II. CHI PHÍ BIẾN ĐỔI */}
               <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
-                <td style={{ padding: '10px 16px', color: '#EF4444' }}>II. TỔNG CHI PHÍ VẬN HÀNH (OPEX)</td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#EF4444' }}>{formatVnd(periodExpensesTotal)}</td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#EF4444' }}>
-                  {periodRevenue > 0 ? Math.round((periodExpensesTotal / periodRevenue) * 100) : 0}%
+                <td style={{ padding: '10px 16px', color: '#F59E0B' }}>II. CHI PHÍ BIẾN ĐỔI (VARIABLE COSTS)</td>
+                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#F59E0B' }}>{formatVnd(variableCostTotal)}</td>
+                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#F59E0B' }}>
+                  {periodRevenue > 0 ? Math.round((variableCostTotal / periodRevenue) * 100) : 0}%
                 </td>
               </tr>
-              {periodExpenseByCategory.length > 0 ? (
-                periodExpenseByCategory.map(c => (
-                  <tr key={c.name} style={{ borderBottom: `1px solid ${bdr}` }}>
-                    <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>- {c.name}</td>
-                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(c.value)}</td>
+              {periodVariableExpenses.length > 0 ? (
+                periodVariableExpenses.map(e => (
+                  <tr key={e.expenseId} style={{ borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>- {e.category} ({e.description})</td>
+                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(e.amount)}</td>
                     <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
-                      {periodRevenue > 0 ? Math.round((c.value / periodRevenue) * 100) : 0}%
+                      {periodRevenue > 0 ? Math.round((e.amount / periodRevenue) * 100) : 0}%
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr style={{ borderBottom: `1px solid ${bdr}` }}>
                   <td colSpan={3} style={{ padding: '8px 16px 8px 32px', color: textMuted, fontStyle: 'italic' }}>
-                    Chưa có khoản chi nào được ghi nhận trong kỳ này
+                    Chưa có khoản chi biến đổi nào trong kỳ này
                   </td>
                 </tr>
               )}
 
-              {/* III. LỢI NHUẬN RÒNG */}
+              {/* III. BIÊN ĐÓNG GÓP / LỢI NHUẬN GỘP (CONTRIBUTION MARGIN) */}
+              <tr style={{ background: darkMode ? '#1E3A8A33' : '#EFF6FF', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
+                <td style={{ padding: '10px 16px', color: '#2563EB' }}>III. BIÊN ĐÓNG GÓP (CONTRIBUTION MARGIN = I - II)</td>
+                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#2563EB' }}>{formatVnd(contributionMargin)}</td>
+                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#2563EB' }}>
+                  {contributionMarginPct}%
+                </td>
+              </tr>
+
+              {/* IV. CHI PHÍ CỐ ĐỊNH (FIXED OVERHEAD) */}
+              <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
+                <td style={{ padding: '10px 16px', color: '#EF4444' }}>IV. CHI PHÍ CỐ ĐỊNH (FIXED OVERHEAD)</td>
+                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#EF4444' }}>{formatVnd(fixedCostTotal)}</td>
+                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#EF4444' }}>
+                  {periodRevenue > 0 ? Math.round((fixedCostTotal / periodRevenue) * 100) : 0}%
+                </td>
+              </tr>
+              {periodFixedExpenses.length > 0 ? (
+                periodFixedExpenses.map(e => (
+                  <tr key={e.expenseId} style={{ borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>- {e.category} ({e.description})</td>
+                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(e.amount)}</td>
+                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
+                      {periodRevenue > 0 ? Math.round((e.amount / periodRevenue) * 100) : 0}%
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr style={{ borderBottom: `1px solid ${bdr}` }}>
+                  <td colSpan={3} style={{ padding: '8px 16px 8px 32px', color: textMuted, fontStyle: 'italic' }}>
+                    Chưa có khoản chi cố định nào trong kỳ này
+                  </td>
+                </tr>
+              )}
+
+              {/* V. LỢI NHUẬN RÒNG */}
               <tr style={{ background: darkMode ? (isProfitPositive ? '#064E3B40' : '#7F1D1D40') : (isProfitPositive ? '#ECFDF5' : '#FEF2F2'), fontWeight: 800, borderTop: `2px solid ${bdr}` }}>
                 <td style={{ padding: '12px 16px', color: isProfitPositive ? '#10B981' : '#EF4444', fontSize: 14 }}>
-                  III. LỢI NHUẬN RÒNG (NET PROFIT)
+                  V. LỢI NHUẬN RÒNG (NET PROFIT = III - IV)
                 </td>
                 <td style={{ padding: '12px 16px', textAlign: 'right', color: isProfitPositive ? '#10B981' : '#EF4444', fontSize: 15 }}>
                   {isProfitPositive ? '+' : ''}{formatVnd(periodNetProfit)}

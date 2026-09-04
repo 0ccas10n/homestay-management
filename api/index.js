@@ -201,7 +201,10 @@ var BOOKINGS_HEADERS = [
   "guestName",
   "created_by",
   "created_at",
-  "updated_at"
+  "updated_at",
+  "depositAmount",
+  "paidAmount",
+  "paymentStatus"
 ];
 function mapRowToBooking(row) {
   const isOldLayout = row[8]?.startsWith("RP-") || row[8] === "custom" || row.length <= 18 && !row[8]?.match(/^(daily|hourly)$/);
@@ -218,8 +221,11 @@ function mapRowToBooking(row) {
   const note = isOldLayout ? emptyToUndefined(row[14]) : emptyToUndefined(row[16]);
   const guestName = isOldLayout ? "" : emptyToUndefined(row[17]) ?? "";
   const createdBy = isOldLayout ? row[15] ?? "" : row[18] ?? "";
-  const createdAt = isOldLayout ? row[16] ?? "" : row[19] ?? "";
-  const updatedAt = isOldLayout ? row[17] ?? "" : row[20] ?? "";
+  const createdAt2 = isOldLayout ? row[16] ?? "" : row[19] ?? "";
+  const updatedAt2 = isOldLayout ? row[17] ?? "" : row[20] ?? "";
+  const depositAmount = row[21] ? parseFloat(row[21]) : void 0;
+  const paidAmount = row[22] ? parseFloat(row[22]) : void 0;
+  const paymentStatus = emptyToUndefined(row[23]);
   if (totalAmount <= 10 && baseAmount >= 1e3) {
     totalAmount = baseAmount + (overtimeAmount || 0);
   }
@@ -243,8 +249,11 @@ function mapRowToBooking(row) {
     note,
     guestName,
     createdBy,
-    createdAt,
-    updatedAt
+    createdAt: createdAt2,
+    updatedAt: updatedAt2,
+    depositAmount,
+    paidAmount,
+    paymentStatus
   };
 }
 function mapBookingToRow(b) {
@@ -289,8 +298,14 @@ function mapBookingToRow(b) {
     // S (18): created_by
     b.createdAt,
     // T (19): created_at
-    b.updatedAt
+    b.updatedAt,
     // U (20): updated_at
+    b.depositAmount !== void 0 ? String(b.depositAmount) : "",
+    // V (21): depositAmount
+    b.paidAmount !== void 0 ? String(b.paidAmount) : "",
+    // W (22): paidAmount
+    b.paymentStatus ?? ""
+    // X (23): paymentStatus
   ];
 }
 var CLEANING_HEADERS = [
@@ -798,12 +813,12 @@ var notifications = [
   { notificationId: "NOT-0007", type: "maintenance", title: "Maintenance Alert", message: "Y\xEAn 4 AC still out of service", time: "2026-08-05T08:00:00+07:00", read: true, priority: "medium", relatedRoomId: "ROOM-0007" }
 ];
 var locations = [
-  { locationId: "LOC-0001", name: "B\xECnh L\u1EE3i Trung", description: "C\u1EE5m homestay B\xECnh L\u1EE3i Trung", publicAddress: "B\xECnh L\u1EE3i Trung, B\xECnh Ch\xE1nh, H\u1ED3 Ch\xED Minh", phone: "+84 28 0000 0001", active: true, createdAt: "2026-01-01T00:00:00+07:00", updatedAt: "2026-01-01T00:00:00+07:00" }
+  { locationId: "LOC-0001", name: "B\xECnh L\u1EE3i Trung", description: "C\u1EE5m homestay B\xECnh L\u1EE3i Trung", publicAddress: "B\xECnh L\u1EE3i Trung, B\xECnh Th\u1EA1nh, H\u1ED3 Ch\xED Minh", phone: "+84 28 0000 0001", active: true, createdAt: "2026-01-01T00:00:00+07:00", updatedAt: "2026-01-01T00:00:00+07:00" }
 ];
 var ratePlans = [
   { ratePlanId: "RP-0001", name: "Combo 4H", type: "hourly", baseMinutes: 240, baseAmount: 25e4, extraMinutePrice: 0, overtimeMinutePrice: 0, active: true },
   { ratePlanId: "RP-0002", name: "Combo 6H", type: "hourly", baseMinutes: 360, baseAmount: 35e4, extraMinutePrice: 0, overtimeMinutePrice: 0, active: true },
-  { ratePlanId: "RP-0003", name: "Overnight", type: "overnight", baseMinutes: 780, baseAmount: 4e5, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: "21:00", overnightEnd: "10:00", active: true },
+  { ratePlanId: "RP-0003", name: "Overnight", type: "overnight", baseMinutes: 780, baseAmount: 4e5, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: "17:00", overnightEnd: "10:00", active: true },
   { ratePlanId: "RP-0004", name: "Full Day", type: "daily", baseMinutes: 1320, baseAmount: 55e4, extraMinutePrice: 0, overtimeMinutePrice: 0, overnightStart: "14:00", overnightEnd: "12:00", active: true }
 ];
 
@@ -1166,27 +1181,6 @@ function updatedTimestamp() {
   return nowIso();
 }
 
-// src/lib/google-sheets/id.ts
-var PREFIX_MAX = 999999;
-function pad(n) {
-  return String(n).padStart(4, "0");
-}
-async function generateId(prefix, sheetName, spreadsheetId) {
-  const range = `${sheetName}!A:A`;
-  const rows = await sheets.getValues(spreadsheetId, range);
-  let max = 0;
-  for (const row of rows) {
-    const raw = row[0] ?? "";
-    const numPart = raw.slice(prefix.length + 1);
-    const n = parseInt(numPart, 10);
-    if (!isNaN(n) && n > max) max = n;
-  }
-  if (max >= PREFIX_MAX) {
-    throw new Error(`${prefix}: ID namespace exhausted (max ${PREFIX_MAX})`);
-  }
-  return `${prefix}-${pad(max + 1)}`;
-}
-
 // src/lib/api/validation.ts
 import { z } from "zod";
 
@@ -1317,6 +1311,11 @@ var createBookingSchema = z.object({
   bookingType: z.enum(["daily", "hourly"]).default("daily"),
   /** Required when bookingType === 'hourly'; ignored otherwise. */
   totalAmount: z.number().nonnegative("totalAmount must be \u2265 0").optional(),
+  depositAmount: z.number().nonnegative().optional(),
+  paidAmount: z.number().nonnegative().optional(),
+  paymentStatus: z.enum(["unpaid", "partial", "paid"]).optional(),
+  extraServicesAmount: z.number().nonnegative().optional(),
+  extraServicesNote: z.string().max(500).optional(),
   numGuests: z.number().int().min(1).max(20).optional(),
   note: z.string().max(1e3).optional()
 }).refine(
@@ -1329,11 +1328,17 @@ var createBookingSchema = z.object({
 var updateBookingSchema = z.object({
   status: z.enum(["inquiry", "confirmed", "cancelled", "checked_in", "checked_out"]).optional(),
   roomId: z.string().min(1).optional(),
+  guestName: z.string().min(1).max(200).optional(),
   checkInAt: isoDateTimeSchema.optional(),
   expectedCheckOutAt: isoDateTimeSchema.optional(),
   ratePlanId: z.string().min(1).optional(),
-  numGuests: z.number().int().min(1).max(4).optional(),
+  numGuests: z.number().int().min(1).max(20).optional(),
   actualCheckOutAt: isoDateTimeSchema.optional(),
+  depositAmount: z.number().nonnegative().optional(),
+  paidAmount: z.number().nonnegative().optional(),
+  paymentStatus: z.enum(["unpaid", "partial", "paid"]).optional(),
+  extraServicesAmount: z.number().nonnegative().optional(),
+  extraServicesNote: z.string().max(500).optional(),
   totalAmount: z.number().nonnegative().optional(),
   note: z.string().max(1e3).optional()
 });
@@ -1468,9 +1473,9 @@ async function readAll2(spreadsheetId) {
     return [];
   }
 }
-async function readOne(spreadsheetId, bookingId) {
+async function readOne(spreadsheetId, bookingId2) {
   const all = await readAll2(spreadsheetId);
-  return all.find((b) => b.bookingId === bookingId) ?? null;
+  return all.find((b) => b.bookingId === bookingId2) ?? null;
 }
 async function query(spreadsheetId, filters) {
   let all = await readAll2(spreadsheetId);
@@ -1535,8 +1540,9 @@ async function create(spreadsheetId, input) {
     ));
     totalAmount = baseAmount;
   }
-  const bookingId = await generateId("BOOK", "Bookings", spreadsheetId);
-  const { createdAt, updatedAt } = timestamps();
+  const depositAmount = input.depositAmount ?? 0;
+  const paidAmount = input.paidAmount ?? depositAmount;
+  const paymentStatus = input.paymentStatus ?? (paidAmount >= totalAmount ? "paid" : paidAmount > 0 ? "partial" : "unpaid");
   const booking = {
     ...input,
     bookingId,
@@ -1545,6 +1551,11 @@ async function create(spreadsheetId, input) {
     baseAmount,
     overtimeMinutes: void 0,
     overtimeAmount: void 0,
+    extraServicesAmount: input.extraServicesAmount,
+    extraServicesNote: input.extraServicesNote,
+    depositAmount,
+    paidAmount,
+    paymentStatus,
     totalAmount,
     unitPriceAtBooking,
     createdAt,
@@ -1557,9 +1568,9 @@ async function create(spreadsheetId, input) {
   );
   return booking;
 }
-async function update(spreadsheetId, bookingId, patch) {
+async function update(spreadsheetId, bookingId2, patch) {
   const all = await readAll2(spreadsheetId);
-  const idx = all.findIndex((b) => b.bookingId === bookingId);
+  const idx = all.findIndex((b) => b.bookingId === bookingId2);
   if (idx === -1) return null;
   const existing = all[idx];
   const checkInAt = patch.checkInAt ?? existing.checkInAt;
@@ -1571,7 +1582,7 @@ async function update(spreadsheetId, bookingId, patch) {
       roomId,
       checkInAt,
       expectedCheckOutAt,
-      bookingId
+      bookingId2
     );
     if (overlap) {
       throw new Error("Change would create a booking overlap");
@@ -1608,7 +1619,7 @@ async function update(spreadsheetId, bookingId, patch) {
   const updated = {
     ...existing,
     ...patch,
-    bookingId,
+    bookingId: bookingId2,
     // immutable
     customerId: existing.customerId,
     // immutable
@@ -1629,27 +1640,43 @@ async function update(spreadsheetId, bookingId, patch) {
   );
   return updated;
 }
-async function checkout(spreadsheetId, bookingId, actualCheckOutAt) {
+async function checkout(spreadsheetId, bookingId2, actualCheckOutAt, extras) {
   const all = await readAll2(spreadsheetId);
-  const idx = all.findIndex((b) => b.bookingId === bookingId);
+  const idx = all.findIndex((b) => b.bookingId === bookingId2);
   if (idx === -1) return null;
   const existing = all[idx];
   let overtimeMinutes = 0;
   let overtimeAmount = 0;
-  let totalAmount = existing.totalAmount;
+  const extraServicesAmount = extras?.extraServicesAmount ?? existing.extraServicesAmount ?? 0;
+  const extraServicesNote = extras?.extraServicesNote ?? existing.extraServicesNote;
+  const baseAmount = extras?.baseAmount !== void 0 ? extras.baseAmount : existing.baseAmount;
   const isHourly = existing.bookingType === "hourly" || existing.ratePlanId === CUSTOM_RATE_PLAN_ID;
+  let totalAmount = existing.totalAmount;
   if (!isHourly) {
     const overtimeMs = new Date(actualCheckOutAt).getTime() - new Date(existing.expectedCheckOutAt).getTime();
     overtimeMinutes = Math.max(0, Math.round(overtimeMs / 6e4));
     const overtimeHours = Math.ceil(overtimeMinutes / 60);
     overtimeAmount = overtimeHours * OVERTIME_HOURLY_RATE;
-    totalAmount = existing.baseAmount + overtimeAmount;
+    totalAmount = baseAmount + overtimeAmount + extraServicesAmount;
+  } else {
+    totalAmount = baseAmount + extraServicesAmount;
   }
+  if (extras?.totalAmount !== void 0 && extras.totalAmount > 0) {
+    totalAmount = extras.totalAmount;
+  }
+  const paidAmount = extras?.paidAmount !== void 0 ? extras.paidAmount : existing.paidAmount ?? totalAmount;
+  const paymentStatus = extras?.paymentStatus ?? (paidAmount >= totalAmount ? "paid" : paidAmount > 0 ? "partial" : "unpaid");
   const updated = {
     ...existing,
+    baseAmount,
     actualCheckOutAt,
     overtimeMinutes: overtimeMinutes > 0 ? overtimeMinutes : void 0,
     overtimeAmount: overtimeAmount > 0 ? overtimeAmount : void 0,
+    extraServicesAmount: extraServicesAmount > 0 ? extraServicesAmount : void 0,
+    extraServicesNote: extraServicesNote || void 0,
+    depositAmount: existing.depositAmount ?? (existing.paidAmount ?? 0),
+    paidAmount,
+    paymentStatus,
     totalAmount,
     status: "checked_out",
     updatedAt: updatedTimestamp()
@@ -1700,6 +1727,27 @@ __export(dashboard_exports, {
   GET: () => GET2
 });
 
+// src/lib/google-sheets/id.ts
+var PREFIX_MAX = 999999;
+function pad(n) {
+  return String(n).padStart(4, "0");
+}
+async function generateId(prefix, sheetName, spreadsheetId) {
+  const range = `${sheetName}!A:A`;
+  const rows = await sheets.getValues(spreadsheetId, range);
+  let max = 0;
+  for (const row of rows) {
+    const raw = row[0] ?? "";
+    const numPart = raw.slice(prefix.length + 1);
+    const n = parseInt(numPart, 10);
+    if (!isNaN(n) && n > max) max = n;
+  }
+  if (max >= PREFIX_MAX) {
+    throw new Error(`${prefix}: ID namespace exhausted (max ${PREFIX_MAX})`);
+  }
+  return `${prefix}-${pad(max + 1)}`;
+}
+
 // src/lib/google-sheets/rooms.repository.ts
 async function readAll3(spreadsheetId) {
   const range = `${SHEETS.Rooms}!A2:${String.fromCharCode(64 + ROOMS_HEADERS.length)}`;
@@ -1712,12 +1760,12 @@ async function readOne2(spreadsheetId, roomId) {
 }
 async function create2(spreadsheetId, input) {
   const roomId = await generateId("ROOM", "Rooms", spreadsheetId);
-  const { createdAt, updatedAt } = timestamps();
+  const { createdAt: createdAt2, updatedAt: updatedAt2 } = timestamps();
   const room = {
     ...input,
     roomId,
-    createdAt,
-    updatedAt
+    createdAt: createdAt2,
+    updatedAt: updatedAt2
   };
   await sheets.appendRow(
     spreadsheetId,
@@ -1787,12 +1835,12 @@ async function query3(spreadsheetId, filters) {
 }
 async function create3(spreadsheetId, input) {
   const expenseId = await generateId("EXP", "Expenses", spreadsheetId);
-  const { createdAt, updatedAt } = timestamps();
+  const { createdAt: createdAt2, updatedAt: updatedAt2 } = timestamps();
   const expense = {
     ...input,
     expenseId,
-    createdAt,
-    updatedAt
+    createdAt: createdAt2,
+    updatedAt: updatedAt2
   };
   await sheets.appendRow(
     spreadsheetId,
@@ -2405,12 +2453,12 @@ async function readOne3(spreadsheetId, customerId) {
 }
 async function create4(spreadsheetId, input) {
   const customerId = await generateId("CUS", "Customers", spreadsheetId);
-  const { createdAt, updatedAt } = timestamps();
+  const { createdAt: createdAt2, updatedAt: updatedAt2 } = timestamps();
   const customer = {
     ...input,
     customerId,
-    createdAt,
-    updatedAt
+    createdAt: createdAt2,
+    updatedAt: updatedAt2
   };
   const row = mapCustomerToRow(customer);
   console.log("[customers.create] customerId=", customerId, "name=", customer.name, "row length=", row.length, "row=", row);
@@ -2531,6 +2579,9 @@ async function POST3(request) {
       ratePlanId,
       bookingType: bookingType ?? "daily",
       totalAmount: bookingType === "hourly" ? totalAmount : void 0,
+      depositAmount: parsed.depositAmount,
+      paidAmount: parsed.paidAmount ?? parsed.depositAmount,
+      paymentStatus: parsed.paymentStatus,
       numGuests,
       note,
       createdBy: session.userId
@@ -2571,6 +2622,9 @@ function safeBooking(b) {
     overtimeMinutes: b.overtimeMinutes,
     overtimeAmount: b.overtimeAmount,
     totalAmount: b.totalAmount,
+    depositAmount: b.depositAmount,
+    paidAmount: b.paidAmount,
+    paymentStatus: b.paymentStatus,
     unitPriceAtBooking: b.unitPriceAtBooking,
     numGuests: b.numGuests,
     note: b.note,
@@ -2611,12 +2665,12 @@ async function dueToday(spreadsheetId) {
 }
 async function create5(spreadsheetId, input) {
   const cleaningId = await generateId("CLN", "Cleaning", spreadsheetId);
-  const { createdAt, updatedAt } = timestamps();
+  const { createdAt: createdAt2, updatedAt: updatedAt2 } = timestamps();
   const task = {
     ...input,
     cleaningId,
-    createdAt,
-    updatedAt
+    createdAt: createdAt2,
+    updatedAt: updatedAt2
   };
   await sheets.appendRow(
     spreadsheetId,
@@ -2659,26 +2713,32 @@ async function transition(spreadsheetId, cleaningId, newStatus) {
 var SPREADSHEET_ID7 = process.env.SPREADSHEET_ID;
 async function getBookingId(request) {
   const segments = new URL(request.url).pathname.split("/");
-  const bookingId = segments.at(-2) ?? "";
-  if (!bookingId) return jsonError(400, "BAD_REQUEST", "Missing booking ID");
-  return bookingId;
+  const bookingId2 = segments.at(-2) ?? "";
+  if (!bookingId2) return jsonError(400, "BAD_REQUEST", "Missing booking ID");
+  return bookingId2;
 }
 async function PATCH(request) {
   const session = await requireAuth(request);
   if (session instanceof Response) return session;
-  const bookingId = await getBookingId(request);
-  if (bookingId instanceof Response) return bookingId;
+  const bookingId2 = await getBookingId(request);
+  if (bookingId2 instanceof Response) return bookingId2;
   const parsed = await parseBody(request, updateBookingStatusSchema);
   if (parsed instanceof Response) return parsed;
   const { status } = parsed;
   try {
-    const existing = await readOne(SPREADSHEET_ID7, bookingId);
-    if (!existing) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
+    const existing = await readOne(SPREADSHEET_ID7, bookingId2);
+    if (!existing) return jsonError(404, "NOT_FOUND", `Booking ${bookingId2} not found`);
     if (existing.status === status) {
       return jsonSuccess({ booking: existing, changed: false, message: `Booking already ${status}` });
     }
-    const updated = await update(SPREADSHEET_ID7, bookingId, { status });
-    if (!updated) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
+    const updated = await update(SPREADSHEET_ID7, bookingId2, { status });
+    if (!updated) return jsonError(404, "NOT_FOUND", `Booking ${bookingId2} not found`);
+    if (status === "checked_in") {
+      const room = await readOne2(SPREADSHEET_ID7, updated.roomId);
+      if (room && room.status !== "occupied") {
+        await update2(SPREADSHEET_ID7, updated.roomId, { status: "occupied" });
+      }
+    }
     if (status === "cancelled") {
       const room = await readOne2(SPREADSHEET_ID7, updated.roomId);
       if (room && room.status === "occupied") {
@@ -2713,18 +2773,18 @@ var SPREADSHEET_ID8 = process.env.SPREADSHEET_ID;
 async function getBookingId2(request) {
   const url = new URL(request.url);
   const segments = url.pathname.split("/");
-  const bookingId = segments.at(-1) ?? "";
-  if (!bookingId) return jsonError(400, "BAD_REQUEST", "Missing booking ID");
-  return bookingId;
+  const bookingId2 = segments.at(-1) ?? "";
+  if (!bookingId2) return jsonError(400, "BAD_REQUEST", "Missing booking ID");
+  return bookingId2;
 }
 async function GET8(request) {
   const session = await requireAuth(request);
   if (session instanceof Response) return session;
-  const bookingId = await getBookingId2(request);
-  if (bookingId instanceof Response) return bookingId;
+  const bookingId2 = await getBookingId2(request);
+  if (bookingId2 instanceof Response) return bookingId2;
   try {
-    const booking = await readOne(SPREADSHEET_ID8, bookingId);
-    if (!booking) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
+    const booking = await readOne(SPREADSHEET_ID8, bookingId2);
+    if (!booking) return jsonError(404, "NOT_FOUND", `Booking ${bookingId2} not found`);
     const customer = await readOne3(SPREADSHEET_ID8, booking.customerId);
     return jsonSuccess({
       booking: {
@@ -2742,6 +2802,9 @@ async function GET8(request) {
         overtimeMinutes: booking.overtimeMinutes,
         overtimeAmount: booking.overtimeAmount,
         totalAmount: booking.totalAmount,
+        depositAmount: booking.depositAmount,
+        paidAmount: booking.paidAmount,
+        paymentStatus: booking.paymentStatus,
         unitPriceAtBooking: booking.unitPriceAtBooking,
         numGuests: booking.numGuests,
         note: booking.note,
@@ -2758,28 +2821,35 @@ async function GET8(request) {
 async function PATCH2(request) {
   const session = await requireAuth(request);
   if (session instanceof Response) return session;
-  const bookingId = await getBookingId2(request);
-  if (bookingId instanceof Response) return bookingId;
+  const bookingId2 = await getBookingId2(request);
+  if (bookingId2 instanceof Response) return bookingId2;
   const parsed = await parseBody(request, updateBookingSchema);
   if (parsed instanceof Response) return parsed;
   try {
     if (parsed.actualCheckOutAt !== void 0) {
-      const result = await checkout(SPREADSHEET_ID8, bookingId, parsed.actualCheckOutAt);
-      if (!result) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
+      const result = await checkout(SPREADSHEET_ID8, bookingId2, parsed.actualCheckOutAt, {
+        baseAmount: parsed.totalAmount !== void 0 ? parsed.totalAmount : void 0,
+        totalAmount: parsed.totalAmount,
+        extraServicesAmount: parsed.extraServicesAmount,
+        extraServicesNote: parsed.extraServicesNote,
+        paidAmount: parsed.paidAmount,
+        paymentStatus: parsed.paymentStatus
+      });
+      if (!result) return jsonError(404, "NOT_FOUND", `Booking ${bookingId2} not found`);
       const { booking, overtimeMinutes, overtimeAmount } = result;
       await update2(SPREADSHEET_ID8, booking.roomId, { status: "needs_cleaning" });
-      const tasks = await query4(SPREADSHEET_ID8, { bookingId });
+      const tasks = await query4(SPREADSHEET_ID8, { bookingId: bookingId2 });
       const hasActiveCleaningTask = tasks.some(
         (task) => task.status === "pending" || task.status === "in_progress"
       );
       if (!hasActiveCleaningTask) {
         await create5(SPREADSHEET_ID8, {
           roomId: booking.roomId,
-          bookingId,
+          bookingId: bookingId2,
           scheduledAt: parsed.actualCheckOutAt,
           status: "pending",
           priority: "high",
-          note: `Cleaning required after checkout for booking ${bookingId}`
+          note: `Cleaning required after checkout for booking ${bookingId2}`
         });
       }
       return jsonSuccess({
@@ -2790,8 +2860,8 @@ async function PATCH2(request) {
       });
     }
     const { actualCheckOutAt: _, ...generalPatch } = parsed;
-    const updated = await update(SPREADSHEET_ID8, bookingId, generalPatch);
-    if (!updated) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
+    const updated = await update(SPREADSHEET_ID8, bookingId2, generalPatch);
+    if (!updated) return jsonError(404, "NOT_FOUND", `Booking ${bookingId2} not found`);
     return jsonSuccess(updated);
   } catch (err) {
     if (err?.message?.includes("overlap")) {
@@ -2803,12 +2873,12 @@ async function PATCH2(request) {
 async function DELETE(request) {
   const session = await requireAuth(request);
   if (session instanceof Response) return session;
-  const bookingId = await getBookingId2(request);
-  if (bookingId instanceof Response) return bookingId;
+  const bookingId2 = await getBookingId2(request);
+  if (bookingId2 instanceof Response) return bookingId2;
   try {
-    const existing = await readOne(SPREADSHEET_ID8, bookingId);
-    if (!existing) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
-    const updated = await update(SPREADSHEET_ID8, bookingId, { status: "cancelled" });
+    const existing = await readOne(SPREADSHEET_ID8, bookingId2);
+    if (!existing) return jsonError(404, "NOT_FOUND", `Booking ${bookingId2} not found`);
+    const updated = await update(SPREADSHEET_ID8, bookingId2, { status: "cancelled" });
     return jsonNoContent();
   } catch (err) {
     return jsonServerError(err, "DELETE /api/bookings/:id");
@@ -2827,16 +2897,16 @@ async function GET9(request) {
   if (session instanceof Response) return session;
   const { searchParams } = new URL(request.url);
   const roomId = searchParams.get("roomId") ?? void 0;
-  const bookingId = searchParams.get("bookingId") ?? void 0;
+  const bookingId2 = searchParams.get("bookingId") ?? void 0;
   const status = searchParams.get("status") ?? void 0;
   const date = searchParams.get("date") ?? void 0;
   const active4 = searchParams.get("active") === "true";
   try {
     const tasks = active4 ? (await query4(SPREADSHEET_ID9)).filter(
       (task) => task.status === "pending" || task.status === "in_progress"
-    ) : roomId || bookingId || status || date ? await query4(SPREADSHEET_ID9, {
+    ) : roomId || bookingId2 || status || date ? await query4(SPREADSHEET_ID9, {
       roomId: roomId ?? void 0,
-      bookingId: bookingId ?? void 0,
+      bookingId: bookingId2 ?? void 0,
       status: status ?? void 0
     }) : await dueToday(SPREADSHEET_ID9);
     return jsonSuccess(tasks);

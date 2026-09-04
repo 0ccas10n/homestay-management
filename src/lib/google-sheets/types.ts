@@ -207,6 +207,9 @@ export function mapCustomerToRow(c: Customer): string[] {
 // S (18): created_by
 // T (19): created_at
 // U (20): updated_at
+// V (21): depositAmount
+// W (22): paidAmount
+// X (23): paymentStatus
 
 export const BOOKINGS_HEADERS = [
   'booking_id',
@@ -230,6 +233,9 @@ export const BOOKINGS_HEADERS = [
   'created_by',
   'created_at',
   'updated_at',
+  'depositAmount',
+  'paidAmount',
+  'paymentStatus',
 ] as const;
 
 export function mapRowToBooking(row: string[]): Booking {
@@ -328,6 +334,11 @@ export function mapRowToBooking(row: string[]): Booking {
   // updated_at: col U(20) new / col S(17) old
   const updatedAt = isOldLayout ? (row[17] ?? '') : (row[20] ?? '');
 
+  // Payment fields: cols V(21)/W(22)/X(23) — absent on rows written before this migration.
+  const depositAmount = row[21] ? parseFloat(row[21]) : undefined;
+  const paidAmount = row[22] ? parseFloat(row[22]) : undefined;
+  const paymentStatus = emptyToUndefined(row[23]) as Booking['paymentStatus'] | undefined;
+
   // Auto-fix: if totalAmount is suspiciously small but baseAmount is valid, use baseAmount
   if (totalAmount <= 10 && baseAmount >= 1000) {
     totalAmount = baseAmount + (overtimeAmount || 0);
@@ -355,6 +366,9 @@ export function mapRowToBooking(row: string[]): Booking {
     createdBy:                createdBy,
     createdAt:                createdAt,
     updatedAt:                updatedAt,
+    depositAmount:            depositAmount,
+    paidAmount:               paidAmount,
+    paymentStatus:            paymentStatus,
   };
 }
 
@@ -381,6 +395,9 @@ export function mapBookingToRow(b: Booking): string[] {
     b.createdBy || 'USR-0001',                 // S (18): created_by
     b.createdAt,                               // T (19): created_at
     b.updatedAt,                               // U (20): updated_at
+    b.depositAmount !== undefined ? String(b.depositAmount) : '', // V (21): depositAmount
+    b.paidAmount !== undefined ? String(b.paidAmount) : '',       // W (22): paidAmount
+    b.paymentStatus ?? '',                     // X (23): paymentStatus
   ];
 }
 

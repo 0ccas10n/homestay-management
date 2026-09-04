@@ -34,12 +34,14 @@ export default function QuickEditModal({ booking, guestName, roomName, onClose, 
   const [checkInAt, setCheckInAt] = useState('');
   const [expectedCheckOutAt, setExpectedCheckOutAt] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
+  const [paidAmount, setPaidAmount] = useState('');
 
   useEffect(() => {
     if (booking) {
       setCheckInAt(toLocalString(booking.checkInAt));
       setExpectedCheckOutAt(toLocalString(booking.expectedCheckOutAt));
       setTotalAmount(String(getBookingTotal(booking)));
+      setPaidAmount(String(booking.paidAmount ?? booking.depositAmount ?? ''));
       setError(null);
     }
   }, [booking]);
@@ -67,11 +69,18 @@ export default function QuickEditModal({ booking, guestName, roomName, onClose, 
       const coIso = formatToLocalIso(expectedCheckOutAt);
 
       const numTotal = Number(totalAmount.replace(/[^\d]/g, ''));
+      const numPaid = paidAmount.trim() ? Number(paidAmount.replace(/[^\d]/g, '')) : undefined;
+      const paymentStatus = numPaid !== undefined
+        ? (numPaid >= (numTotal || getBookingTotal(booking)) ? 'paid' : (numPaid > 0 ? 'partial' : 'unpaid'))
+        : undefined;
 
       const res = await bookingsApi.update(booking.bookingId, {
         checkInAt: ciIso,
         expectedCheckOutAt: coIso,
         totalAmount: isNaN(numTotal) ? undefined : numTotal,
+        paidAmount: numPaid,
+        depositAmount: numPaid,
+        paymentStatus,
       });
 
       onSuccess(res);
@@ -142,6 +151,56 @@ export default function QuickEditModal({ booking, guestName, roomName, onClose, 
           <span style={{ fontSize: 11, color: '#64748B', marginTop: 4, display: 'block' }}>
             Nhập lại tổng tiền nếu khách gia hạn thêm giờ.
           </span>
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <label style={{ ...labelStyle, marginBottom: 0 }}>Đã thanh toán / Tiền cọc (VNĐ)</label>
+            {Number(totalAmount) > 0 && (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => setPaidAmount('0')}
+                  style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: 'transparent', border: `1px solid ${darkMode ? '#334155' : '#CBD5E1'}`, color: '#64748B', cursor: 'pointer' }}>
+                  0₫
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaidAmount(String(Math.round(Number(totalAmount) * 0.5)))}
+                  style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#2563EB', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                  50%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaidAmount(totalAmount)}
+                  style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#10B981', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                  100%
+                </button>
+              </div>
+            )}
+          </div>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={paidAmount}
+            onChange={e => {
+              const val = e.target.value.replace(/[^\d]/g, '');
+              setPaidAmount(val);
+            }}
+            style={inputStyle}
+            placeholder="Số tiền khách đã trả..."
+          />
+          {Number(totalAmount) > 0 && (
+            <div style={{
+              marginTop: 6, padding: '6px 10px', borderRadius: 6, fontSize: 11,
+              background: (Number(totalAmount) - Number(paidAmount || 0)) > 0 ? (darkMode ? '#7F1D1D30' : '#FEF2F2') : (darkMode ? '#064E3B30' : '#ECFDF5'),
+              color: (Number(totalAmount) - Number(paidAmount || 0)) > 0 ? '#EF4444' : '#10B981',
+              display: 'flex', justifyContent: 'space-between', fontWeight: 600,
+            }}>
+              <span>{(Number(totalAmount) - Number(paidAmount || 0)) > 0 ? '⚠️ Còn thiếu:' : '✅ Đã trả đủ:'}</span>
+              <span>{formatVnd(Math.max(0, Number(totalAmount) - Number(paidAmount || 0)))}</span>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>

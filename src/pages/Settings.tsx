@@ -14,6 +14,17 @@ import { formatStatusLabel } from '@/utils/format';
 
 const TABS = ['Business Info', 'Rooms', 'Room Types', 'Staff', 'Pricing'];
 
+export const DEFAULT_BIZ_INFO = {
+  name: 'Hiên Homestay',
+  address: 'Bình Lợi Trung, Bình Thạnh, Hồ Chí Minh',
+  phone: '+84 899 88 4470',
+  email: 'hello@hien.homestay',
+  checkInTime: '14:00',
+  checkOutTime: '12:00',
+  currency: 'VND',
+  website: 'https://beacons.ai/hien.homestay',
+};
+
 export default function Settings() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
   const { rooms, loading: roomsLoading, refetch } = useRooms();
@@ -24,19 +35,16 @@ export default function Settings() {
     const saved = localStorage.getItem('bizInfo');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Tự động nâng cấp nếu trình duyệt đang lưu thông tin mẫu cũ (binhloitrung.vn)
+        if (parsed.email === 'hello@binhloitrung.vn' || parsed.phone === '+84 28 0000 0001') {
+          localStorage.setItem('bizInfo', JSON.stringify(DEFAULT_BIZ_INFO));
+          return DEFAULT_BIZ_INFO;
+        }
+        return { ...DEFAULT_BIZ_INFO, ...parsed };
       } catch {}
     }
-    return {
-      name: 'Homestay Bình Lợi Trung',
-      address: 'Bình Lợi Trung, Bình Chánh, Hồ Chí Minh',
-      phone: '+84 28 0000 0001',
-      email: 'hello@binhloitrung.vn',
-      checkInTime: '14:00',
-      checkOutTime: '12:00',
-      currency: 'VND',
-      website: 'www.binhloitrung.vn',
-    };
+    return DEFAULT_BIZ_INFO;
   });
 
   useEffect(() => { refetch(); }, [refetch]);
@@ -44,6 +52,12 @@ export default function Settings() {
   const handleSaveBizInfo = () => {
     localStorage.setItem('bizInfo', JSON.stringify(bizInfo));
     showToast('Đã lưu thông tin homestay thành công!');
+  };
+
+  const handleResetBizInfo = () => {
+    setBizInfo(DEFAULT_BIZ_INFO);
+    localStorage.setItem('bizInfo', JSON.stringify(DEFAULT_BIZ_INFO));
+    showToast('Đã khôi phục về thông tin mặc định!');
   };
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -112,16 +126,28 @@ export default function Settings() {
               );
             })}
           </div>
-          <button
-            onClick={handleSaveBizInfo}
-            style={{
-              marginTop: 20, background: '#2563EB', color: '#fff', border: 'none',
-              borderRadius: 8, padding: '10px 24px', fontWeight: 600, fontSize: 14,
-              cursor: 'pointer', fontFamily: "var(--font-sans)",
-            }}
-          >
-            Save Changes
-          </button>
+          <div style={{ marginTop: 24, display: 'flex', gap: 12, alignItems: 'center' }}>
+            <button
+              onClick={handleSaveBizInfo}
+              style={{
+                background: '#2563EB', color: '#fff', border: 'none',
+                borderRadius: 8, padding: '10px 24px', fontWeight: 600, fontSize: 14,
+                cursor: 'pointer', fontFamily: "var(--font-sans)",
+              }}
+            >
+              Save Changes
+            </button>
+            <button
+              onClick={handleResetBizInfo}
+              style={{
+                background: 'transparent', color: textMuted, border: `1px solid ${border}`,
+                borderRadius: 8, padding: '10px 18px', fontWeight: 500, fontSize: 13,
+                cursor: 'pointer', fontFamily: "var(--font-sans)",
+              }}
+            >
+              Khôi phục mặc định
+            </button>
+          </div>
         </div>
       )}
 

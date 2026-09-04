@@ -80,6 +80,7 @@ export type BookingStatus =
  *               server bypasses RatePlanPrices for this booking.
  */
 export type BookingType = 'daily' | 'hourly';
+export type PaymentStatus = 'unpaid' | 'partial' | 'paid';
 
 export interface Booking {
   bookingId: string;
@@ -97,6 +98,11 @@ export interface Booking {
   baseAmount: number;
   overtimeMinutes?: number;
   overtimeAmount?: number;
+  extraServicesAmount?: number;
+  extraServicesNote?: string;
+  depositAmount?: number;
+  paidAmount?: number;
+  paymentStatus?: PaymentStatus;
   totalAmount: number;
   /**
    * Snapshot of the per-night VND price (from RatePlanPrices.priceVnd) at the
@@ -190,9 +196,13 @@ export interface User {
 
 // ─── Expense ──────────────────────────────────────────────────────────────────
 
+export type ExpenseCostType = 'fixed' | 'variable';
+
 export interface Expense {
   expenseId: string;
   category: string;
+  costType?: ExpenseCostType; // 'fixed' (Cố định: Mặt bằng, Wifi, Lương) vs 'variable' (Biến đổi: Điện, Nước, Giặt ủi, Đồ dùng)
+  isRecurring?: boolean;      // Chi phí định kỳ hàng tháng
   amount: number;
   date: string;  // ISO date string "YYYY-MM-DD"
   description: string;

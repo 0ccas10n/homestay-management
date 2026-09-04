@@ -24,7 +24,16 @@ interface UseBookingsReturn {
   /** Generic lifecycle transition — check-in, confirm, no-show, cancel, etc. */
   updateStatus: (id: string, status: Booking['status']) => Promise<void>;
   /** Records actualCheckOutAt, computes overtime server-side, and marks the room for cleaning. */
-  checkOutBooking: (id: string, actualCheckOutAt?: string) => Promise<{ overtimeMinutes: number; overtimeAmount: number; message: string }>;
+  checkOutBooking: (
+    id: string,
+    options?: string | {
+      actualCheckOutAt?: string;
+      extraServicesAmount?: number;
+      extraServicesNote?: string;
+      paidAmount?: number;
+      paymentStatus?: 'paid' | 'partial' | 'unpaid';
+    }
+  ) => Promise<{ overtimeMinutes: number; overtimeAmount: number; message: string; booking?: Booking }>;
   cancelBooking: (id: string) => Promise<void>;
 }
 
@@ -64,39 +73,28 @@ export function useBookings(options?: UseBookingsOptions): UseBookingsReturn {
   }, []);
 
   const updateStatus = useCallback(async (id: string, status: Booking['status']) => {
-    const booking = bookings.find(b => b.bookingId === id);
-    if (booking) {
-      const checkInTime = new Date(booking.checkInAt).getTime();
-      const now = Date.now();
-      const diffMins = (checkInTime - now) / 60000;
-      
-      if (status === 'checked_in' && diffMins > 120) {
-        const hoursEarly = (diffMins / 60).toFixed(1);
-        if (!window.confirm(`⚠️ Khách đang check-in SỚM ${hoursEarly} tiếng so với giờ dự kiến.\nBạn có chắc chắn muốn cho khách check-in sớm không?`)) {
-          return false;
-        }
-      }
-      
-      if (status === 'no_show' && diffMins > -120) {
-        if (!window.confirm(`⚠️ Chưa quá 2 tiếng kể từ giờ check-in dự kiến (hoặc chưa đến giờ).\nBạn có chắc chắn muốn đánh dấu No-show không?`)) {
-          return false;
-        }
-      }
-    }
-
     const res = await bookingsApi.updateStatus(id, status);
     setBookings(prev => prev.map(b =>
       b.bookingId === id ? res.booking : b,
     ));
     return true;
-  }, [bookings]);
+  }, []);
 
-  const checkOutBooking = useCallback(async (id: string, actualCheckOutAt?: string) => {
-    const res = await bookingsApi.checkout(id, actualCheckOutAt ?? new Date().toISOString());
+  const checkOutBooking = useCallback(async (
+    id: string,
+    options?: string | {
+      actualCheckOutAt?: string;
+      extraServicesAmount?: number;
+      extraServicesNote?: string;
+      paidAmount?: number;
+      paymentStatus?: 'paid' | 'partial' | 'unpaid';
+    }
+  ) => {
+    const res = await bookingsApi.checkout(id, options ?? new Date().toISOString());
     setBookings(prev => prev.map(b =>
       b.bookingId === id ? res.booking : b,
     ));
-    return { overtimeMinutes: res.overtimeMinutes, overtimeAmount: res.overtimeAmount, message: res.message };
+    return { overtimeMinutes: res.overtimeMinutes, overtimeAmount: res.overtimeAmount, message: res.message, booking: res.booking };
   }, []);
 
   const cancelBooking = useCallback(async (id: string) => {

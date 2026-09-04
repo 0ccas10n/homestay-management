@@ -1,7 +1,10 @@
 // ─── Expenses.tsx ──────────────────────────────────────────────────────────────
 //
 // Quản lý Chi phí Vận hành Homestay (Expenses Management)
-// Đồng bộ 100% dữ liệu theo kỳ chọn, danh mục và tìm kiếm nội dung
+// Phân loại MECE chuẩn Kế toán Quản trị:
+//   1. Chi phí Cố định (Fixed Costs): Mặt bằng, Internet/Wifi, Lương cứng...
+//   2. Chi phí Biến đổi (Variable Costs): Điện, Nước, Giặt ủi, Đồ tiêu hao Homestay...
+//   3. Chi phí Định kỳ (Recurring Expenses): Tự động hóa tạo chi phí hàng tháng
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,44 +13,65 @@ import { useExpenses } from '@/hooks/useExpenses';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import Modal from '@/components/Modal';
 import { formatVnd } from '@/utils/format';
+import type { ExpenseCostType, Expense } from '@/types/index';
 
 const CATEGORIES = [
-  'Tiền phòng',
+  'Tiền thuê nhà / Mặt bằng',
   'Tiền điện',
   'Tiền nước',
+  'Internet / Wifi',
   'Dụng cụ dọn dẹp',
   'Sửa chữa & Bảo trì',
   'Đồ dùng Homestay (Nước giặt, gia vị...)',
-  'Internet / Wifi',
+  'Lương nhân viên / Quản lý',
+  'Hoa hồng OTA & Marketing',
   'Chi phí khác',
 ];
 
 const PIE_COLORS = ['#8B5CF6', '#2563EB', '#06B6D4', '#10B981', '#EF4444', '#F59E0B', '#EC4899', '#64748B'];
 
 const CAT_COLORS: Record<string, string> = {
+  'Tiền thuê nhà / Mặt bằng': '#8B5CF6',
   'Tiền phòng': '#8B5CF6',
   'Tiền điện': '#2563EB',
   'Tiền nước': '#06B6D4',
+  'Internet / Wifi': '#EC4899',
   'Dụng cụ dọn dẹp': '#10B981',
   'Sửa chữa & Bảo trì': '#EF4444',
   'Đồ dùng Homestay (Nước giặt, gia vị...)': '#F59E0B',
-  'Internet / Wifi': '#EC4899',
+  'Lương nhân viên / Quản lý': '#6366F1',
+  'Hoa hồng OTA & Marketing': '#F97316',
   'Chi phí khác': '#64748B',
   'Điện': '#2563EB',
   'Nước': '#06B6D4',
-  'Cleaning supplies': '#10B981',
-  'Cleaning Supplies': '#10B981',
-  'Repair': '#EF4444',
-  'Repairs': '#EF4444',
-  'Electricity': '#2563EB',
-  'Water': '#06B6D4',
   'Internet': '#EC4899',
-  'Staff': '#8B5CF6',
-  'Khác': '#64748B',
-  'Other': '#64748B',
+  'Staff': '#6366F1',
+  'Repair': '#EF4444',
 };
 
+export function getExpenseCostType(e: Partial<Expense> | { category?: string; costType?: string }): ExpenseCostType {
+  if (e.costType === 'fixed' || e.costType === 'variable') {
+    return e.costType;
+  }
+  const cat = (e.category || '').toLowerCase();
+  if (
+    cat.includes('thuê') ||
+    cat.includes('mặt bằng') ||
+    cat.includes('phòng') ||
+    cat.includes('nhà') ||
+    cat.includes('wifi') ||
+    cat.includes('internet') ||
+    cat.includes('lương') ||
+    cat.includes('staff') ||
+    cat.includes('bảo hiểm')
+  ) {
+    return 'fixed';
+  }
+  return 'variable';
+}
+
 type TimeRange = 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'all';
+type CostTypeFilter = 'all' | 'fixed' | 'variable' | 'recurring';
 
 function formatDateStr(d: Date): string {
   const y = d.getFullYear();
@@ -61,16 +85,30 @@ export default function Expenses() {
   const { expenses = [], loading, refetch, createExpense } = useExpenses();
 
   const [timeRange, setTimeRange] = useState<TimeRange>('this_month');
+  const [costFilter, setCostFilter] = useState<CostTypeFilter>('all');
   const [filterCat, setFilterCat] = useState('Tất cả');
   const [searchQuery, setSearchQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState({
+  const [recurringModalOpen, setRecurringModalOpen] = useState(false);
+
+  const [form, setForm] = useState<{
+    category: string;
+    costType: ExpenseCostType;
+    isRecurring: boolean;
+    amount: string;
+    description: string;
+    vendor: string;
+    date: string;
+  }>({
     category: 'Đồ dùng Homestay (Nước giặt, gia vị...)',
+    costType: 'variable',
+    isRecurring: false,
     amount: '',
     description: '',
     vendor: '',
     date: formatDateStr(new Date()),
   });
+
   const [toast, setToast] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -136,21 +174,44 @@ export default function Expenses() {
     });
   }, [expenses, startDate, endDate]);
 
-  // Lọc tiếp theo Danh mục và Tìm kiếm từ khóa
+  // Lọc tiếp theo Phân loại chi phí (Cố định / Biến đổi / Định kỳ), Danh mục và Tìm kiếm
   const filteredExpenses = useMemo(() => {
     return periodExpenses.filter(e => {
+      const itemCostType = getExpenseCostType(e);
+      const matchCostType =
+        costFilter === 'all' ||
+        (costFilter === 'fixed' && itemCostType === 'fixed') ||
+        (costFilter === 'variable' && itemCostType === 'variable') ||
+        (costFilter === 'recurring' && (e.isRecurring || itemCostType === 'fixed'));
+
       const matchCat = filterCat === 'Tất cả' || e.category === filterCat;
       const q = searchQuery.trim().toLowerCase();
       const matchSearch = !q ||
         (e.description || '').toLowerCase().includes(q) ||
         (e.vendor || '').toLowerCase().includes(q) ||
         (e.category || '').toLowerCase().includes(q);
-      return matchCat && matchSearch;
-    });
-  }, [periodExpenses, filterCat, searchQuery]);
 
-  // Thống kê tổng quan trong kỳ
+      return matchCostType && matchCat && matchSearch;
+    });
+  }, [periodExpenses, costFilter, filterCat, searchQuery]);
+
+  // Thống kê tổng quan trong kỳ theo MECE
   const totalAmount = useMemo(() => periodExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0), [periodExpenses]);
+
+  const fixedTotal = useMemo(() => {
+    return periodExpenses
+      .filter(e => getExpenseCostType(e) === 'fixed')
+      .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  }, [periodExpenses]);
+
+  const variableTotal = useMemo(() => {
+    return periodExpenses
+      .filter(e => getExpenseCostType(e) === 'variable')
+      .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  }, [periodExpenses]);
+
+  const fixedPct = totalAmount > 0 ? Math.round((fixedTotal / totalAmount) * 100) : 0;
+  const variablePct = totalAmount > 0 ? Math.round((variableTotal / totalAmount) * 100) : 0;
 
   const maxExpense = useMemo(() => {
     if (periodExpenses.length === 0) return null;
@@ -173,7 +234,16 @@ export default function Expenses() {
       .sort((a, b) => b.value - a.value);
   }, [periodExpenses, totalAmount]);
 
-  const topCategory = byCategory.length > 0 ? byCategory[0] : null;
+  // Handle Category Change in Form
+  const handleFormCategoryChange = (category: string) => {
+    const defaultType = getExpenseCostType({ category });
+    setForm(prev => ({
+      ...prev,
+      category,
+      costType: defaultType,
+      isRecurring: defaultType === 'fixed',
+    }));
+  };
 
   // Thêm khoản chi mới
   const handleAdd = async () => {
@@ -186,6 +256,8 @@ export default function Expenses() {
       const desc = form.description.trim() || form.category;
       await createExpense({
         category: form.category,
+        costType: form.costType,
+        isRecurring: form.isRecurring,
         amount: parseFloat(form.amount),
         description: desc,
         date: form.date,
@@ -194,6 +266,8 @@ export default function Expenses() {
       setAddOpen(false);
       setForm({
         category: 'Đồ dùng Homestay (Nước giặt, gia vị...)',
+        costType: 'variable',
+        isRecurring: false,
         amount: '',
         description: '',
         vendor: '',
@@ -204,6 +278,30 @@ export default function Expenses() {
       showToast('❌ Lưu chi phí thất bại. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Preset Recurring Templates for 1-Click Generation
+  const RECURRING_PRESETS = [
+    { category: 'Tiền thuê nhà / Mặt bằng', amount: 15000000, description: 'Tiền thuê nhà nguyên căn / Mặt bằng tháng này', costType: 'fixed' as const, vendor: 'Chủ nhà' },
+    { category: 'Internet / Wifi', amount: 350000, description: 'Gói cáp quang Homestay FPT / Viettel', costType: 'fixed' as const, vendor: 'Nhà mạng' },
+    { category: 'Lương nhân viên / Quản lý', amount: 6000000, description: 'Lương cứng quản lý homestay', costType: 'fixed' as const, vendor: 'Nhân sự' },
+  ];
+
+  const handleApplyRecurringPreset = async (preset: typeof RECURRING_PRESETS[0]) => {
+    try {
+      await createExpense({
+        category: preset.category,
+        costType: preset.costType,
+        isRecurring: true,
+        amount: preset.amount,
+        description: preset.description,
+        date: formatDateStr(new Date(y, m, 5)), // Ghi nhận ngày 5 hàng tháng
+        vendor: preset.vendor,
+      });
+      showToast(`✅ Đã ghi nhận chi phí định kỳ: ${preset.category}`);
+    } catch {
+      showToast('❌ Thêm chi phí thất bại');
     }
   };
 
@@ -277,22 +375,39 @@ export default function Expenses() {
           </div>
         </div>
 
-        {/* Nút Thêm khoản chi */}
-        <button
-          onClick={() => setAddOpen(true)}
-          style={{
-            background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8,
-            padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
-          }}
-        >
-          <span>➕</span>
-          <span>Thêm khoản chi</span>
-        </button>
+        {/* Nút tác vụ nhanh */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setRecurringModalOpen(true)}
+            style={{
+              background: darkMode ? '#312E81' : '#EEF2FF',
+              color: '#4F46E5',
+              border: '1px solid #C7D2FE',
+              borderRadius: 8,
+              padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <span>🔁</span>
+            <span>Chi phí định kỳ</span>
+          </button>
+
+          <button
+            onClick={() => setAddOpen(true)}
+            style={{
+              background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8,
+              padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+            }}
+          >
+            <span>➕</span>
+            <span>Thêm khoản chi</span>
+          </button>
+        </div>
       </div>
 
-      {/* ─── 2. HÀNG 3 THẺ KPI TỔNG QUAN (CHI PHÍ TRONG KỲ) ────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+      {/* ─── 2. HÀNG 4 THẺ KPI TỔNG QUAN (MECE COST STRUCTURE) ────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         {/* Thẻ 1: Tổng chi phí */}
         <div style={{ ...cardStyle, borderLeft: '4px solid #EF4444' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -307,7 +422,35 @@ export default function Expenses() {
           </div>
         </div>
 
-        {/* Thẻ 2: Khoản chi lớn nhất */}
+        {/* Thẻ 2: Chi phí Cố định (Fixed Costs) */}
+        <div style={{ ...cardStyle, borderLeft: '4px solid #2563EB' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: textPrimary }}>Chi phí Cố định (Fixed)</span>
+            <span style={{ fontSize: 11, background: '#DBEAFE', color: '#1E40AF', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>{fixedPct}%</span>
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#2563EB', fontFamily: "'DM Serif Display', serif", marginBottom: 2 }}>
+            {formatVnd(fixedTotal)}
+          </div>
+          <div style={{ fontSize: 12, color: textMuted }}>
+            Mặt bằng, Wifi, Lương quản lý...
+          </div>
+        </div>
+
+        {/* Thẻ 3: Chi phí Biến đổi (Variable Costs) */}
+        <div style={{ ...cardStyle, borderLeft: '4px solid #10B981' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: textPrimary }}>Chi phí Biến đổi (Variable)</span>
+            <span style={{ fontSize: 11, background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>{variablePct}%</span>
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#10B981', fontFamily: "'DM Serif Display', serif", marginBottom: 2 }}>
+            {formatVnd(variableTotal)}
+          </div>
+          <div style={{ fontSize: 12, color: textMuted }}>
+            Điện, Nước, Giặt ủi, Đồ tiêu hao...
+          </div>
+        </div>
+
+        {/* Thẻ 4: Khoản chi lớn nhất */}
         <div style={{ ...cardStyle, borderLeft: '4px solid #8B5CF6' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: textPrimary }}>Khoản chi lớn nhất</span>
@@ -318,20 +461,6 @@ export default function Expenses() {
           </div>
           <div style={{ fontSize: 12, color: textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {maxExpense ? `${maxExpense.category} (${maxExpense.description})` : 'Chưa có dữ liệu'}
-          </div>
-        </div>
-
-        {/* Thẻ 3: Danh mục chi nhiều nhất */}
-        <div style={{ ...cardStyle, borderLeft: '4px solid #F59E0B' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: textPrimary }}>Danh mục chi nhiều nhất</span>
-            <span style={{ fontSize: 18 }}>📊</span>
-          </div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#F59E0B', fontFamily: "'DM Serif Display', serif", marginBottom: 2 }}>
-            {topCategory ? topCategory.name : '—'}
-          </div>
-          <div style={{ fontSize: 12, color: textMuted }}>
-            {topCategory ? `${formatVnd(topCategory.value)} (${topCategory.pct}% tổng chi)` : 'Chưa có khoản chi nào'}
           </div>
         </div>
       </div>
@@ -345,8 +474,33 @@ export default function Expenses() {
             padding: '14px 18px', borderBottom: `1px solid ${border}`,
             display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10,
           }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>Danh sách chi phí ({filteredExpenses.length})</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>
+                Danh sách chi phí ({filteredExpenses.length})
+              </span>
+
+              {/* Bộ lọc loại chi phí: Tất cả / Cố định / Biến đổi */}
+              <div style={{ display: 'flex', gap: 4, background: darkMode ? '#0F172A' : '#F1F5F9', padding: 3, borderRadius: 6 }}>
+                {[
+                  { key: 'all', label: 'Tất cả' },
+                  { key: 'fixed', label: '🏷️ Cố định' },
+                  { key: 'variable', label: '🔄 Biến đổi' },
+                  { key: 'recurring', label: '🔁 Định kỳ' },
+                ].map(f => (
+                  <button
+                    key={f.key}
+                    onClick={() => setCostFilter(f.key as CostTypeFilter)}
+                    style={{
+                      background: costFilter === f.key ? (darkMode ? '#334155' : '#fff') : 'transparent',
+                      color: costFilter === f.key ? (darkMode ? '#F1F5F9' : '#2563EB') : textMuted,
+                      border: 'none', borderRadius: 4, padding: '4px 8px', fontSize: 11, fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -366,7 +520,7 @@ export default function Expenses() {
                 placeholder="🔍 Tìm nội dung, nơi mua..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                style={{ ...inputStyle, padding: '6px 10px', fontSize: 12, width: 180 }}
+                style={{ ...inputStyle, padding: '6px 10px', fontSize: 12, width: 160 }}
               />
             </div>
           </div>
@@ -376,6 +530,7 @@ export default function Expenses() {
               <thead>
                 <tr style={{ borderBottom: `1px solid ${border}`, background: darkMode ? '#0F172A' : '#F8FAFC' }}>
                   <th style={{ padding: '10px 16px', textAlign: 'left', color: textMuted, fontWeight: 600, fontSize: 12 }}>Ngày chi</th>
+                  <th style={{ padding: '10px 16px', textAlign: 'left', color: textMuted, fontWeight: 600, fontSize: 12 }}>Phân loại</th>
                   <th style={{ padding: '10px 16px', textAlign: 'left', color: textMuted, fontWeight: 600, fontSize: 12 }}>Danh mục</th>
                   <th style={{ padding: '10px 16px', textAlign: 'left', color: textMuted, fontWeight: 600, fontSize: 12 }}>Nội dung / Mô tả</th>
                   <th style={{ padding: '10px 16px', textAlign: 'left', color: textMuted, fontWeight: 600, fontSize: 12 }}>Nơi mua / NCC</th>
@@ -384,37 +539,54 @@ export default function Expenses() {
               </thead>
               <tbody>
                 {loading && expenses.length === 0 ? (
-                  <tr><td colSpan={5} style={{ padding: 40, textAlign: 'center', color: textMuted }}>Đang tải dữ liệu...</td></tr>
-                ) : filteredExpenses.map(e => (
-                  <tr
-                    key={e.expenseId}
-                    style={{ borderBottom: `1px solid ${border}` }}
-                    onMouseEnter={el => (el.currentTarget as HTMLElement).style.background = darkMode ? '#0F172A40' : '#F8FAFC'}
-                    onMouseLeave={el => (el.currentTarget as HTMLElement).style.background = 'transparent'}
-                  >
-                    <td style={{ padding: '12px 16px', color: textMuted, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, whiteSpace: 'nowrap' }}>
-                      {e.date}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{
-                        background: `${CAT_COLORS[e.category] ?? '#94A3B8'}18`,
-                        color: CAT_COLORS[e.category] ?? '#94A3B8',
-                        fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
-                      }}>
-                        {e.category}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', color: textPrimary, fontWeight: 500 }}>
-                      {e.description}
-                    </td>
-                    <td style={{ padding: '12px 16px', color: textMuted }}>
-                      {e.vendor ?? '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px', color: '#EF4444', fontWeight: 700, textAlign: 'right' }}>
-                      {formatVnd(e.amount)}
-                    </td>
-                  </tr>
-                ))}
+                  <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: textMuted }}>Đang tải dữ liệu...</td></tr>
+                ) : filteredExpenses.map(e => {
+                  const nature = getExpenseCostType(e);
+                  return (
+                    <tr
+                      key={e.expenseId}
+                      style={{ borderBottom: `1px solid ${border}` }}
+                      onMouseEnter={el => (el.currentTarget as HTMLElement).style.background = darkMode ? '#0F172A40' : '#F8FAFC'}
+                      onMouseLeave={el => (el.currentTarget as HTMLElement).style.background = 'transparent'}
+                    >
+                      <td style={{ padding: '12px 16px', color: textMuted, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, whiteSpace: 'nowrap' }}>
+                        {e.date}
+                      </td>
+                      <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                            background: nature === 'fixed' ? (darkMode ? '#1E3A8A' : '#DBEAFE') : (darkMode ? '#064E3B' : '#D1FAE5'),
+                            color: nature === 'fixed' ? '#2563EB' : '#059669',
+                          }}>
+                            {nature === 'fixed' ? 'CỐ ĐỊNH' : 'BIẾN ĐỔI'}
+                          </span>
+                          {e.isRecurring && (
+                            <span style={{ fontSize: 11 }} title="Chi phí định kỳ">🔁</span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{
+                          background: `${CAT_COLORS[e.category] ?? '#94A3B8'}18`,
+                          color: CAT_COLORS[e.category] ?? '#94A3B8',
+                          fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                        }}>
+                          {e.category}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', color: textPrimary, fontWeight: 500 }}>
+                        {e.description}
+                      </td>
+                      <td style={{ padding: '12px 16px', color: textMuted }}>
+                        {e.vendor ?? '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px', color: '#EF4444', fontWeight: 700, textAlign: 'right' }}>
+                        {formatVnd(e.amount)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             {filteredExpenses.length === 0 && !loading && (
@@ -431,7 +603,7 @@ export default function Expenses() {
             Cơ cấu chi phí trong kỳ
           </div>
           <div style={{ fontSize: 12, color: textMuted, marginBottom: 14 }}>
-            {periodLabel} · Tổng chi: {formatVnd(totalAmount)}
+            {periodLabel} · Tổng: {formatVnd(totalAmount)}
           </div>
 
           {byCategory.length > 0 ? (
@@ -482,8 +654,48 @@ export default function Expenses() {
         </div>
       </div>
 
-      {/* ─── MODAL THÊM KHOẢN CHI MỚI ──────────────────────────────────────── */}
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Thêm khoản chi mới" darkMode={darkMode}>
+      {/* ─── MODAL TỰ ĐỘNG GHI NHẬN CHI PHÍ ĐỊNH KỲ ────────────────────────── */}
+      <Modal open={recurringModalOpen} onClose={() => setRecurringModalOpen(false)} title="🔁 Quản lý & Tự động ghi nhận Chi phí Định kỳ" darkMode={darkMode} width={540}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <p style={{ margin: 0, fontSize: 13, color: textMuted, lineHeight: 1.5 }}>
+            Các chi phí cố định hàng tháng (Mặt bằng, Internet, Lương). Bạn có thể bấm 1-click để ghi nhận nhanh vào sổ chi tiêu tháng này:
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {RECURRING_PRESETS.map((p, idx) => (
+              <div
+                key={idx}
+                style={{
+                  padding: '12px 14px', borderRadius: 10, border: `1px solid ${border}`,
+                  background: darkMode ? '#0F172A' : '#F8FAFC',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, color: textPrimary, fontSize: 13 }}>{p.category}</div>
+                  <div style={{ fontSize: 12, color: textMuted }}>{p.description} (NCC: {p.vendor})</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#EF4444', marginTop: 2 }}>{formatVnd(p.amount)}</div>
+                </div>
+                <button
+                  onClick={() => {
+                    handleApplyRecurringPreset(p);
+                    setRecurringModalOpen(false);
+                  }}
+                  style={{
+                    background: '#2563EB', color: '#fff', border: 'none', borderRadius: 6,
+                    padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  }}
+                >
+                  Ghi nhận tháng này
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
+
+      {/* ─── MODAL THÊM KHOẢN CHI ───────────────────────────────────────────── */}
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Thêm khoản chi mới" darkMode={darkMode} width={500}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: textMuted, display: 'block', marginBottom: 4 }}>
@@ -491,11 +703,41 @@ export default function Expenses() {
             </label>
             <select
               value={form.category}
-              onChange={e => setForm(prev => ({ ...prev, category: e.target.value }))}
+              onChange={e => handleFormCategoryChange(e.target.value)}
               style={{ ...inputStyle, width: '100%' }}
             >
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: textMuted, display: 'block', marginBottom: 4 }}>
+                Bản chất chi phí (MECE) *
+              </label>
+              <select
+                value={form.costType}
+                onChange={e => setForm(prev => ({ ...prev, costType: e.target.value as ExpenseCostType }))}
+                style={{ ...inputStyle, width: '100%' }}
+              >
+                <option value="variable">🔄 Biến đổi (Variable)</option>
+                <option value="fixed">🏷️ Cố định (Fixed)</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: textMuted, display: 'block', marginBottom: 4 }}>
+                Khoản chi định kỳ?
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 38, cursor: 'pointer', fontSize: 13, color: textPrimary, fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={form.isRecurring}
+                  onChange={e => setForm(prev => ({ ...prev, isRecurring: e.target.checked }))}
+                  style={{ width: 16, height: 16, cursor: 'pointer' }}
+                />
+                <span>Hàng tháng 🔁</span>
+              </label>
+            </div>
           </div>
 
           <div>
