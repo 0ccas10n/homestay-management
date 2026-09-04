@@ -24,6 +24,14 @@ function toDateInput(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function addDays(dateStr: string, days: number = 1): string {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return toDateInput(date);
+}
+
 export default function QuickRoomFinder({
   rooms,
   bookings,
@@ -45,6 +53,38 @@ export default function QuickRoomFinder({
   const [checkOutDate, setCheckOutDate] = useState(() => toDateInput(tomorrow));
   const [checkOutTime, setCheckOutTime] = useState('12:00');
   const [numGuests, setNumGuests] = useState('2');
+
+  // Khi người dùng đổi Check-In Ngày: tự động đẩy Check-Out sang ngày hôm sau (1 đêm mặc định)
+  const handleCheckInDateChange = (newInDate: string) => {
+    setCheckInDate(newInDate);
+    if (newInDate) {
+      const nextDay = addDays(newInDate, 1);
+      setCheckOutDate(nextDay);
+    }
+  };
+
+  // Khi người dùng đổi Check-Out Ngày: bảo đảm checkOutDate >= checkInDate
+  const handleCheckOutDateChange = (newOutDate: string) => {
+    setCheckOutDate(newOutDate);
+    if (newOutDate && checkInDate && newOutDate < checkInDate) {
+      setCheckInDate(newOutDate);
+    }
+    // Nếu chọn cùng ngày mà giờ check-out trước hoặc bằng giờ check-in, tự động điều chỉnh giờ check-out
+    if (newOutDate === checkInDate && checkOutTime <= checkInTime) {
+      const [h, m] = checkInTime.split(':').map(Number);
+      const newH = Math.min(23, h + 4);
+      setCheckOutTime(`${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  };
+
+  const handleCheckInTimeChange = (newInTime: string) => {
+    setCheckInTime(newInTime);
+    if (checkInDate === checkOutDate && checkOutTime <= newInTime) {
+      const [h, m] = newInTime.split(':').map(Number);
+      const newH = Math.min(23, h + 2);
+      setCheckOutTime(`${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  };
 
   // Filter available rooms in memory using non-overlap condition + cleaning buffer
   const availableRooms = useMemo(() => {
@@ -91,12 +131,15 @@ export default function QuickRoomFinder({
   const { nights, totalHours } = useMemo(() => {
     const ci = new Date(`${checkInDate}T${checkInTime}:00+07:00`).getTime();
     const co = new Date(`${checkOutDate}T${checkOutTime}:00+07:00`).getTime();
-    if (isNaN(ci) || isNaN(co) || ci >= co) return { nights: 1, totalHours: 22 };
-    const n = Math.max(1, Math.ceil((co - ci) / (24 * 60 * 60 * 1000)));
-    const hours = (checkInTime === '14:00' && checkOutTime === '12:00')
+    if (isNaN(ci) || isNaN(co) || ci >= co) return { nights: 0, totalHours: 0 };
+    const inD = new Date(checkInDate);
+    const outD = new Date(checkOutDate);
+    const diffDays = Math.round((outD.getTime() - inD.getTime()) / (24 * 60 * 60 * 1000));
+    const n = Math.max(0, diffDays);
+    const hours = (n > 0 && checkInTime === '14:00' && checkOutTime === '12:00')
       ? (24 * n - 2)
       : Math.round((co - ci) / (60 * 60 * 1000));
-    return { nights: n, totalHours: hours };
+    return { nights: n, totalHours: Math.max(0, hours) };
   }, [checkInDate, checkInTime, checkOutDate, checkOutTime]);
 
   return (
@@ -158,7 +201,7 @@ export default function QuickRoomFinder({
               <input
                 type="date"
                 value={checkInDate}
-                onChange={e => setCheckInDate(e.target.value)}
+                onChange={e => handleCheckInDateChange(e.target.value)}
                 style={{
                   width: '100%', padding: '7px 10px', borderRadius: 6,
                   border: `1px solid ${border}`, background: inputBg, color: textPrimary, fontSize: 12,
@@ -172,7 +215,7 @@ export default function QuickRoomFinder({
               <input
                 type="time"
                 value={checkInTime}
-                onChange={e => setCheckInTime(e.target.value)}
+                onChange={e => handleCheckInTimeChange(e.target.value)}
                 style={{
                   width: '100%', padding: '7px 10px', borderRadius: 6,
                   border: `1px solid ${border}`, background: inputBg, color: textPrimary, fontSize: 12,
@@ -185,8 +228,9 @@ export default function QuickRoomFinder({
               </label>
               <input
                 type="date"
+                min={checkInDate}
                 value={checkOutDate}
-                onChange={e => setCheckOutDate(e.target.value)}
+                onChange={e => handleCheckOutDateChange(e.target.value)}
                 style={{
                   width: '100%', padding: '7px 10px', borderRadius: 6,
                   border: `1px solid ${border}`, background: inputBg, color: textPrimary, fontSize: 12,
@@ -228,7 +272,7 @@ export default function QuickRoomFinder({
           {/* Results Room Cards */}
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: textMuted, marginBottom: 8, textTransform: 'uppercase' }}>
-              Danh sách phòng còn trống ({nights} đêm · {totalHours} tiếng · {numGuests} khách):
+              Danh sách phòng còn trống ({nights > 0 ? `${nights} đêm · ` : 'Trong ngày · '}{totalHours} tiếng · {numGuests} khách):
             </div>
             {availableRooms.length === 0 ? (
               <div style={{
@@ -253,7 +297,7 @@ export default function QuickRoomFinder({
                   const nightPrice = (priceRow && Number(priceRow.priceVnd) > 0)
                     ? Number(priceRow.priceVnd)
                     : (Number(room.priceDisplay) || (room as any).pricePerNight || 810_000);
-                  const estPrice = nightPrice * nights;
+                  const estPrice = nights > 0 ? nightPrice * nights : nightPrice;
 
                   return (
                     <div
@@ -282,7 +326,10 @@ export default function QuickRoomFinder({
                           {(room as any).type || 'Phòng Homestay'}
                         </div>
                         <div style={{ fontSize: 14, fontWeight: 800, color: '#10B981', marginTop: 4 }}>
-                          ~{formatVnd(estPrice)} <span style={{ fontSize: 10, fontWeight: 400, color: textMuted }}>({nights} đêm · {formatVnd(nightPrice)}/đêm)</span>
+                          ~{formatVnd(estPrice)}{' '}
+                          <span style={{ fontSize: 10, fontWeight: 400, color: textMuted }}>
+                            ({nights > 0 ? `${nights} đêm · ${formatVnd(nightPrice)}/đêm` : `Trong ngày · ${totalHours} tiếng`})
+                          </span>
                         </div>
                       </div>
 
