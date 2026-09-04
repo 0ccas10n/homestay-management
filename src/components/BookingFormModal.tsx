@@ -695,7 +695,7 @@ async function recalculateTotal(
               <option value="TIKTOK">TIKTOK</option>
               <option value="ZALO">ZALO</option>
               <option value="FACEBOOK">FACEBOOK</option>
-              <option value="KHAC">KHÁC</option>
+              <option value="KHÁC">KHÁC</option>
             </select>
           </div>
         </div>

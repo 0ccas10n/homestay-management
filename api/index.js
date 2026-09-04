@@ -1308,7 +1308,7 @@ var updateRoomSchema = z.object({
 });
 var upsertCustomerSchema = z.object({
   name: z.string().min(1, "customer.name is required").max(200).optional(),
-  source: z.enum(["INSTAGRAM", "TIKTOK", "ZALO", "FACEBOOK", "KH\xC1C"]).optional(),
+  source: z.enum(["INSTAGRAM", "TIKTOK", "ZALO", "FACEBOOK", "KH\xC1C", "KHAC"]).transform((val) => val === "KHAC" ? "KH\xC1C" : val).optional(),
   email: z.string().email().max(200).optional().or(z.literal("")),
   note: z.string().max(1e3).optional()
 });

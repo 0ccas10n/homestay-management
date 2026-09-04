@@ -75,7 +75,9 @@ export const updateRoomSchema = z.object({
 
 export const upsertCustomerSchema = z.object({
   name:   z.string().min(1, 'customer.name is required').max(200).optional(),
-  source: z.enum(['INSTAGRAM', 'TIKTOK', 'ZALO', 'FACEBOOK', 'KHÁC']).optional(),
+  source: z.enum(['INSTAGRAM', 'TIKTOK', 'ZALO', 'FACEBOOK', 'KHÁC', 'KHAC'])
+    .transform(val => (val === 'KHAC' ? 'KHÁC' : val))
+    .optional(),
   email:  z.string().email().max(200).optional().or(z.literal('')),
   note:   z.string().max(1000).optional(),
 });
