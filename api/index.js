@@ -1712,6 +1712,7 @@ async function checkout(spreadsheetId, bookingId, actualCheckOutAt, extras) {
     overtimeAmount: overtimeAmount > 0 ? overtimeAmount : void 0,
     extraServicesAmount: extraServicesAmount > 0 ? extraServicesAmount : void 0,
     extraServicesNote: extraServicesNote || void 0,
+    note: extras?.note !== void 0 ? extras.note : existing.note,
     depositAmount: existing.depositAmount ?? (existing.paidAmount ?? 0),
     paidAmount,
     paymentStatus,
@@ -2850,7 +2851,8 @@ async function PATCH2(request) {
         extraServicesAmount: parsed.extraServicesAmount,
         extraServicesNote: parsed.extraServicesNote,
         paidAmount: parsed.paidAmount,
-        paymentStatus: parsed.paymentStatus
+        paymentStatus: parsed.paymentStatus,
+        note: parsed.note
       });
       if (!result) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
       const { booking, overtimeMinutes, overtimeAmount } = result;

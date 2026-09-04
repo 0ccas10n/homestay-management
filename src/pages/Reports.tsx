@@ -1,12 +1,9 @@
 // ─── Reports.tsx ─────────────────────────────────────────────────────────────────────
 //
-// Financial Analytics & P&L Statement Dashboard
-// Structured 5-Tier Architecture:
-//   1. Header & Dynamic Time Period Filters (Tháng này / Tháng trước / Quý / Năm / Tùy chọn) + Export Excel
-//   2. Top 4 KPI Metric Cards (Doanh thu | Chi phí | Lợi nhuận | Biên lợi nhuận %)
-//   3. 6-Month Macro Trend (Grouped Bar Revenue/Expenses + Margin Line %)
-//   4. 3 Period Structure Breakdown Charts (Công suất từng phòng | Nguồn khách Kênh | Cơ cấu Chi phí)
-//   5. Financial P&L Statement Table (Kế toán Quản trị Lời / Lỗ chi tiết)
+// Financial Analytics, P&L Statement & Cash Flow / Accounts Receivable Dashboard
+// Dual-Module Executive Architecture:
+//   Tab 1: 📊 Báo cáo Kết quả Kinh doanh (P&L Statement - Kế toán Dồn tích)
+//   Tab 2: 💰 Báo cáo Dòng tiền & Công nợ (Cash Flow & Accounts Receivable - Kế toán Tiền mặt)
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from 'react';
@@ -20,7 +17,8 @@ import { useExpenses } from '@/hooks/useExpenses';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useRooms } from '@/hooks/useRooms';
 import { formatVnd, getBookingTotal } from '@/utils/format';
-import type { BookingStatus } from '@/types/index';
+import type { Booking, BookingStatus } from '@/types/index';
+import QuickEditModal from '@/components/QuickEditModal';
 
 const PIE_COLORS = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B'];
 
@@ -40,6 +38,7 @@ function formatDateStr(d: Date): string {
 }
 
 type TimeRange = 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
+type ReportTab = 'pl' | 'cashflow';
 
 export default function Reports() {
   const outletCtx = useOutletContext<{ darkMode?: boolean }>() || {};
@@ -50,6 +49,11 @@ export default function Reports() {
   const { customers = [] } = useCustomers();
   const { rooms = [] } = useRooms();
   const totalRoomsCount = rooms.length > 0 ? rooms.length : 6;
+
+  const [activeReportTab, setActiveReportTab] = useState<ReportTab>('pl');
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+  const [receivableFilter, setReceivableFilter] = useState<'all' | 'unpaid' | 'partial'>('all');
+  const [receivableSearch, setReceivableSearch] = useState('');
 
   useEffect(() => {
     refetchBookings().catch(() => {});
@@ -75,7 +79,7 @@ export default function Reports() {
   });
   const [customEnd, setCustomEnd] = useState(() => todayStr);
 
-  // Derive active date boundaries (Timezone safe)
+  // Derive active date boundaries
   const { startDate, endDate, periodLabel, isOngoingPeriod } = useMemo(() => {
     const y = now.getFullYear();
     const m = now.getMonth();
@@ -131,12 +135,71 @@ export default function Reports() {
     });
   }, [expenses, startDate, endDate]);
 
-  // Financial calculations for Selected Period
+  // Financial calculations for Selected Period (P&L Accrual)
   const periodRevenue = useMemo(() => periodBookings.reduce((s, b) => s + getBookingTotal(b), 0), [periodBookings]);
   const periodExpensesTotal = useMemo(() => periodExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0), [periodExpenses]);
   const periodNetProfit = periodRevenue - periodExpensesTotal;
   const periodProfitMargin = periodRevenue > 0 ? Math.round((periodNetProfit / periodRevenue) * 100) : 0;
   const isProfitPositive = periodNetProfit >= 0;
+
+  // Cash Flow & Receivables calculations
+  const periodCashInflow = useMemo(() => {
+    return periodBookings.reduce((s, b) => s + (Number(b.paidAmount) || 0), 0);
+  }, [periodBookings]);
+  const periodCashOutflow = periodExpensesTotal;
+  const periodNetCash = periodCashInflow - periodCashOutflow;
+  const isNetCashPositive = periodNetCash >= 0;
+
+  // Receivables (Unpaid balances in period)
+  const roomMap = useMemo(() => new Map(rooms.map(r => [r.roomId, r.name])), [rooms]);
+  const customerMap = useMemo(() => new Map(customers.map(c => [c.customerId, c.name])), [customers]);
+
+  const periodReceivablesList = useMemo(() => {
+    return periodBookings
+      .map(b => {
+        const total = getBookingTotal(b);
+        const paid = Number(b.paidAmount) || 0;
+        const balance = Math.max(0, total - paid);
+        const guest = (b as any).guestName || customerMap.get(b.customerId) || b.customerId;
+        const roomName = roomMap.get(b.roomId) || b.roomId;
+        return {
+          booking: b,
+          bookingId: b.bookingId,
+          guestName: guest,
+          roomName,
+          roomId: b.roomId,
+          checkInAt: b.checkInAt,
+          expectedCheckOutAt: b.expectedCheckOutAt,
+          totalAmount: total,
+          paidAmount: paid,
+          balanceDue: balance,
+          status: b.status,
+          paymentStatus: b.paymentStatus || (paid >= total ? 'paid' : (paid > 0 ? 'partial' : 'unpaid')),
+        };
+      })
+      .filter(item => item.balanceDue > 0)
+      .sort((a, b) => b.balanceDue - a.balanceDue);
+  }, [periodBookings, customerMap, roomMap]);
+
+  const totalReceivablesAmount = useMemo(() => {
+    return periodReceivablesList.reduce((s, r) => s + r.balanceDue, 0);
+  }, [periodReceivablesList]);
+
+  const filteredReceivablesList = useMemo(() => {
+    return periodReceivablesList.filter(item => {
+      if (receivableFilter === 'unpaid' && item.paidAmount > 0) return false;
+      if (receivableFilter === 'partial' && item.paidAmount === 0) return false;
+      if (receivableSearch.trim()) {
+        const q = receivableSearch.toLowerCase();
+        return (
+          item.guestName.toLowerCase().includes(q) ||
+          item.roomName.toLowerCase().includes(q) ||
+          item.bookingId.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [periodReceivablesList, receivableFilter, receivableSearch]);
 
   // Surcharge & Base breakdown
   const totalSurcharges = useMemo(() => periodBookings.reduce((s, b) => s + (Number((b as any).overtimeAmount) || 0), 0), [periodBookings]);
@@ -155,7 +218,7 @@ export default function Reports() {
       .filter(c => c.value > 0);
   }, [periodExpenses]);
 
-  // Fixed vs Variable breakdown for Period (MECE principle)
+  // Fixed vs Variable breakdown for Period
   const periodFixedExpenses = useMemo(() => {
     return periodExpenses.filter(e => {
       const cat = (e.category || '').toLowerCase();
@@ -220,38 +283,6 @@ export default function Reports() {
       .filter(c => c.value > 0);
   }, [periodBookings, customerSourceMap, periodRevenue, darkMode]);
 
-  // Period-based Occupancy Rate %
-  const periodOccupancyRate = useMemo(() => {
-    if (!startDate || !endDate) return 0;
-    const pStart = new Date(startDate);
-    const pEnd = new Date(endDate);
-    const diffDays = Math.round((pEnd.getTime() - pStart.getTime()) / 86400000);
-    const totalDays = isNaN(diffDays) ? 30 : Math.max(1, diffDays + 1);
-    const totalAvailableRoomDays = Math.max(1, (totalRoomsCount || 6) * totalDays);
-
-    if (!periodBookings || periodBookings.length === 0) return 0;
-
-    const occupiedRoomDays = new Set<string>();
-    for (let i = 0; i < totalDays; i++) {
-      const cur = new Date(pStart);
-      cur.setDate(cur.getDate() + i);
-      const dayStr = formatDateStr(cur);
-
-      for (const b of periodBookings) {
-        if (!b.roomId || !b.checkInAt) continue;
-        const cinDate = b.checkInAt.slice(0, 10);
-        const coutDate = (b.expectedCheckOutAt || b.checkInAt).slice(0, 10);
-        const isOccupied = (cinDate <= dayStr && coutDate > dayStr) || (cinDate === dayStr && coutDate === dayStr);
-        if (isOccupied) {
-          occupiedRoomDays.add(`${b.roomId}:${dayStr}`);
-        }
-      }
-    }
-
-    const rate = Math.round((occupiedRoomDays.size / totalAvailableRoomDays) * 100);
-    return Math.min(100, Math.max(rate, periodBookings.length > 0 && rate === 0 ? 1 : rate));
-  }, [startDate, endDate, totalRoomsCount, periodBookings]);
-
   // Room-by-room Occupancy Breakdown in Selected Period
   const roomOccupancyData = useMemo(() => {
     if (!startDate || !endDate) return [];
@@ -291,7 +322,7 @@ export default function Reports() {
     });
   }, [startDate, endDate, rooms, periodBookings]);
 
-  // 6-Month Trend Data
+  // 6-Month Trend Data (P&L and Cash Flow)
   const formatShortVnd = (v: number) => {
     if (v === 0) return '0 ₫';
     if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)} tỷ`;
@@ -301,10 +332,12 @@ export default function Reports() {
   };
 
   const revenueByMonth: Record<string, number> = {};
+  const cashInByMonth: Record<string, number> = {};
   for (const b of revenueBookings) {
     if (!b.checkInAt) continue;
     const m = b.checkInAt.slice(0, 7);
     revenueByMonth[m] = (revenueByMonth[m] ?? 0) + getBookingTotal(b);
+    cashInByMonth[m] = (cashInByMonth[m] ?? 0) + (Number(b.paidAmount) || 0);
   }
 
   const expensesByMonth: Record<string, number> = {};
@@ -322,6 +355,7 @@ export default function Reports() {
   }
 
   const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
   const revenueTrend = trailing6Months.map((mKey) => {
     const [y, m] = mKey.split('-');
     const isCurrent = mKey === currentMonthStr;
@@ -342,8 +376,25 @@ export default function Reports() {
     };
   });
 
-  // 2. Top 4 KPI Metric Cards
-  const summaryStats = [
+  const cashFlowTrend = trailing6Months.map((mKey) => {
+    const [y, m] = mKey.split('-');
+    const isCurrent = mKey === currentMonthStr;
+    const label = isMobile ? `T${Number(m)}` : `Thg ${Number(m)}/${y}`;
+    const cashIn = cashInByMonth[mKey] ?? 0;
+    const cashOut = expensesByMonth[mKey] ?? 0;
+    const netCash = cashIn - cashOut;
+    return {
+      month: label,
+      fullLabel: `Tháng ${Number(m)}/${y}`,
+      cashIn,
+      cashOut,
+      netCash,
+      isCurrent,
+    };
+  });
+
+  // Top 4 KPI Metric Cards (P&L Tab)
+  const summaryStatsPL = [
     {
       title: 'Doanh thu trong kỳ',
       tag: isOngoingPeriod ? 'Tạm tính' : 'Đã chốt',
@@ -378,70 +429,137 @@ export default function Reports() {
       color: isProfitPositive ? '#10B981' : '#EF4444',
     },
     {
-      title: 'Biên lợi nhuận (Margin)',
-      tag: `${periodProfitMargin}%`,
-      tagBg: darkMode ? '#4C1D95' : '#EDE9FE',
+      title: 'Biên lợi nhuận ròng',
+      tag: 'Hiệu suất',
+      tagBg: darkMode ? '#312E81' : '#EDE9FE',
       tagColor: '#8B5CF6',
       value: `${periodProfitMargin}%`,
-      sub: isOngoingPeriod ? 'Tạm tính (Cost Lag)' : 'Tỷ suất sinh lời ròng',
-      label: isProfitPositive ? 'Hiệu quả tài chính tốt' : 'Cần tối ưu chi phí',
+      sub: periodProfitMargin >= 20 ? 'Tốt (>=20%)' : (periodProfitMargin > 0 ? 'Mỏng (<20%)' : 'Lỗ'),
+      label: `Biên đóng góp ${contributionMarginPct}%`,
       icon: '📈',
       color: '#8B5CF6',
     },
   ];
 
-  // CSV Export Handler
+  // Top 4 KPI Metric Cards (Cash Flow Tab)
+  const summaryStatsCashFlow = [
+    {
+      title: 'Tiền thực thu (Cash In)',
+      tag: 'Thực nhận',
+      tagBg: darkMode ? '#064E3B' : '#DCFCE7',
+      tagColor: '#10B981',
+      value: formatVnd(periodCashInflow),
+      sub: `Đạt ${periodRevenue > 0 ? Math.round((periodCashInflow / periodRevenue) * 100) : 0}% doanh thu`,
+      label: `${periodBookings.filter(b => (b.paidAmount || 0) > 0).length} đơn đã nộp tiền`,
+      icon: '💵',
+      color: '#10B981',
+    },
+    {
+      title: 'Tiền thực chi (Cash Out)',
+      tag: 'Đã xuất quỹ',
+      tagBg: darkMode ? '#7F1D1D' : '#FEE2E2',
+      tagColor: '#EF4444',
+      value: formatVnd(periodCashOutflow),
+      sub: periodLabel,
+      label: `${periodExpenses.length} phiếu chi đã thanh toán`,
+      icon: '💸',
+      color: '#EF4444',
+    },
+    {
+      title: 'Dòng tiền ròng (Net Cash)',
+      tag: isNetCashPositive ? 'Dương tiền' : 'Âm tiền',
+      tagBg: darkMode ? (isNetCashPositive ? '#064E3B' : '#7F1D1D') : (isNetCashPositive ? '#DCFCE7' : '#FEE2E2'),
+      tagColor: isNetCashPositive ? '#10B981' : '#EF4444',
+      value: `${isNetCashPositive ? '+' : ''}${formatVnd(periodNetCash)}`,
+      sub: isNetCashPositive ? 'Quỹ dôi dư an toàn' : '⚠️ Thâm hụt quỹ tiền mặt',
+      label: `Vào ${formatVnd(periodCashInflow)} · Ra ${formatVnd(periodCashOutflow)}`,
+      icon: '🏦',
+      color: isNetCashPositive ? '#10B981' : '#EF4444',
+    },
+    {
+      title: 'Công nợ phải thu (Receivables)',
+      tag: 'Chưa thu nốt',
+      tagBg: darkMode ? '#78350F' : '#FEF3C7',
+      tagColor: '#D97706',
+      value: formatVnd(totalReceivablesAmount),
+      sub: `${periodReceivablesList.length} đơn chưa trả đủ`,
+      label: 'Cần theo dõi thu hồi',
+      icon: '⚠️',
+      color: '#D97706',
+    },
+  ];
+
+  // CSV Export logic
   const handleExportCsv = () => {
-    const rows = [
-      ['BÁO CÁO KẾT QUẢ KINH DOANH & TÀI CHÍNH (P&L STATEMENT)'],
-      ['Kỳ báo cáo:', periodLabel],
-      ['Từ ngày:', startDate, 'Đến ngày:', endDate],
-      ['Ngày xuất:', new Date().toLocaleString('vi-VN')],
-      [],
-      ['HẠNG MỤC TÀI CHÍNH', 'SỐ TIỀN (VNĐ)', 'TỶ TRỌNG (%)'],
-      ['I. DOANH THU HOẠT ĐỘNG (REVENUE)', periodRevenue.toString(), '100%'],
-      ['  1. Doanh thu tiền phòng tiêu chuẩn', baseRoomRevenue.toString(), `${periodRevenue > 0 ? Math.round((baseRoomRevenue / periodRevenue) * 100) : 0}%`],
-      ['  2. Phụ thu (Quá giờ / thêm khách)', totalSurcharges.toString(), `${periodRevenue > 0 ? Math.round((totalSurcharges / periodRevenue) * 100) : 0}%`],
-      [],
-      ['II. CHI PHÍ VẬN HÀNH (OPEX)', periodExpensesTotal.toString(), `${periodRevenue > 0 ? Math.round((periodExpensesTotal / periodRevenue) * 100) : 0}%`],
-      ...periodExpenseByCategory.map(c => [
-        `  - ${c.name}`,
-        c.value.toString(),
-        `${periodRevenue > 0 ? Math.round((c.value / periodRevenue) * 100) : 0}%`,
-      ]),
-      [],
-      ['III. LỢI NHUẬN RÒNG (NET PROFIT)', periodNetProfit.toString(), `${periodProfitMargin}%`],
-      [],
-      ['--- CHI TIẾT DANH SÁCH ĐƠN ĐẶT PHÒNG ---'],
-      ['Mã Booking', 'Phòng', 'Khách hàng', 'Check-in', 'Check-out', 'Tổng tiền (VNĐ)', 'Trạng thái'],
-      ...periodBookings.map(b => [
-        b.bookingId,
-        b.roomId,
-        (b as any).guestName || b.customerId,
-        b.checkInAt,
-        b.expectedCheckOutAt,
-        getBookingTotal(b).toString(),
-        b.status,
-      ]),
-      [],
-      ['--- CHI TIẾT DANH SÁCH KHOẢN CHI ---'],
-      ['Mã Chi phí', 'Danh mục', 'Số tiền (VNĐ)', 'Ngày chi', 'Mô tả', 'Nhà cung cấp'],
-      ...periodExpenses.map(e => [
-        e.expenseId,
-        e.category,
-        e.amount.toString(),
-        e.date,
-        e.description,
-        e.vendor || '',
-      ]),
-    ];
+    let rows: string[][] = [];
+
+    if (activeReportTab === 'pl') {
+      rows = [
+        ['BÁO CÁO KẾT QUẢ KINH DOANH (P&L STATEMENT)'],
+        ['Kỳ báo cáo:', periodLabel],
+        ['Thời gian trích xuất:', new Date().toLocaleString('vi-VN')],
+        [],
+        ['HẠNG MỤC TÀI CHÍNH', 'SỐ TIỀN (VNĐ)', 'TỶ TRỌNG (%)'],
+        ['I. DOANH THU HOẠT ĐỘNG (REVENUE)', periodRevenue.toString(), '100%'],
+        ['  1. Doanh thu tiền phòng tiêu chuẩn', baseRoomRevenue.toString(), `${periodRevenue > 0 ? Math.round((baseRoomRevenue / periodRevenue) * 100) : 0}%`],
+        ['  2. Phụ thu (Quá giờ / thêm khách)', totalSurcharges.toString(), `${periodRevenue > 0 ? Math.round((totalSurcharges / periodRevenue) * 100) : 0}%`],
+        [],
+        ['II. CHI PHÍ VẬN HÀNH (OPEX)', periodExpensesTotal.toString(), `${periodRevenue > 0 ? Math.round((periodExpensesTotal / periodRevenue) * 100) : 0}%`],
+        ...periodExpenseByCategory.map(c => [
+          `  - ${c.name}`,
+          c.value.toString(),
+          `${periodRevenue > 0 ? Math.round((c.value / periodRevenue) * 100) : 0}%`,
+        ]),
+        [],
+        ['III. LỢI NHUẬN RÒNG (NET PROFIT)', periodNetProfit.toString(), `${periodProfitMargin}%`],
+        [],
+        ['--- CHI TIẾT DANH SÁCH ĐƠN ĐẶT PHÒNG ---'],
+        ['Mã Booking', 'Phòng', 'Khách hàng', 'Check-in', 'Check-out', 'Tổng tiền (VNĐ)', 'Trạng thái'],
+        ...periodBookings.map(b => [
+          b.bookingId,
+          b.roomId,
+          (b as any).guestName || b.customerId,
+          b.checkInAt,
+          b.expectedCheckOutAt,
+          getBookingTotal(b).toString(),
+          b.status,
+        ]),
+      ];
+    } else {
+      // Cash Flow & Receivables CSV
+      rows = [
+        ['BÁO CÁO DÒNG TIỀN & SỔ THEO DÕI CÔNG NỢ PHẢI THU'],
+        ['Kỳ báo cáo:', periodLabel],
+        ['Thời gian trích xuất:', new Date().toLocaleString('vi-VN')],
+        [],
+        ['TỔNG QUAN DÒNG TIỀN THỰC TẾ', 'SỐ TIỀN (VNĐ)'],
+        ['1. Tiền thực thu vào (Cash Inflow)', periodCashInflow.toString()],
+        ['2. Tiền thực chi ra (Cash Outflow)', periodCashOutflow.toString()],
+        ['3. Dòng tiền thuần trong kỳ (Net Cash Flow)', periodNetCash.toString()],
+        ['4. Tổng công nợ khách còn nợ (Total Receivables)', totalReceivablesAmount.toString()],
+        [],
+        ['--- SỔ CHI TIẾT CÔNG NỢ PHẢI THU KHÁCH HÀNG ---'],
+        ['Mã Đơn', 'Tên Khách', 'Phòng', 'Check-in', 'Check-out', 'Tổng Hóa Đơn (VNĐ)', 'Đã Thanh Toán (VNĐ)', 'Còn Nợ (VNĐ)', 'Trạng Thái'],
+        ...periodReceivablesList.map(r => [
+          r.bookingId,
+          r.guestName,
+          r.roomName,
+          r.checkInAt,
+          r.expectedCheckOutAt,
+          r.totalAmount.toString(),
+          r.paidAmount.toString(),
+          r.balanceDue.toString(),
+          r.paymentStatus === 'unpaid' ? 'Chưa thanh toán' : 'Đã cọc một phần',
+        ]),
+      ];
+    }
 
     const csvContent = '\uFEFF' + rows.map(e => e.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `P&L_BaoCao_${startDate}_${endDate}.csv`);
+    link.setAttribute('download', `${activeReportTab === 'pl' ? 'P&L_BaoCao' : 'DongTien_CongNo'}_${startDate}_${endDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -459,19 +577,77 @@ export default function Reports() {
   const textMuted   = darkMode ? '#94A3B8'  : '#64748B';
   const gridColor  = darkMode ? '#334155'  : '#F1F5F9';
   const tickStyle  = { fontSize: 11, fill: textMuted };
-  const tooltipStyle = {
-    borderRadius: 8, fontSize: 12,
-    background: darkMode ? '#1E293B' : '#fff',
-    border: `1px solid ${bdr}`,
-  };
 
   const isLoading = bookingsLoading && bookings.length === 0 && expensesLoading && expenses.length === 0;
 
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* ─── 1. HEADER & BỘ LỌC THỜI GIAN ─────────────────────────────────── */}
+      {/* ─── 0. EXECUTIVE DUAL-TAB SWITCHER ─────────────────────────────────── */}
       <div style={{
-        ...card, padding: '16px 20px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+        borderBottom: `2px solid ${bdr}`, paddingBottom: 12,
+      }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setActiveReportTab('pl')}
+            style={{
+              padding: '10px 18px', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              border: activeReportTab === 'pl' ? 'none' : `1px solid ${bdr}`,
+              background: activeReportTab === 'pl' ? '#2563EB' : (darkMode ? '#1E293B' : '#fff'),
+              color: activeReportTab === 'pl' ? '#fff' : textPrimary,
+              display: 'flex', alignItems: 'center', gap: 8,
+              boxShadow: activeReportTab === 'pl' ? '0 2px 8px rgba(37, 99, 235, 0.3)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>📊</span>
+            <span>Báo cáo Lời / Lỗ (P&L)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveReportTab('cashflow')}
+            style={{
+              padding: '10px 18px', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              border: activeReportTab === 'cashflow' ? 'none' : `1px solid ${bdr}`,
+              background: activeReportTab === 'cashflow' ? '#10B981' : (darkMode ? '#1E293B' : '#fff'),
+              color: activeReportTab === 'cashflow' ? '#fff' : textPrimary,
+              display: 'flex', alignItems: 'center', gap: 8,
+              boxShadow: activeReportTab === 'cashflow' ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>💰</span>
+            <span>Báo cáo Dòng tiền & Công nợ</span>
+            {totalReceivablesAmount > 0 && (
+              <span style={{
+                fontSize: 10, background: '#EF4444', color: '#fff',
+                padding: '2px 6px', borderRadius: 10, fontWeight: 800,
+              }}>
+                {periodReceivablesList.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Export Excel / CSV Button */}
+        <button
+          onClick={handleExportCsv}
+          style={{
+            background: activeReportTab === 'pl' ? '#2563EB' : '#10B981',
+            color: '#fff', border: 'none', borderRadius: 8,
+            padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          }}
+        >
+          <span>📥</span>
+          <span>Xuất {activeReportTab === 'pl' ? 'Báo cáo P&L' : 'Sổ Công Nợ'} (CSV)</span>
+        </button>
+      </div>
+
+      {/* ─── 1. BỘ LỌC THỜI GIAN CHUNG ─────────────────────────────────────── */}
+      <div style={{
+        ...card, padding: '14px 20px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -528,396 +704,677 @@ export default function Reports() {
           )}
         </div>
 
-        {/* Export Excel / CSV Button */}
-        <button
-          onClick={handleExportCsv}
-          style={{
-            background: '#10B981', color: '#fff', border: 'none', borderRadius: 8,
-            padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
-          }}
-        >
-          <span>📥</span>
-          <span>Xuất Báo cáo Excel (CSV)</span>
-        </button>
-      </div>
-
-      {/* ─── 2. HÀNG 4 THẺ KPI TỔNG QUAN ─────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} style={{ ...card, padding: '16px 18px', minHeight: 80 }} />
-          ))
-        ) : summaryStats.map(s => (
-          <div key={s.title} style={{ ...card, padding: '16px 18px', borderLeft: `4px solid ${s.color}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: textPrimary }}>{s.title}</span>
-                {s.tag && (
-                  <span style={{ fontSize: 10, background: s.tagBg, color: s.tagColor, padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
-                    {s.tag}
-                  </span>
-                )}
-              </div>
-              <span style={{ fontSize: 18 }}>{s.icon}</span>
-            </div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'DM Serif Display', serif", marginBottom: 2 }}>{s.value}</div>
-            <div style={{ fontSize: 12, color: s.color, fontWeight: 700 }}>{s.sub}</div>
-            <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ─── 3. BIỂU ĐỒ XU HƯỚNG 6 THÁNG (Doanh thu vs Chi phí & Biên LN) ─── */}
-      <div style={card}>
-        <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span>Doanh thu & Chi phí (6 tháng)</span>
-              <span style={{ fontSize: 10, fontWeight: 600, background: darkMode ? '#78350F40' : '#FEF3C7', color: '#D97706', padding: '1px 6px', borderRadius: 4, border: '1px solid #FCD34D' }}>
-                (*) Tháng hiện tại là tạm tính (Cost Lag)
-              </span>
-            </div>
-            <div style={{ fontSize: 12, color: textMuted, marginTop: 2 }}>Doanh thu (Xanh) vs Chi phí (Đỏ) & Biên lợi nhuận (%)</div>
-          </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 2, background: '#2563EB' }} />
-              <span style={{ color: textPrimary, fontWeight: 600 }}>Doanh thu</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 2, background: '#EF4444' }} />
-              <span style={{ color: textPrimary, fontWeight: 600 }}>Chi phí</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#8B5CF6' }} />
-              <span style={{ color: textPrimary, fontWeight: 600 }}>Biên LN (%)</span>
-            </div>
-          </div>
+        <div style={{ fontSize: 12, color: textMuted, fontWeight: 600 }}>
+          Thời gian: <span style={{ color: textPrimary }}>{periodLabel}</span>
         </div>
-        {revenueTrend.length > 0 ? (
-          <ResponsiveContainer width="100%" height={270}>
-            <ComposedChart data={revenueTrend} margin={{ top: 15, right: isMobile ? 0 : 10, left: isMobile ? -10 : 10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-              <XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" width={isMobile ? 48 : 64} tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={formatShortVnd} />
-              <YAxis yAxisId="right" width={isMobile ? 38 : 46} orientation="right" tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                content={({ active, payload, label }) => {
-                  if (!active || !payload || !payload.length) return null;
-                  const data = payload[0]?.payload;
-                  const isCur = data?.isCurrent;
-                  const profit = data?.profit ?? 0;
-                  const margin = data?.margin;
-                  return (
-                    <div style={{ ...tooltipStyle, padding: '8px 12px', minWidth: 190 }}>
-                      <div style={{ fontWeight: 700, color: textPrimary, marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
-                        <span>{data?.fullLabel || label}</span>
-                        {isCur && (
-                          <span style={{ fontSize: 9, background: '#FEF3C7', color: '#B45309', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
-                            Đang chạy
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#2563EB', fontSize: 11, marginBottom: 2 }}>
-                        <span>Doanh thu:</span>
-                        <span style={{ fontWeight: 700 }}>{formatVnd(data?.revenue ?? 0)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#EF4444', fontSize: 11, marginBottom: 2 }}>
-                        <span>Chi phí:</span>
-                        <span style={{ fontWeight: 700 }}>{formatVnd(data?.expenses ?? 0)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: profit >= 0 ? '#10B981' : '#EF4444', fontSize: 11, marginBottom: 2 }}>
-                        <span>Lợi nhuận ròng:</span>
-                        <span style={{ fontWeight: 700 }}>{profit >= 0 ? '+' : ''}{formatVnd(profit)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#8B5CF6', fontWeight: 700, fontSize: 11, paddingTop: 3, borderTop: `1px solid ${bdr}` }}>
-                        <span>Biên lợi nhuận:</span>
-                        <span>{margin !== null && margin !== undefined ? `${margin}%` : '—'}</span>
-                      </div>
-                      {isCur && (
-                        <div style={{ marginTop: 4, paddingTop: 4, borderTop: `1px dashed ${bdr}`, fontSize: 10, color: '#F59E0B', lineHeight: 1.2 }}>
-                          ⚠️ Chưa kết toán hết tiền nhà, điện nước
-                        </div>
-                      )}
-                    </div>
-                  );
-                }}
-              />
-              <Bar yAxisId="left" dataKey="revenue" name="Doanh thu" fill="#2563EB" radius={[4, 4, 0, 0]} barSize={isMobile ? 12 : 22} />
-              <Bar yAxisId="left" dataKey="expenses" name="Chi phí" fill="#EF4444" radius={[4, 4, 0, 0]} barSize={isMobile ? 12 : 22} />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="margin"
-                name="Biên lợi nhuận"
-                stroke="#8B5CF6"
-                strokeWidth={2.5}
-                connectNulls={true}
-                dot={{ r: 4, fill: '#8B5CF6', stroke: darkMode ? '#1E293B' : '#fff', strokeWidth: 1.5 }}
-                activeDot={{ r: 6 }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        ) : (
-          <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textMuted }}>
-            Chưa có dữ liệu đặt phòng
-          </div>
-        )}
       </div>
 
-      {/* ─── 4. HÀNG 3 BIỂU ĐỒ CƠ CẤU (CÙNG KỲ ĐƯỢC CHỌN) ─────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
-
-        {/* 1. Công suất theo từng phòng trong kỳ */}
-        <div style={card}>
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Công suất từng phòng</div>
-              <div style={{ fontSize: 12, color: textMuted }}>Tỷ lệ lấp đầy trong {periodLabel}</div>
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, background: darkMode ? '#064E3B' : '#DCFCE7', color: '#10B981', padding: '2px 8px', borderRadius: 6 }}>
-              TB: {periodOccupancyRate}%
-            </span>
-          </div>
-          {roomOccupancyData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={roomOccupancyData} barSize={20} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                <XAxis dataKey="name" tick={tickStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={tickStyle} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={v => `${v}%`} />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(v: unknown, _: unknown, item: any) => [
-                    `${v}% (${item?.payload?.occupiedDays || 0}/${item?.payload?.totalDays || 0} ngày)`,
-                    'Công suất',
-                  ]}
-                />
-                <Bar dataKey="rate" fill="#10B981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textMuted }}>
-              Chưa có dữ liệu phòng
-            </div>
-          )}
-        </div>
-
-        {/* 2. Doanh thu theo Kênh bán (Revenue by Channel in Period) */}
-        <div style={card}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Nguồn khách theo Kênh</div>
-            <div style={{ fontSize: 12, color: textMuted }}>Nguồn khách trong {periodLabel}</div>
-          </div>
-          {periodRevenueByChannel.length > 0 ? (
-            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-              <div style={{ width: 130, height: 160, flexShrink: 0 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={periodRevenueByChannel} cx="50%" cy="50%" innerRadius={36} outerRadius={56} paddingAngle={3} dataKey="value">
-                      {periodRevenueByChannel.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [formatVnd(v as number), '']} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-                {periodRevenueByChannel.map((ch) => (
-                  <div key={ch.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 2, background: ch.color, flexShrink: 0 }} />
-                      <span style={{ color: textPrimary, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ch.name}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <span style={{ fontWeight: 700, color: textPrimary }}>{formatVnd(ch.value)}</span>
-                      <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: darkMode ? '#334155' : '#F1F5F9', color: textMuted, fontWeight: 700 }}>{ch.pct}%</span>
-                    </div>
+      {/* ════════════════════════════════════════════════════════════════════════
+          TAB 1: BÁO CÁO LỜI / LỖ (P&L STATEMENT)
+          ════════════════════════════════════════════════════════════════════════ */}
+      {activeReportTab === 'pl' && (
+        <>
+          {/* 4 Thẻ KPI P&L */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ ...card, padding: '16px 18px', minHeight: 80 }} />
+              ))
+            ) : summaryStatsPL.map(s => (
+              <div key={s.title} style={{ ...card, padding: '16px 18px', borderLeft: `4px solid ${s.color}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: textPrimary }}>{s.title}</span>
+                    {s.tag && (
+                      <span style={{ fontSize: 10, background: s.tagBg, color: s.tagColor, padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                        {s.tag}
+                      </span>
+                    )}
                   </div>
-                ))}
+                  <span style={{ fontSize: 18 }}>{s.icon}</span>
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'DM Serif Display', serif", marginBottom: 2 }}>{s.value}</div>
+                <div style={{ fontSize: 12, color: s.color, fontWeight: 700 }}>{s.sub}</div>
+                <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>{s.label}</div>
               </div>
-            </div>
-          ) : (
-            <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textMuted }}>
-              Chưa có doanh thu trong kỳ này
-            </div>
-          )}
-        </div>
-
-        {/* 3. Cơ cấu chi phí trong kỳ (Expense Breakdown in Period) */}
-        <div style={card}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Cơ cấu chi phí trong kỳ</div>
-            <div style={{ fontSize: 12, color: textMuted }}>Tổng chi: {formatVnd(periodExpensesTotal)}</div>
+            ))}
           </div>
-          {periodExpenseByCategory.length > 0 ? (
-            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-              <div style={{ width: 130, height: 160, flexShrink: 0 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={periodExpenseByCategory} cx="50%" cy="50%" innerRadius={36} outerRadius={56} paddingAngle={3} dataKey="value">
-                      {periodExpenseByCategory.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [formatVnd(v as number), '']} />
-                  </PieChart>
-                </ResponsiveContainer>
+
+          {/* Biểu đồ Xu hướng 6 tháng P&L */}
+          <div style={card}>
+            <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span>Doanh thu & Chi phí (6 tháng)</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, background: darkMode ? '#78350F40' : '#FEF3C7', color: '#D97706', padding: '1px 6px', borderRadius: 4, border: '1px solid #FCD34D' }}>
+                    (*) Tháng hiện tại là tạm tính (Cost Lag)
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: textMuted, marginTop: 2 }}>Doanh thu (Xanh) vs Chi phí (Đỏ) & Biên lợi nhuận (%)</div>
               </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-                {periodExpenseByCategory.map((cat, i) => {
-                  const pct = periodExpensesTotal > 0 ? Math.round((cat.value / periodExpensesTotal) * 100) : 0;
-                  return (
-                    <div key={cat.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, gap: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 2, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
-                        <span style={{ color: textPrimary, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</span>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#2563EB' }} />
+                  <span style={{ color: textPrimary, fontWeight: 600 }}>Doanh thu</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#EF4444' }} />
+                  <span style={{ color: textPrimary, fontWeight: 600 }}>Chi phí</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#8B5CF6' }} />
+                  <span style={{ color: textPrimary, fontWeight: 600 }}>Biên LN (%)</span>
+                </div>
+              </div>
+            </div>
+            {revenueTrend.length > 0 ? (
+              <ResponsiveContainer width="100%" height={270}>
+                <ComposedChart data={revenueTrend} margin={{ top: 15, right: isMobile ? 0 : 10, left: isMobile ? -10 : 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+                  <XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false} />
+                  <YAxis
+                    yAxisId="left"
+                    tick={tickStyle}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={formatShortVnd}
+                    width={isMobile ? 45 : 55}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={tickStyle}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v: number) => `${v}%`}
+                    domain={[0, 100]}
+                    width={isMobile ? 35 : 40}
+                  />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${bdr}` }}
+                    formatter={(v: any, name: any) => {
+                      if (name === 'Biên LN (%)') return [`${v}%`, name];
+                      return [formatVnd(Number(v) || 0), name];
+                    }}
+                    labelFormatter={(label: any, payload: any) => payload?.[0]?.payload?.fullLabel || label}
+                  />
+                  <Bar yAxisId="left" dataKey="revenue" fill="#2563EB" name="Doanh thu" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  <Bar yAxisId="left" dataKey="expenses" fill="#EF4444" name="Chi phí" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 4, fill: '#8B5CF6' }} name="Biên LN (%)" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : null}
+          </div>
+
+          {/* 3 Biểu đồ Cơ cấu */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 16 }}>
+            {/* Công suất từng phòng */}
+            <div style={card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Công suất từng phòng</div>
+                  <div style={{ fontSize: 11, color: textMuted }}>Tỷ lệ lấp đầy trong {periodLabel}</div>
+                </div>
+                <span style={{ fontSize: 11, background: darkMode ? '#064E3B' : '#DCFCE7', color: '#10B981', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                  TB: {Math.round(roomOccupancyData.reduce((s, r) => s + r.rate, 0) / (roomOccupancyData.length || 1))}%
+                </span>
+              </div>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={roomOccupancyData} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: textMuted }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, fontSize: 11, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${bdr}` }}
+                    formatter={(v: any) => [`${v}%`, 'Công suất']}
+                  />
+                  <Bar dataKey="rate" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Nguồn khách */}
+            <div style={card}>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Doanh thu theo Kênh bán</div>
+                <div style={{ fontSize: 11, color: textMuted }}>Nguồn khách trong {periodLabel}</div>
+              </div>
+              {periodRevenueByChannel.length > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 110, height: 110 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={periodRevenueByChannel} cx="50%" cy="50%" innerRadius={32} outerRadius={52} paddingAngle={2} dataKey="value">
+                          {periodRevenueByChannel.map((entry, idx) => (
+                            <Cell key={entry.name} fill={entry.color || PIE_COLORS[idx % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ borderRadius: 8, fontSize: 11, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${bdr}` }}
+                          formatter={(v: any, name: any) => [formatVnd(Number(v) || 0), name]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {periodRevenueByChannel.map(c => (
+                      <div key={c.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: c.color }} />
+                          <span style={{ color: textPrimary, fontWeight: 500 }}>{c.name}</span>
+                        </div>
+                        <span style={{ color: textMuted, fontWeight: 700 }}>{c.pct}%</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                        <span style={{ fontWeight: 700, color: textPrimary }}>{formatVnd(cat.value)}</span>
-                        <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: darkMode ? '#334155' : '#F1F5F9', color: textMuted, fontWeight: 700 }}>{pct}%</span>
-                      </div>
-                    </div>
-                  );
-                })}
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textMuted, fontSize: 12 }}>
+                  Chưa có dữ liệu
+                </div>
+              )}
+            </div>
+
+            {/* Cơ cấu chi phí */}
+            <div style={card}>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Cơ cấu chi phí trong kỳ</div>
+                <div style={{ fontSize: 11, color: textMuted }}>Tổng chi: {formatVnd(periodExpensesTotal)}</div>
               </div>
-            </div>
-          ) : (
-            <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textMuted }}>
-              Chưa có chi phí nào trong kỳ này
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ─── 5. BẢNG BÁO CÁO LỜI / LỖ THỰC TẾ (P&L STATEMENT) ───────────────── */}
-      <div style={card}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>📊 Báo cáo Kết quả Kinh doanh Lời / Lỗ (P&L Statement)</span>
-              <span style={{ fontSize: 11, fontWeight: 600, background: darkMode ? '#1E3A8A' : '#DBEAFE', color: '#2563EB', padding: '2px 8px', borderRadius: 6 }}>
-                {periodLabel}
-              </span>
-            </div>
-            <div style={{ fontSize: 12, color: textMuted, marginTop: 3 }}>
-              Bảng đối soát doanh thu, chi phí vận hành và lợi nhuận ròng chuẩn kế toán quản trị
+              {periodExpenseByCategory.length > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 110, height: 110 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={periodExpenseByCategory} cx="50%" cy="50%" innerRadius={32} outerRadius={52} paddingAngle={2} dataKey="value">
+                          {periodExpenseByCategory.map((_, idx) => (
+                            <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ borderRadius: 8, fontSize: 11, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${bdr}` }}
+                          formatter={(v: any, name: any) => [formatVnd(Number(v) || 0), name]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {periodExpenseByCategory.slice(0, 4).map((c, idx) => (
+                      <div key={c.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: PIE_COLORS[idx % PIE_COLORS.length] }} />
+                          <span style={{ color: textPrimary, fontWeight: 500, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {c.name}
+                          </span>
+                        </div>
+                        <span style={{ color: textMuted, fontWeight: 700 }}>
+                          {periodExpensesTotal > 0 ? Math.round((c.value / periodExpensesTotal) * 100) : 0}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textMuted, fontSize: 12 }}>
+                  Chưa có chi phí
+                </div>
+              )}
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 12, color: textMuted }}>Lợi nhuận ròng trong kỳ</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: isProfitPositive ? '#10B981' : '#EF4444', fontFamily: "'DM Serif Display', serif" }}>
-              {isProfitPositive ? '+' : ''}{formatVnd(periodNetProfit)}
-            </div>
-          </div>
-        </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
-            <thead>
-              <tr style={{ background: darkMode ? '#0F172A' : '#F8FAFC', borderBottom: `2px solid ${bdr}` }}>
-                <th style={{ padding: '10px 16px', fontWeight: 700, color: textMuted }}>HẠNG MỤC TÀI CHÍNH</th>
-                <th style={{ padding: '10px 16px', fontWeight: 700, color: textMuted, textAlign: 'right' }}>SỐ TIỀN (VNĐ)</th>
-                <th style={{ padding: '10px 16px', fontWeight: 700, color: textMuted, textAlign: 'right' }}>TỶ TRỌNG (%)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* I. DOANH THU */}
-              <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
-                <td style={{ padding: '10px 16px', color: '#2563EB' }}>I. TỔNG DOANH THU HOẠT ĐỘNG</td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#2563EB' }}>{formatVnd(periodRevenue)}</td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#2563EB' }}>100%</td>
-              </tr>
-              <tr style={{ borderBottom: `1px solid ${bdr}` }}>
-                <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>1. Doanh thu tiền phòng tiêu chuẩn</td>
-                <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(baseRoomRevenue)}</td>
-                <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
-                  {periodRevenue > 0 ? Math.round((baseRoomRevenue / periodRevenue) * 100) : 0}%
-                </td>
-              </tr>
-              <tr style={{ borderBottom: `1px solid ${bdr}` }}>
-                <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>2. Phụ thu (Quá giờ / thêm khách)</td>
-                <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(totalSurcharges)}</td>
-                <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
-                  {periodRevenue > 0 ? Math.round((totalSurcharges / periodRevenue) * 100) : 0}%
-                </td>
-              </tr>
-
-              {/* II. CHI PHÍ BIẾN ĐỔI */}
-              <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
-                <td style={{ padding: '10px 16px', color: '#F59E0B' }}>II. CHI PHÍ BIẾN ĐỔI (VARIABLE COSTS)</td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#F59E0B' }}>{formatVnd(variableCostTotal)}</td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#F59E0B' }}>
-                  {periodRevenue > 0 ? Math.round((variableCostTotal / periodRevenue) * 100) : 0}%
-                </td>
-              </tr>
-              {periodVariableExpenses.length > 0 ? (
-                periodVariableExpenses.map(e => (
-                  <tr key={e.expenseId} style={{ borderBottom: `1px solid ${bdr}` }}>
-                    <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>- {e.category} ({e.description})</td>
-                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(e.amount)}</td>
-                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
-                      {periodRevenue > 0 ? Math.round((e.amount / periodRevenue) * 100) : 0}%
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr style={{ borderBottom: `1px solid ${bdr}` }}>
-                  <td colSpan={3} style={{ padding: '8px 16px 8px 32px', color: textMuted, fontStyle: 'italic' }}>
-                    Chưa có khoản chi biến đổi nào trong kỳ này
-                  </td>
-                </tr>
-              )}
-
-              {/* III. BIÊN ĐÓNG GÓP / LỢI NHUẬN GỘP (CONTRIBUTION MARGIN) */}
-              <tr style={{ background: darkMode ? '#1E3A8A33' : '#EFF6FF', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
-                <td style={{ padding: '10px 16px', color: '#2563EB' }}>III. BIÊN ĐÓNG GÓP (CONTRIBUTION MARGIN = I - II)</td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#2563EB' }}>{formatVnd(contributionMargin)}</td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#2563EB' }}>
-                  {contributionMarginPct}%
-                </td>
-              </tr>
-
-              {/* IV. CHI PHÍ CỐ ĐỊNH (FIXED OVERHEAD) */}
-              <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
-                <td style={{ padding: '10px 16px', color: '#EF4444' }}>IV. CHI PHÍ CỐ ĐỊNH (FIXED OVERHEAD)</td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#EF4444' }}>{formatVnd(fixedCostTotal)}</td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: '#EF4444' }}>
-                  {periodRevenue > 0 ? Math.round((fixedCostTotal / periodRevenue) * 100) : 0}%
-                </td>
-              </tr>
-              {periodFixedExpenses.length > 0 ? (
-                periodFixedExpenses.map(e => (
-                  <tr key={e.expenseId} style={{ borderBottom: `1px solid ${bdr}` }}>
-                    <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>- {e.category} ({e.description})</td>
-                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(e.amount)}</td>
-                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
-                      {periodRevenue > 0 ? Math.round((e.amount / periodRevenue) * 100) : 0}%
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr style={{ borderBottom: `1px solid ${bdr}` }}>
-                  <td colSpan={3} style={{ padding: '8px 16px 8px 32px', color: textMuted, fontStyle: 'italic' }}>
-                    Chưa có khoản chi cố định nào trong kỳ này
-                  </td>
-                </tr>
-              )}
-
-              {/* V. LỢI NHUẬN RÒNG */}
-              <tr style={{ background: darkMode ? (isProfitPositive ? '#064E3B40' : '#7F1D1D40') : (isProfitPositive ? '#ECFDF5' : '#FEF2F2'), fontWeight: 800, borderTop: `2px solid ${bdr}` }}>
-                <td style={{ padding: '12px 16px', color: isProfitPositive ? '#10B981' : '#EF4444', fontSize: 14 }}>
-                  V. LỢI NHUẬN RÒNG (NET PROFIT = III - IV)
-                </td>
-                <td style={{ padding: '12px 16px', textAlign: 'right', color: isProfitPositive ? '#10B981' : '#EF4444', fontSize: 15 }}>
+          {/* Bảng Kế toán P&L Statement */}
+          <div style={card}>
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>📑 Báo cáo Kết quả Kinh doanh Lời / Lỗ (P&L Statement)</span>
+                  <span style={{ fontSize: 11, background: darkMode ? '#1E3A8A' : '#DBEAFE', color: '#2563EB', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>
+                    {periodLabel}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: textMuted, marginTop: 3 }}>
+                  Bảng đối soát doanh thu, chi phí vận hành và lợi nhuận ròng chuẩn kế toán quản trị
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 12, color: textMuted }}>Lợi nhuận ròng trong kỳ</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: isProfitPositive ? '#10B981' : '#EF4444', fontFamily: "'DM Serif Display', serif" }}>
                   {isProfitPositive ? '+' : ''}{formatVnd(periodNetProfit)}
-                </td>
-                <td style={{ padding: '12px 16px', textAlign: 'right', color: isProfitPositive ? '#10B981' : '#EF4444', fontSize: 14 }}>
-                  {periodProfitMargin}%
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: darkMode ? '#0F172A' : '#F8FAFC', borderBottom: `2px solid ${bdr}` }}>
+                    <th style={{ padding: '10px 16px', fontWeight: 700, color: textMuted }}>HẠNG MỤC TÀI CHÍNH</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 700, color: textMuted, textAlign: 'right' }}>SỐ TIỀN (VNĐ)</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 700, color: textMuted, textAlign: 'right' }}>TỶ TRỌNG (%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* I. DOANH THU */}
+                  <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '10px 16px', color: '#2563EB' }}>I. TỔNG DOANH THU HOẠT ĐỘNG</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#2563EB' }}>{formatVnd(periodRevenue)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#2563EB' }}>100%</td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>1. Doanh thu tiền phòng tiêu chuẩn</td>
+                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(baseRoomRevenue)}</td>
+                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
+                      {periodRevenue > 0 ? Math.round((baseRoomRevenue / periodRevenue) * 100) : 0}%
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>2. Phụ thu (Quá giờ / thêm khách)</td>
+                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(totalSurcharges)}</td>
+                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
+                      {periodRevenue > 0 ? Math.round((totalSurcharges / periodRevenue) * 100) : 0}%
+                    </td>
+                  </tr>
+
+                  {/* II. CHI PHÍ BIẾN ĐỔI */}
+                  <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '10px 16px', color: '#F59E0B' }}>II. CHI PHÍ BIẾN ĐỔI (VARIABLE COSTS)</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#F59E0B' }}>{formatVnd(variableCostTotal)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#F59E0B' }}>
+                      {periodRevenue > 0 ? Math.round((variableCostTotal / periodRevenue) * 100) : 0}%
+                    </td>
+                  </tr>
+                  {periodVariableExpenses.length > 0 ? (
+                    periodVariableExpenses.map(e => (
+                      <tr key={e.expenseId} style={{ borderBottom: `1px solid ${bdr}` }}>
+                        <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>- {e.category} ({e.description})</td>
+                        <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(e.amount)}</td>
+                        <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
+                          {periodRevenue > 0 ? Math.round((e.amount / periodRevenue) * 100) : 0}%
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr style={{ borderBottom: `1px solid ${bdr}` }}>
+                      <td colSpan={3} style={{ padding: '8px 16px 8px 32px', color: textMuted, fontStyle: 'italic' }}>
+                        Chưa có khoản chi biến đổi nào trong kỳ này
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* III. BIÊN ĐÓNG GÓP */}
+                  <tr style={{ background: darkMode ? '#1E3A8A33' : '#EFF6FF', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '10px 16px', color: '#2563EB' }}>III. BIÊN ĐÓNG GÓP (CONTRIBUTION MARGIN = I - II)</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#2563EB' }}>{formatVnd(contributionMargin)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#2563EB' }}>
+                      {contributionMarginPct}%
+                    </td>
+                  </tr>
+
+                  {/* IV. CHI PHÍ CỐ ĐỊNH */}
+                  <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '10px 16px', color: '#EF4444' }}>IV. CHI PHÍ CỐ ĐỊNH (FIXED OVERHEAD)</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#EF4444' }}>{formatVnd(fixedCostTotal)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#EF4444' }}>
+                      {periodRevenue > 0 ? Math.round((fixedCostTotal / periodRevenue) * 100) : 0}%
+                    </td>
+                  </tr>
+                  {periodFixedExpenses.length > 0 ? (
+                    periodFixedExpenses.map(e => (
+                      <tr key={e.expenseId} style={{ borderBottom: `1px solid ${bdr}` }}>
+                        <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>- {e.category} ({e.description})</td>
+                        <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(e.amount)}</td>
+                        <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
+                          {periodRevenue > 0 ? Math.round((e.amount / periodRevenue) * 100) : 0}%
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr style={{ borderBottom: `1px solid ${bdr}` }}>
+                      <td colSpan={3} style={{ padding: '8px 16px 8px 32px', color: textMuted, fontStyle: 'italic' }}>
+                        Chưa có khoản chi cố định nào trong kỳ này
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* V. LỢI NHUẬN RÒNG */}
+                  <tr style={{ background: darkMode ? (isProfitPositive ? '#064E3B40' : '#7F1D1D40') : (isProfitPositive ? '#ECFDF5' : '#FEF2F2'), fontWeight: 800, borderTop: `2px solid ${bdr}` }}>
+                    <td style={{ padding: '12px 16px', color: isProfitPositive ? '#10B981' : '#EF4444', fontSize: 14 }}>
+                      V. LỢI NHUẬN RÒNG (NET PROFIT = III - IV)
+                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right', color: isProfitPositive ? '#10B981' : '#EF4444', fontSize: 15 }}>
+                      {isProfitPositive ? '+' : ''}{formatVnd(periodNetProfit)}
+                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right', color: isProfitPositive ? '#10B981' : '#EF4444', fontSize: 14 }}>
+                      {periodProfitMargin}%
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          TAB 2: BÁO CÁO DÒNG TIỀN & SỔ THEO DÕI CÔNG NỢ (CASH FLOW & RECEIVABLES)
+          ════════════════════════════════════════════════════════════════════════ */}
+      {activeReportTab === 'cashflow' && (
+        <>
+          {/* 4 Thẻ KPI Dòng Tiền & Công Nợ */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ ...card, padding: '16px 18px', minHeight: 80 }} />
+              ))
+            ) : summaryStatsCashFlow.map(s => (
+              <div key={s.title} style={{ ...card, padding: '16px 18px', borderLeft: `4px solid ${s.color}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: textPrimary }}>{s.title}</span>
+                    {s.tag && (
+                      <span style={{ fontSize: 10, background: s.tagBg, color: s.tagColor, padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                        {s.tag}
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 18 }}>{s.icon}</span>
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'DM Serif Display', serif", marginBottom: 2 }}>{s.value}</div>
+                <div style={{ fontSize: 12, color: s.color, fontWeight: 700 }}>{s.sub}</div>
+                <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Biểu đồ Dòng tiền 6 tháng (Thực thu vs Thực chi & Dòng tiền ròng) */}
+          <div style={card}>
+            <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>Dòng tiền Lưu chuyển 6 tháng (Cash Inflow vs Outflow)</span>
+                </div>
+                <div style={{ fontSize: 12, color: textMuted, marginTop: 2 }}>
+                  Tiền thực thu (Xanh lá) vs Tiền thực chi (Đỏ) & Dòng tiền ròng dôi dư (Tím)
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#10B981' }} />
+                  <span style={{ color: textPrimary, fontWeight: 600 }}>Thực thu (Cash In)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#EF4444' }} />
+                  <span style={{ color: textPrimary, fontWeight: 600 }}>Thực chi (Cash Out)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#8B5CF6' }} />
+                  <span style={{ color: textPrimary, fontWeight: 600 }}>Dòng tiền ròng</span>
+                </div>
+              </div>
+            </div>
+
+            {cashFlowTrend.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <ComposedChart data={cashFlowTrend} margin={{ top: 15, right: isMobile ? 0 : 10, left: isMobile ? -10 : 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+                  <XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={tickStyle}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={formatShortVnd}
+                    width={isMobile ? 45 : 55}
+                  />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${bdr}` }}
+                    formatter={(v: any, name: any) => [formatVnd(Number(v) || 0), name]}
+                    labelFormatter={(label: any, payload: any) => payload?.[0]?.payload?.fullLabel || label}
+                  />
+                  <Bar dataKey="cashIn" fill="#10B981" name="Thực thu (Cash In)" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey="cashOut" fill="#EF4444" name="Thực chi (Cash Out)" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  <Line type="monotone" dataKey="netCash" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 4, fill: '#8B5CF6' }} name="Dòng tiền ròng" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : null}
+          </div>
+
+          {/* SỔ THEO DÕI & THU HỒI CÔNG NỢ KHÁCH HÀNG */}
+          <div style={card}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+              marginBottom: 16, borderBottom: `1px solid ${bdr}`, paddingBottom: 12,
+            }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>📋 Sổ Theo dõi & Thu hồi Công nợ Khách hàng</span>
+                  <span style={{ fontSize: 11, background: darkMode ? '#78350F' : '#FEF3C7', color: '#D97706', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                    {periodReceivablesList.length} đơn chưa trả đủ
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: textMuted, marginTop: 2 }}>
+                  Danh sách khách hàng đang còn nợ tiền phòng hoặc cọc một phần cần thu hồi
+                </div>
+              </div>
+
+              {/* Bộ lọc & Tìm kiếm công nợ */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Tìm tên khách, phòng, mã đơn..."
+                  value={receivableSearch}
+                  onChange={e => setReceivableSearch(e.target.value)}
+                  style={{
+                    padding: '6px 12px', borderRadius: 6, border: `1px solid ${bdr}`,
+                    background: darkMode ? '#0F172A' : '#F8FAFC', color: textPrimary, fontSize: 12, outline: 'none',
+                    minWidth: 200,
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 4, background: darkMode ? '#0F172A' : '#F1F5F9', padding: 3, borderRadius: 6 }}>
+                  {[
+                    { key: 'all', label: 'Tất cả' },
+                    { key: 'unpaid', label: 'Chưa trả 100%' },
+                    { key: 'partial', label: 'Đã cọc 1 phần' },
+                  ].map(f => (
+                    <button
+                      key={f.key}
+                      onClick={() => setReceivableFilter(f.key as any)}
+                      style={{
+                        background: receivableFilter === f.key ? (darkMode ? '#334155' : '#fff') : 'transparent',
+                        color: receivableFilter === f.key ? (darkMode ? '#F1F5F9' : '#2563EB') : textMuted,
+                        border: 'none', borderRadius: 4, padding: '4px 8px', fontSize: 11, fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Bảng Danh sách Công nợ */}
+            {filteredReceivablesList.length > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: darkMode ? '#0F172A' : '#F8FAFC', borderBottom: `2px solid ${bdr}` }}>
+                      <th style={{ padding: '10px 14px', fontWeight: 700, color: textMuted }}>MÃ ĐƠN</th>
+                      <th style={{ padding: '10px 14px', fontWeight: 700, color: textMuted }}>KHÁCH HÀNG</th>
+                      <th style={{ padding: '10px 14px', fontWeight: 700, color: textMuted }}>PHÒNG</th>
+                      <th style={{ padding: '10px 14px', fontWeight: 700, color: textMuted }}>LƯU TRÚ</th>
+                      <th style={{ padding: '10px 14px', fontWeight: 700, color: textMuted, textAlign: 'right' }}>TỔNG HÓA ĐƠN</th>
+                      <th style={{ padding: '10px 14px', fontWeight: 700, color: textMuted, textAlign: 'right' }}>ĐÃ THANH TOÁN</th>
+                      <th style={{ padding: '10px 14px', fontWeight: 700, color: '#EF4444', textAlign: 'right' }}>CÒN NỢ (PHẢI THU)</th>
+                      <th style={{ padding: '10px 14px', fontWeight: 700, color: textMuted, textAlign: 'center' }}>TRẠNG THÁI</th>
+                      <th style={{ padding: '10px 14px', fontWeight: 700, color: textMuted, textAlign: 'center' }}>THAO TÁC</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredReceivablesList.map(r => (
+                      <tr key={r.bookingId} style={{ borderBottom: `1px solid ${bdr}` }}>
+                        <td style={{ padding: '10px 14px', fontWeight: 600, color: '#2563EB' }}>{r.bookingId}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 700, color: textPrimary }}>{r.guestName}</td>
+                        <td style={{ padding: '10px 14px', color: textPrimary }}>
+                          <span style={{
+                            background: darkMode ? '#334155' : '#E2E8F0', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                          }}>
+                            {r.roomName}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', fontSize: 12, color: textMuted }}>
+                          {r.checkInAt ? r.checkInAt.slice(5, 10) : ''} ➔ {r.expectedCheckOutAt ? r.expectedCheckOutAt.slice(5, 10) : ''}
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 600, color: textPrimary }}>
+                          {formatVnd(r.totalAmount)}
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 600, color: '#10B981' }}>
+                          {formatVnd(r.paidAmount)}
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#EF4444', fontSize: 14 }}>
+                          {formatVnd(r.balanceDue)}
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <span style={{
+                            fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 12,
+                            background: r.paidAmount > 0 ? (darkMode ? '#78350F40' : '#FEF3C7') : (darkMode ? '#7F1D1D40' : '#FEE2E2'),
+                            color: r.paidAmount > 0 ? '#D97706' : '#EF4444',
+                            border: `1px solid ${r.paidAmount > 0 ? '#FCD34D' : '#FCA5A5'}`,
+                          }}>
+                            {r.paidAmount > 0 ? 'Đã cọc 1 phần' : 'Chưa thanh toán'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => setEditingBooking(r.booking)}
+                            style={{
+                              background: '#2563EB', color: '#fff', border: 'none', borderRadius: 6,
+                              padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                              boxShadow: '0 1px 3px rgba(37, 99, 235, 0.25)',
+                            }}
+                          >
+                            ✏️ Cập nhật tiền
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 800, borderTop: `2px solid ${bdr}` }}>
+                      <td colSpan={6} style={{ padding: '12px 14px', color: textPrimary, fontSize: 14 }}>
+                        TỔNG CÔNG NỢ ĐANG CÒN PHẢI THU TRONG KỲ
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', color: '#EF4444', fontSize: 16 }}>
+                        {formatVnd(totalReceivablesAmount)}
+                      </td>
+                      <td colSpan={2} style={{ padding: '12px 14px', textAlign: 'center', color: textMuted, fontSize: 12 }}>
+                        {periodReceivablesList.length} đơn nợ
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            ) : (
+              <div style={{ padding: '32px 16px', textAlign: 'center', color: textMuted }}>
+                <div style={{ fontSize: 24, marginBottom: 6 }}>🎉</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: textPrimary }}>Không có khoản công nợ nào cần thu hồi!</div>
+                <div style={{ fontSize: 12, marginTop: 4 }}>Tất cả các đơn đặt phòng trong kỳ này đã được thanh toán đủ $100\%$.</div>
+              </div>
+            )}
+          </div>
+
+          {/* BẢNG ĐỐI SOÁT LƯU CHUYỂN TIỀN TỆ (CASH FLOW STATEMENT) */}
+          <div style={card}>
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>💵 Báo cáo Lưu chuyển Dòng tiền Thực tế (Cash Flow Statement)</span>
+                  <span style={{ fontSize: 11, background: darkMode ? '#064E3B' : '#DCFCE7', color: '#10B981', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>
+                    {periodLabel}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: textMuted, marginTop: 3 }}>
+                  Đối soát dòng tiền mặt / ngân hàng thực tế vào và ra khỏi homestay
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 12, color: textMuted }}>Dòng tiền thuần trong kỳ (Net Cash)</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: isNetCashPositive ? '#10B981' : '#EF4444', fontFamily: "'DM Serif Display', serif" }}>
+                  {isNetCashPositive ? '+' : ''}{formatVnd(periodNetCash)}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: darkMode ? '#0F172A' : '#F8FAFC', borderBottom: `2px solid ${bdr}` }}>
+                    <th style={{ padding: '10px 16px', fontWeight: 700, color: textMuted }}>KHOẢN MỤC DÒNG TIỀN</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 700, color: textMuted, textAlign: 'right' }}>SỐ TIỀN THỰC TẾ (VNĐ)</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 700, color: textMuted, textAlign: 'right' }}>TỶ LỆ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* I. DÒNG TIỀN VÀO */}
+                  <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '10px 16px', color: '#10B981' }}>I. DÒNG TIỀN THỰC THU VÀO (CASH INFLOW)</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#10B981' }}>{formatVnd(periodCashInflow)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#10B981' }}>100%</td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>1. Tiền phòng thực thu (Tiền cọc + Thanh toán hoàn tất)</td>
+                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(periodCashInflow)}</td>
+                    <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>100%</td>
+                  </tr>
+
+                  {/* II. DÒNG TIỀN RA */}
+                  <tr style={{ background: darkMode ? '#1E293B' : '#F1F5F9', fontWeight: 700, borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: '10px 16px', color: '#EF4444' }}>II. DÒNG TIỀN THỰC CHI RA (CASH OUTFLOW)</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#EF4444' }}>{formatVnd(periodCashOutflow)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#EF4444' }}>
+                      {periodCashInflow > 0 ? Math.round((periodCashOutflow / periodCashInflow) * 100) : 0}%
+                    </td>
+                  </tr>
+                  {periodExpenseByCategory.map(c => (
+                    <tr key={c.name} style={{ borderBottom: `1px solid ${bdr}` }}>
+                      <td style={{ padding: '8px 16px 8px 32px', color: textPrimary }}>- {c.name}</td>
+                      <td style={{ padding: '8px 16px', textAlign: 'right', color: textPrimary }}>{formatVnd(c.value)}</td>
+                      <td style={{ padding: '8px 16px', textAlign: 'right', color: textMuted }}>
+                        {periodCashInflow > 0 ? Math.round((c.value / periodCashInflow) * 100) : 0}%
+                      </td>
+                    </tr>
+                  ))}
+
+                  {/* III. DÒNG TIỀN THUẦN */}
+                  <tr style={{ background: darkMode ? (isNetCashPositive ? '#064E3B40' : '#7F1D1D40') : (isNetCashPositive ? '#ECFDF5' : '#FEF2F2'), fontWeight: 800, borderTop: `2px solid ${bdr}` }}>
+                    <td style={{ padding: '12px 16px', color: isNetCashPositive ? '#10B981' : '#EF4444', fontSize: 14 }}>
+                      III. DÒNG TIỀN THUẦN TỒN QUỸ (NET CASH FLOW = I - II)
+                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right', color: isNetCashPositive ? '#10B981' : '#EF4444', fontSize: 15 }}>
+                      {isNetCashPositive ? '+' : ''}{formatVnd(periodNetCash)}
+                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right', color: isNetCashPositive ? '#10B981' : '#EF4444', fontSize: 14 }}>
+                      {periodCashInflow > 0 ? Math.round((periodNetCash / periodCashInflow) * 100) : 0}%
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Quick Edit Modal for Receivables collection */}
+      <QuickEditModal
+        booking={editingBooking}
+        guestName={editingBooking ? (editingBooking as any).guestName || customerMap.get(editingBooking.customerId) : undefined}
+        roomName={editingBooking ? roomMap.get(editingBooking.roomId) : undefined}
+        onClose={() => setEditingBooking(null)}
+        onSuccess={() => {
+          setEditingBooking(null);
+          refetchBookings();
+        }}
+        darkMode={darkMode}
+      />
     </div>
   );
 }
