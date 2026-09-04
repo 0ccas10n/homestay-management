@@ -118,7 +118,8 @@ export default function Dashboard() {
     t && (t.status === 'pending' || t.status === 'in_progress'),
   );
   const cleaningRoomIds = new Set(activeCleaning.map(t => t.roomId));
-  const needsCleaning = activeRooms.filter(r => r.status === 'needs_cleaning' || cleaningRoomIds.has(r.roomId)).length;
+  const roomsNeedingCleaning = activeRooms.filter(r => r.status === 'needs_cleaning' || cleaningRoomIds.has(r.roomId));
+  const needsCleaning = roomsNeedingCleaning.length;
 
   const maintenanceRooms = activeRooms.filter(r => r.status === 'maintenance').length;
   const available = Math.max(0, totalRooms - occupied - needsCleaning - maintenanceRooms);
@@ -168,7 +169,7 @@ export default function Dashboard() {
   const statCards = [
     { label: 'Phòng trống', value: available, sub: `${totalRooms > 0 ? Math.round((available / totalRooms) * 100) : 0}% tỷ lệ trống`, color: statColors[0], icon: '🛏' },
     { label: 'Đang có khách', value: occupied, sub: `${totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0}% (${occupied}/${totalRooms} phòng)`, color: statColors[1], icon: '👤' },
-    { label: 'Cần dọn dẹp', value: needsCleaning, sub: `${activeCleaning.length} phòng cần dọn`, color: statColors[2], icon: '🧹' },
+    { label: 'Cần dọn dẹp', value: needsCleaning, sub: `${needsCleaning} phòng cần dọn`, color: statColors[2], icon: '🧹' },
     { label: 'Doanh thu tháng', value: formatVnd(monthlyRevenueTotal), sub: monthlyDeltaText, color: statColors[3], icon: '💰' },
   ];
 
@@ -972,23 +973,31 @@ export default function Dashboard() {
         onConfirmCheckOut={handleCheckOutConfirm}
       />
 
-      <Modal open={modal === 'cleaned'} onClose={() => setModal(null)} title="Mark Room as Cleaned" darkMode={darkMode}>
+      <Modal open={modal === 'cleaned'} onClose={() => setModal(null)} title="Đánh dấu đã dọn xong phòng (Mark Cleaned)" darkMode={darkMode}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {cleaningTasks.filter(t => t.status !== 'completed').map(t => (
-            <div key={t.cleaningId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}` }}>
-              <div>
-                <div style={{ fontWeight: 600, color: darkMode ? '#F1F5F9' : '#1E293B', fontSize: 13 }}>Room {roomMap[t.roomId]?.name ?? t.roomId}</div>
-                <StatusBadge status={t.status} />
+          {roomsNeedingCleaning.map(room => {
+            const rId = room.roomId || (room as any).id;
+            const task = cleaningTasks.find(t => (t.roomId === rId || t.roomId === room.roomId) && t.status !== 'completed');
+            return (
+              <div key={rId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`, background: darkMode ? '#0F172A' : '#F8FAFC' }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: darkMode ? '#F1F5F9' : '#1E293B', fontSize: 13 }}>Phòng {room.name}</div>
+                  <div style={{ fontSize: 11, color: '#D97706', marginTop: 2, fontWeight: 600 }}>
+                    🧹 {task ? (task.status === 'in_progress' ? 'Đang dọn dẹp' : 'Chờ dọn dẹp') : 'Phòng cần dọn dẹp'}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleMarkCleaned(task?.cleaningId, rId)}
+                  style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  ✓ Đã dọn xong
+                </button>
               </div>
-              <button
-                onClick={() => handleMarkCleaned(t.cleaningId, t.roomId)}
-                style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Mark Done
-              </button>
+            );
+          })}
+          {roomsNeedingCleaning.length === 0 && (
+            <div style={{ color: textMuted, fontSize: 13, textAlign: 'center', padding: '16px 0' }}>
+              ✨ Tất cả các phòng đều đã sạch sẽ, không có phòng nào cần dọn!
             </div>
-          ))}
-          {cleaningTasks.filter(t => t.status !== 'completed').length === 0 && (
-            <p style={{ color: '#64748B', fontSize: 13 }}>No rooms to clean.</p>
           )}
         </div>
       </Modal>

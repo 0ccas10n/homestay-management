@@ -40,6 +40,7 @@ export default function QuickRoomFinder({
 }: QuickRoomFinderProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [ratePlanPrices, setRatePlanPrices] = useState<RatePlanPrice[]>([]);
+  const [selectedRatePlanOption, setSelectedRatePlanOption] = useState<string>('auto');
 
   useEffect(() => {
     ratePlanPricesApi.getAll().then(res => setRatePlanPrices(res || [])).catch(() => {});
@@ -141,6 +142,90 @@ export default function QuickRoomFinder({
       : Math.round((co - ci) / (60 * 60 * 1000));
     return { nights: n, totalHours: Math.max(0, hours) };
   }, [checkInDate, checkInTime, checkOutDate, checkOutTime]);
+
+  // Tự động nhận diện gói giá phù hợp nhất theo thời gian lưu trú
+  const effectiveRatePlanId = useMemo(() => {
+    if (selectedRatePlanOption !== 'auto') {
+      return selectedRatePlanOption;
+    }
+    if (nights === 0) {
+      if (totalHours <= 4) return 'RP-0001'; // Combo 4H
+      if (totalHours <= 6) return 'RP-0002'; // Combo 6H
+      if (totalHours <= 12) return 'RP-0002'; // Combo 6H (+ phụ thu)
+      return 'RP-0004'; // Full Day
+    }
+    if (nights === 1) {
+      const [inH] = checkInTime.split(':').map(Number);
+      const [outH] = checkOutTime.split(':').map(Number);
+      // Check-in chiều tối (>=18h) và check-out sáng hôm sau (<=11h)
+      if (inH >= 18 && outH <= 11 && totalHours <= 15) {
+        return 'RP-0003'; // Overnight
+      }
+      return 'RP-0004'; // Full Day 1 đêm
+    }
+    return 'RP-0004'; // Multi-night
+  }, [selectedRatePlanOption, nights, totalHours, checkInTime, checkOutTime]);
+
+  // Tính giá gợi ý tùy theo phòng và gói giá được áp dụng
+  const getRoomEstimatedPrice = (room: Room) => {
+    const rId = room.roomId || (room as any).id;
+    const isHien = room.name.toLowerCase().includes('hiên');
+
+    // Mức giá mặc định theo từng loại phòng
+    const defaultPrices: Record<string, { base: number; name: string }> = {
+      'RP-0001': { base: isHien ? 250_000 : 300_000, name: 'Combo 4H' },
+      'RP-0002': { base: isHien ? 350_000 : 450_000, name: 'Combo 6H' },
+      'RP-0003': { base: isHien ? 400_000 : 500_000, name: 'Qua đêm' },
+      'RP-0004': { base: isHien ? 550_000 : 650_000, name: 'Theo ngày' },
+    };
+
+    // Tra cứu giá cấu hình riêng cho phòng từ bảng ratePlanPrices
+    const priceRow = ratePlanPrices.find(
+      p => (p.roomId === rId || p.roomId === room.roomId) && p.ratePlanId === effectiveRatePlanId
+    );
+
+    const basePrice = (priceRow && Number(priceRow.priceVnd) > 0)
+      ? Number(priceRow.priceVnd)
+      : (defaultPrices[effectiveRatePlanId]?.base ?? (Number(room.priceDisplay) || (room as any).pricePerNight || (isHien ? 810_000 : 850_000)));
+
+    let estAmount = basePrice;
+    let priceSubText = '';
+
+    if (effectiveRatePlanId === 'RP-0001') {
+      const extraH = Math.max(0, totalHours - 4);
+      estAmount = basePrice + extraH * 50_000;
+      priceSubText = extraH > 0 ? `Combo 4H + ${extraH}h phụ thu` : 'Gói Combo 4H';
+    } else if (effectiveRatePlanId === 'RP-0002') {
+      const extraH = Math.max(0, totalHours - 6);
+      estAmount = basePrice + extraH * 50_000;
+      priceSubText = extraH > 0 ? `Combo 6H + ${extraH}h phụ thu` : 'Gói Combo 6H';
+    } else if (effectiveRatePlanId === 'RP-0003') {
+      estAmount = basePrice;
+      priceSubText = 'Gói Qua đêm (Overnight)';
+    } else {
+      // RP-0004 Full Day
+      const n = Math.max(1, nights);
+      estAmount = basePrice * n;
+      priceSubText = `${n} đêm · ${formatVnd(basePrice)}/đêm`;
+    }
+
+    return {
+      amount: estAmount,
+      ratePlanId: effectiveRatePlanId,
+      priceSubText,
+      basePrice,
+    };
+  };
+
+  const getPlanBadgeName = () => {
+    switch (effectiveRatePlanId) {
+      case 'RP-0001': return 'Combo 4H';
+      case 'RP-0002': return 'Combo 6H';
+      case 'RP-0003': return 'Qua đêm';
+      case 'RP-0004': return nights > 1 ? `${nights} đêm` : 'Nguyên ngày / Đêm';
+      default: return 'Theo gói';
+    }
+  };
 
   return (
     <div style={{
@@ -267,13 +352,41 @@ export default function QuickRoomFinder({
                 }}
               />
             </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: textMuted, display: 'block', marginBottom: 4 }}>
+                Gói giá áp dụng
+              </label>
+              <select
+                value={selectedRatePlanOption}
+                onChange={e => setSelectedRatePlanOption(e.target.value)}
+                style={{
+                  width: '100%', padding: '7px 10px', borderRadius: 6,
+                  border: `1px solid ${border}`, background: inputBg, color: textPrimary, fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                <option value="auto">⚡ Tự động ({getPlanBadgeName()})</option>
+                <option value="RP-0001">🕒 Combo 4 Tiếng</option>
+                <option value="RP-0002">🕒 Combo 6 Tiếng</option>
+                <option value="RP-0003">🌙 Gói Qua đêm</option>
+                <option value="RP-0004">☀️ Gói Ngày / Đêm</option>
+              </select>
+            </div>
           </div>
 
           {/* Results Room Cards */}
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: textMuted, marginBottom: 8, textTransform: 'uppercase' }}>
-              Danh sách phòng còn trống ({nights > 0 ? `${nights} đêm · ` : 'Trong ngày · '}{totalHours} tiếng · {numGuests} khách):
+            <div style={{ fontSize: 12, fontWeight: 700, color: textMuted, marginBottom: 8, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>Danh sách phòng còn trống ({nights > 0 ? `${nights} đêm · ` : 'Trong ngày · '}{totalHours} tiếng · {numGuests} khách):</span>
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                background: darkMode ? '#1E3A8A' : '#EFF6FF', color: '#2563EB', textTransform: 'none',
+                border: `1px solid ${darkMode ? '#3B82F640' : '#BFDBFE'}`
+              }}>
+                🏷️ Gợi ý giá: {getPlanBadgeName()}
+              </span>
             </div>
+
             {availableRooms.length === 0 ? (
               <div style={{
                 padding: '16px', borderRadius: 8, textAlign: 'center', fontSize: 13,
@@ -290,14 +403,7 @@ export default function QuickRoomFinder({
                 gap: 10,
               }}>
                 {availableRooms.map(room => {
-                  const rId = room.roomId || (room as any).id;
-                  const priceRow = ratePlanPrices.find(
-                    p => (p.roomId === rId || p.roomId === room.roomId) && p.ratePlanId === 'RP-0004'
-                  );
-                  const nightPrice = (priceRow && Number(priceRow.priceVnd) > 0)
-                    ? Number(priceRow.priceVnd)
-                    : (Number(room.priceDisplay) || (room as any).pricePerNight || 810_000);
-                  const estPrice = nights > 0 ? nightPrice * nights : nightPrice;
+                  const { amount, priceSubText } = getRoomEstimatedPrice(room);
 
                   return (
                     <div
@@ -326,9 +432,9 @@ export default function QuickRoomFinder({
                           {(room as any).type || 'Phòng Homestay'}
                         </div>
                         <div style={{ fontSize: 14, fontWeight: 800, color: '#10B981', marginTop: 4 }}>
-                          ~{formatVnd(estPrice)}{' '}
+                          ~{formatVnd(amount)}{' '}
                           <span style={{ fontSize: 10, fontWeight: 400, color: textMuted }}>
-                            ({nights > 0 ? `${nights} đêm · ${formatVnd(nightPrice)}/đêm` : `Trong ngày · ${totalHours} tiếng`})
+                            ({priceSubText})
                           </span>
                         </div>
                       </div>
