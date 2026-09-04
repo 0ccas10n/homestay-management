@@ -15,10 +15,10 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'calendar',      label: 'Calendar',     icon: '📅' },
   { id: 'timeline',      label: 'Timeline',      icon: '⏱' },
   { id: 'guests',        label: 'Guests',       icon: '👥' },
-  { id: 'housekeeping', label: 'Housekeeping',  icon: '🧹' },
-  { id: 'reports',      label: 'Reports',      icon: '📊' },
   { id: 'expenses',      label: 'Expenses',      icon: '💳' },
-  { id: 'notifications',label: 'Notifications', icon: '🔔' },
+  // { id: 'housekeeping', label: 'Housekeeping',  icon: '🧹' }, // Đã có sơ đồ phòng 1 chạm trực tiếp trên Dashboard
+  { id: 'reports',      label: 'Reports',      icon: '📊' },
+  // { id: 'notifications',label: 'Notifications', icon: '🔔' }, // Tạm ẩn để tối ưu UX & Quota
   { id: 'settings',     label: 'Settings',      icon: '⚙️' },
 ];
 
