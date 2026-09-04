@@ -279,7 +279,7 @@ export default function QuickRoomFinder({
                           </span>
                         </div>
                         <div style={{ fontSize: 11, color: textMuted, marginTop: 2 }}>
-                          {room.type || 'Phòng Homestay'}
+                          {(room as any).type || 'Phòng Homestay'}
                         </div>
                         <div style={{ fontSize: 14, fontWeight: 800, color: '#10B981', marginTop: 4 }}>
                           ~{formatVnd(estPrice)} <span style={{ fontSize: 10, fontWeight: 400, color: textMuted }}>({nights} đêm · {formatVnd(nightPrice)}/đêm)</span>

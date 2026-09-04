@@ -11,6 +11,7 @@ import { useState, useMemo, useEffect } from 'react';
 import type { Booking, Room } from '@/types/index';
 import Modal from '@/components/Modal';
 import { formatVnd, formatMinutes, getBookingTotal } from '@/utils/format';
+import { useCustomers } from '@/hooks/useCustomers';
 
 interface CheckOutModalProps {
   open: boolean;
@@ -38,9 +39,30 @@ export default function CheckOutModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { customers } = useCustomers();
+  const matchedCustomer = useMemo(() => {
+    if (!booking?.customerId) return null;
+    return (customers || []).find(c => c && c.customerId === booking.customerId);
+  }, [customers, booking?.customerId]);
+
+  const guestDisplayName = useMemo(() => {
+    if (!booking) return '';
+    if (booking.guestName && booking.guestName.trim() && !booking.guestName.startsWith('CUS-')) {
+      return booking.guestName.trim();
+    }
+    if (matchedCustomer?.name && matchedCustomer.name.trim() && !matchedCustomer.name.startsWith('CUS-')) {
+      return matchedCustomer.name.trim();
+    }
+    if ((booking as any).customerName && (booking as any).customerName.trim() && !(booking as any).customerName.startsWith('CUS-')) {
+      return (booking as any).customerName.trim();
+    }
+    return 'Khách hàng';
+  }, [booking, matchedCustomer]);
+
   const initialTotal = useMemo(() => booking ? getBookingTotal(booking) : 0, [booking]);
   const [customBaseCharge, setCustomBaseCharge] = useState<string>(() => String(initialTotal));
   const [isEditingRoomCharge, setIsEditingRoomCharge] = useState(false);
+  const [overrideReason, setOverrideReason] = useState<string>('');
   const [paymentOption, setPaymentOption] = useState<'full' | 'keep_partial'>('full');
 
   // Luôn đồng bộ lại dữ liệu chuẩn xác mỗi khi mở modal hoặc đổi đơn phòng
@@ -48,6 +70,7 @@ export default function CheckOutModal({
     if (booking && open) {
       const correctTotal = getBookingTotal(booking);
       setCustomBaseCharge(String(correctTotal));
+      setOverrideReason('');
       setActualCheckOutAt(new Date().toISOString());
       setIsEditingRoomCharge(false);
       setError(null);
@@ -59,7 +82,11 @@ export default function CheckOutModal({
   const expectedCheckOutTime = booking ? new Date(booking.expectedCheckOutAt).getTime() : 0;
   const actualCheckOutTime = new Date(actualCheckOutAt).getTime();
   const checkInTime = booking ? new Date(booking.checkInAt).getTime() : 0;
-  const totalStayMinutes = Math.max(0, Math.round((actualCheckOutTime - checkInTime) / 60_000));
+
+  // Tính số tiếng lưu trú theo kế hoạch đặt phòng (hoặc thực tế nếu về trễ hơn)
+  const plannedStayMinutes = Math.max(0, Math.round((expectedCheckOutTime - checkInTime) / 60_000));
+  const actualStayMinutes = Math.max(0, Math.round((actualCheckOutTime - checkInTime) / 60_000));
+  const totalStayMinutes = plannedStayMinutes > 0 ? plannedStayMinutes : actualStayMinutes;
   const totalStayHours = Math.round((totalStayMinutes / 60) * 10) / 10;
 
   const overtimeMinutes = expectedCheckOutTime > 0 ? Math.max(0, Math.round((actualCheckOutTime - expectedCheckOutTime) / 60_000)) : 0;
@@ -84,12 +111,21 @@ export default function CheckOutModal({
       const finalPaid = paymentOption === 'full' ? finalTotalAmount : depositPaid;
       const finalPaymentStatus = finalPaid >= finalTotalAmount ? 'paid' : (finalPaid > 0 ? 'partial' : 'unpaid');
 
+      const isPriceOverridden = Number(customBaseCharge) !== initialTotal;
+      const auditNote = isPriceOverridden
+        ? `[Sửa giá check-out: ${formatVnd(initialTotal)} ➔ ${formatVnd(baseRoomCharge)}. Lý do: ${overrideReason.trim() || 'Không ghi lý do'}]`
+        : undefined;
+      const combinedNote = auditNote
+        ? (booking.note ? `${booking.note} | ${auditNote}` : auditNote)
+        : booking.note;
+
       await onConfirmCheckOut(booking.bookingId, {
         actualCheckOutAt,
         paidAmount: finalPaid,
         paymentStatus: finalPaymentStatus,
         totalAmount: finalTotalAmount,
         baseAmount: baseRoomCharge,
+        note: combinedNote,
       } as any);
 
       onClose();
@@ -115,7 +151,7 @@ export default function CheckOutModal({
         }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary }}>
-              🏠 {room?.name || booking.roomId} {(booking.guestName || (booking as any).customerName || booking.customerId) ? `· ${booking.guestName || (booking as any).customerName || booking.customerId}` : ''}
+              🏠 {room?.name || booking.roomId} · {guestDisplayName}
             </div>
             <div style={{ fontSize: 12, color: textMuted, marginTop: 2 }}>
               {new Date(booking.checkInAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} ➔ {new Date(booking.expectedCheckOutAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
@@ -188,6 +224,25 @@ export default function CheckOutModal({
               <span style={{ fontWeight: 700 }}>{formatVnd(baseRoomCharge)}</span>
             )}
           </div>
+          {Number(customBaseCharge) !== initialTotal && (
+            <div style={{ padding: '8px 10px', background: darkMode ? '#78350F20' : '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, margin: '4px 0' }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#D97706', display: 'block', marginBottom: 4 }}>
+                ⚠️ Giá đang khác giá niêm yết ({formatVnd(initialTotal)}). Nhập lý do (để chủ kiểm toán):
+              </label>
+              <input
+                type="text"
+                placeholder="Ví dụ: Giảm giá khách quen 10%, đền bù máy lạnh hỏng..."
+                value={overrideReason}
+                onChange={e => setOverrideReason(e.target.value)}
+                style={{
+                  width: '100%', padding: '6px 8px', borderRadius: 6,
+                  border: `1px solid ${border}`, fontSize: 12,
+                  background: sectionBg, color: textPrimary, outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          )}
           {overtimeAmount > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#EF4444' }}>
               <span>2. Phụ thu quá giờ:</span>

@@ -12,9 +12,10 @@ function buildFetchRequest(req: VercelRequest): Request {
   const host = req.headers.host || 'localhost';
   const fullUrl = `${protocol}://${host}${req.url}`;
   
+  const headersObj = new Headers(req.headers as any);
   const init: RequestInit = {
     method: req.method,
-    headers: new Headers(req.headers as any),
+    headers: headersObj,
   };
 
   if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
@@ -22,8 +23,8 @@ function buildFetchRequest(req: VercelRequest): Request {
     if (typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
       init.body = JSON.stringify(req.body);
       // Ensure content-type is set if not present
-      if (!init.headers?.has('content-type')) {
-        (init.headers as Headers).set('content-type', 'application/json');
+      if (!headersObj.has('content-type')) {
+        headersObj.set('content-type', 'application/json');
       }
     } else {
       init.body = req.body;

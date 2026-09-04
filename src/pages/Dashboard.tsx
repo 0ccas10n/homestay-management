@@ -124,11 +124,17 @@ export default function Dashboard() {
   const available = Math.max(0, totalRooms - occupied - needsCleaning - maintenanceRooms);
 
   const today = TODAY_DATE;
-  const checkingIn = (bookings || []).filter(b => {
+  const checkingInToday = (bookings || []).filter(b => {
     if (!b || b.status === 'cancelled' || (b.status !== 'confirmed' && b.status !== 'inquiry')) return false;
     const checkInDate = (b.checkInAt || '').slice(0, 10);
-    return checkInDate && checkInDate <= today;
+    return checkInDate === today;
   });
+  const overdueCheckIns = (bookings || []).filter(b => {
+    if (!b || b.status === 'cancelled' || (b.status !== 'confirmed' && b.status !== 'inquiry')) return false;
+    const checkInDate = (b.checkInAt || '').slice(0, 10);
+    return checkInDate && checkInDate < today;
+  });
+  const checkingIn = checkingInToday;
   const checkingOut = (bookings || []).filter(b => {
     if (!b || b.status !== 'checked_in') return false;
     const checkoutDate = (b.expectedCheckOutAt || '').slice(0, 10);
@@ -229,7 +235,7 @@ export default function Dashboard() {
     return activeRooms
       .map(r => ({
         name: r.name,
-        revenue: revMap.get(r.id) || revMap.get(r.roomId) || 0,
+        revenue: revMap.get(r.roomId) || 0,
       }))
       .sort((a, b) => b.revenue - a.revenue);
   }, [rooms, bookings]);
@@ -312,15 +318,21 @@ export default function Dashboard() {
     }
   };
 
-  const handleMarkCleaned = async (cleaningId: string, roomId: string) => {
+  const handleMarkCleaned = async (cleaningId?: string, roomId?: string) => {
+    if (!roomId) return;
     try {
-      await cleaningApi.transition(cleaningId, { status: 'completed' });
+      if (cleaningId) {
+        await cleaningApi.transition(cleaningId, { status: 'completed' });
+        setCleaningTasks(prev => prev.filter(t => t.cleaningId !== cleaningId));
+      }
       await roomsApi.update(roomId, { status: 'available' });
-      setCleaningTasks(prev => prev.filter(t => t.cleaningId !== cleaningId));
+      refetchLocalRooms();
+      refetchLocalCleaning();
       setModal(null);
-      showToast('Room marked as cleaned');
+      const rName = roomMap[roomId]?.name ?? roomId;
+      showToast(`✅ Đã dọn xong phòng ${rName}! Phòng đã chuyển sang Trống.`);
     } catch {
-      showToast('Failed to update. Please try again.');
+      showToast('❌ Cập nhật thất bại. Vui lòng thử lại.');
     }
   };
 
@@ -420,6 +432,67 @@ export default function Dashboard() {
         darkMode={darkMode}
       />
 
+      {/* Overdue Check-in Alert Banner (Khách quá hạn / No-show) */}
+      {overdueCheckIns.length > 0 && (
+        <div style={{
+          background: darkMode ? '#7F1D1D20' : '#FEF2F2',
+          border: `1px solid ${darkMode ? '#991B1B' : '#FECACA'}`,
+          borderRadius: 12, padding: '14px 18px',
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>⚠️</span>
+              <span>Có {overdueCheckIns.length} đơn đặt phòng quá hạn ngày Check-in</span>
+            </div>
+            <span style={{ fontSize: 12, color: darkMode ? '#FCA5A5' : '#991B1B', fontWeight: 500 }}>
+              Chưa nhận phòng · Cần xác minh khách đến hay bùng kèo
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
+            {overdueCheckIns.map(b => (
+              <div key={b.bookingId} style={{
+                background: darkMode ? '#1E293B' : '#FFFFFF',
+                border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
+                borderRadius: 8, padding: '10px 12px',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>{getGuestName(b)}</div>
+                  <div style={{ fontSize: 11, color: '#DC2626', fontWeight: 500 }}>
+                    Phòng {getRoomNumber(b)} · Lẽ ra đến: {formatStayTime(b.checkInAt)}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={() => updateStatus(b.bookingId, 'checked_in')}
+                    title="Khách đến trễ, nhận phòng ngay"
+                    style={{
+                      padding: '5px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      background: '#10B981', color: '#fff', border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    Check-in
+                  </button>
+                  <button
+                    onClick={() => updateStatus(b.bookingId, 'cancelled')}
+                    title="Khách không đến, hủy phòng giải phóng lịch"
+                    style={{
+                      padding: '5px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      background: darkMode ? '#334155' : '#F1F5F9',
+                      color: '#EF4444', border: `1px solid ${darkMode ? '#475569' : '#CBD5E1'}`,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    No-show
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Today's Arrivals & Departures */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
         {/* Checking In */}
@@ -514,7 +587,7 @@ export default function Dashboard() {
                   <YAxis width={60} tick={{ fontSize: 11, fill: textMuted }} axisLine={false} tickLine={false} tickFormatter={formatShortVnd} />
                   <Tooltip
                     contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }}
-                    formatter={(v: unknown, name: string) => [formatVnd(v as number), name]}
+                    formatter={(v: any, name: any) => [formatVnd(Number(v) || 0), String(name || '')]}
                   />
                   <Area type="monotone" dataKey="revenue" stroke="#2563EB" strokeWidth={2.5} fill="url(#rev)" name="Doanh thu" />
                   <Area type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} fill="url(#exp)" name="Chi phí" />
@@ -637,10 +710,30 @@ export default function Dashboard() {
                           );
                         })()}
                       </>
-                    ) : cleaningTask ? (
+                    ) : (room.status === 'needs_cleaning' || cleaningTask) ? (
                       <>
                         <div style={{ fontSize: 11, color: textPrimary }}>Phòng đang đợi dọn</div>
-                        <button onClick={() => setModal('cleaned')} style={{ marginTop: 'auto', background: '#F59E0B', color: '#fff', border: 'none', padding: '5px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Đã dọn xong</button>
+                        <button
+                          onClick={() => handleMarkCleaned(cleaningTask?.cleaningId, room.roomId)}
+                          style={{
+                            marginTop: 'auto',
+                            background: '#F59E0B',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '6px 8px',
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 4,
+                            boxShadow: '0 2px 4px rgba(245, 158, 11, 0.25)',
+                          }}
+                        >
+                          ✓ Đã dọn xong
+                        </button>
                       </>
                     ) : incoming ? (
                       <>
@@ -701,7 +794,7 @@ export default function Dashboard() {
                   </Pie>
                   <Tooltip
                     contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }}
-                    formatter={(v: unknown, name: string) => [`${v} đơn`, name]}
+                    formatter={(v: any, name: any) => [`${v} đơn`, String(name || '')]}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -715,7 +808,7 @@ export default function Dashboard() {
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color, flexShrink: 0 }} />
                     <span style={{ color: textPrimary, fontWeight: 500 }}>{entry.name}</span>
                   </div>
-                  <span style={{ color: textMuted, fontWeight: 700 }}>{entry.value} ({entry.pct}%)</span>
+                  <span style={{ color: textMuted, fontWeight: 700 }}>{entry.count} ({entry.percentage}%)</span>
                 </div>
               ))}
             </div>

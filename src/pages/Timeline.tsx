@@ -218,21 +218,21 @@ export default function Timeline() {
   const [checkOutTarget, setCheckOutTarget] = useState<Booking | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const handleBookFromFinder = (prefill: {
-    roomId: string;
-    checkInDate: string;
-    checkOutDate: string;
-    checkInTime: string;
-    checkOutTime: string;
-    numGuests: number;
-  }) => {
+  const handleBookFromFinder = (
+    roomId: string,
+    checkInDate: string,
+    checkInTime: string,
+    checkOutDate: string,
+    checkOutTime: string,
+    numGuests: string,
+  ) => {
     setAddBooking({
-      roomId: prefill.roomId,
-      date: prefill.checkInDate,
-      checkOutDate: prefill.checkOutDate,
-      checkInTime: prefill.checkInTime,
-      checkOutTime: prefill.checkOutTime,
-      numGuests: prefill.numGuests,
+      roomId,
+      date: checkInDate,
+      checkOutDate,
+      checkInTime,
+      checkOutTime,
+      numGuests: Number(numGuests) || 2,
     });
   };
 
@@ -242,8 +242,6 @@ export default function Timeline() {
     bookingId: string,
     payload: {
       actualCheckOutAt: string;
-      extraServicesAmount: number;
-      extraServicesNote?: string;
       paidAmount: number;
       paymentStatus: 'paid' | 'partial' | 'unpaid';
     }
@@ -778,7 +776,7 @@ export default function Timeline() {
         initialCheckOutDate={addBooking?.checkOutDate}
         initialCheckInTime={addBooking?.checkInTime}
         initialCheckOutTime={addBooking?.checkOutTime}
-        initialGuests={addBooking?.numGuests}
+        initialGuests={addBooking?.numGuests ? String(addBooking.numGuests) : undefined}
         onCreated={() => {
           setAddBooking(null);
           refetchBookings();

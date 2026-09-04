@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import type { Booking } from '@/types/index';
-import { getBookingTotal } from '@/utils/format';
+import { getBookingTotal, formatVnd } from '@/utils/format';
 import { bookingsApi } from '@/services/api';
 
 interface QuickEditModalProps {

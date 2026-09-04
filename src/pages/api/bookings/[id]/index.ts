@@ -92,6 +92,7 @@ export async function PATCH(request: Request) {
         extraServicesNote: parsed.extraServicesNote,
         paidAmount: parsed.paidAmount,
         paymentStatus: parsed.paymentStatus,
+        note: parsed.note,
       });
       if (!result) return jsonError(404, 'NOT_FOUND', `Booking ${bookingId} not found`);
 

@@ -47,16 +47,6 @@ export default function Guests() {
     );
   });
 
-  const nationalityFlags: Record<string, string> = {
-    Nigerian:          '🇳🇬',
-    'Chinese-American':'🇨🇳',
-    Spanish:           '🇪🇸',
-    British:           '🇬🇧',
-    Malaysian:          '🇲🇾',
-    Swedish:           '🇸🇪',
-    Indian:            '🇮🇳',
-    Brazilian:          '🇧🇷',
-  };
 
   const textPrimary = darkMode ? '#F1F5F9' : '#1E293B';
   const textMuted   = darkMode ? '#94A3B8'  : '#64748B';
@@ -101,7 +91,7 @@ export default function Guests() {
             const totalBookings = gBookings.length;
             const displayName = g.name ?? '(chưa đặt tên)';
             const initials = displayName.split(' ').map(n => n[0] ?? '').join('').slice(0, 2).toUpperCase();
-            const flag = nationalityFlags[''] ?? '🌐';
+            const sourceLabel = g.source ? `${g.source}` : 'Khách hàng';
 
             return (
               <div
@@ -128,7 +118,7 @@ export default function Guests() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, color: textPrimary, fontSize: 14 }}>{displayName}</div>
-                    <div style={{ fontSize: 12, color: textMuted }}>{flag} Guest</div>
+                    <div style={{ fontSize: 12, color: textMuted }}>👤 {sourceLabel}</div>
                   </div>
                   {totalBookings >= 4 && (
                     <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>

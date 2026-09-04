@@ -88,8 +88,6 @@ export default function Bookings() {
     bookingId: string,
     payload: {
       actualCheckOutAt: string;
-      extraServicesAmount: number;
-      extraServicesNote?: string;
       paidAmount: number;
       paymentStatus: 'paid' | 'partial' | 'unpaid';
     }

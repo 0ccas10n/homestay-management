@@ -22,7 +22,7 @@ interface UseBookingsReturn {
   createBooking: (data: Parameters<typeof bookingsApi.create>[0]) => Promise<Booking>;
   updateBooking: (id: string, data: Parameters<typeof bookingsApi.update>[1]) => Promise<void>;
   /** Generic lifecycle transition — check-in, confirm, no-show, cancel, etc. */
-  updateStatus: (id: string, status: Booking['status']) => Promise<void>;
+  updateStatus: (id: string, status: Booking['status']) => Promise<boolean>;
   /** Records actualCheckOutAt, computes overtime server-side, and marks the room for cleaning. */
   checkOutBooking: (
     id: string,

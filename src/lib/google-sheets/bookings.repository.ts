@@ -87,6 +87,24 @@ export async function readAll(spreadsheetId: string): Promise<Booking[]> {
           if (!isNaN(n)) booking.numGuests = n;
         }
 
+        // Fix payment fields via headerMap for column shift resilience
+        const depositIdx = headerMap.get('depositamount') ?? headerMap.get('deposit_amount') ?? headerMap.get('deposit');
+        if (depositIdx !== undefined && row[depositIdx]) {
+          const d = parseFloat(row[depositIdx]);
+          if (!isNaN(d)) booking.depositAmount = d;
+        }
+
+        const paidIdx = headerMap.get('paidamount') ?? headerMap.get('paid_amount') ?? headerMap.get('paid');
+        if (paidIdx !== undefined && row[paidIdx]) {
+          const p = parseFloat(row[paidIdx]);
+          if (!isNaN(p)) booking.paidAmount = p;
+        }
+
+        const payStatusIdx = headerMap.get('paymentstatus') ?? headerMap.get('payment_status');
+        if (payStatusIdx !== undefined && row[payStatusIdx]) {
+          booking.paymentStatus = row[payStatusIdx].trim() as any;
+        }
+
         // Auto-fix if totalAmount is <= 10 (e.g. 1 or 2 VND caused by column shift from nights or num_guests)
         if (booking.totalAmount <= 10) {
           const totalIdx = headerMap.get('totalamount') ?? headerMap.get('total') ?? -1;
@@ -239,6 +257,10 @@ export async function create(
   if (new Date(input.checkInAt) >= new Date(input.expectedCheckOutAt)) {
     throw new Error('checkInAt must be before expectedCheckOutAt');
   }
+
+  const bookingId = await generateId('B', 'Bookings', spreadsheetId);
+  const createdAt = nowIso();
+  const updatedAt = createdAt;
 
   // Resolve effective bookingType — honour the new field, but fall back to the
   // legacy CUSTOM_RATE_PLAN_ID sentinel for older callers.
@@ -462,6 +484,7 @@ export async function checkout(
     extraServicesNote?: string;
     paidAmount?: number;
     paymentStatus?: 'paid' | 'partial' | 'unpaid';
+    note?: string;
   },
 ): Promise<{ booking: Booking; overtimeMinutes: number; overtimeAmount: number } | null> {
   const all = await readAll(spreadsheetId);
@@ -510,6 +533,7 @@ export async function checkout(
     overtimeAmount: overtimeAmount > 0 ? overtimeAmount : undefined,
     extraServicesAmount: extraServicesAmount > 0 ? extraServicesAmount : undefined,
     extraServicesNote: extraServicesNote || undefined,
+    note: extras?.note !== undefined ? extras.note : existing.note,
     depositAmount: existing.depositAmount ?? (existing.paidAmount ?? 0),
     paidAmount,
     paymentStatus,

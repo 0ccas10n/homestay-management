@@ -118,8 +118,8 @@ export default function Settings() {
                   </label>
                   <input
                     type={key === 'checkInTime' || key === 'checkOutTime' ? 'time' : 'text'}
-                    value={val}
-                    onChange={e => setBizInfo(prev => ({ ...prev, [key]: e.target.value }))}
+                    value={String(val || '')}
+                    onChange={e => setBizInfo((prev: any) => ({ ...prev, [key]: e.target.value }))}
                     style={inputStyle}
                   />
                 </div>
