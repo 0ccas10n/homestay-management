@@ -291,7 +291,7 @@ export default function Dashboard() {
       await refetchBookings();
       refetchLocalRooms();
       setModal(null);
-      showToast('✅ Đã check-in thành công & đồng bộ Google Sheets!');
+      showToast('✅ Đã check-in thành công & cập nhật dữ liệu!');
     } catch {
       showToast('❌ Check-in thất bại. Vui lòng thử lại.');
     }
