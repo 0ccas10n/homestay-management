@@ -236,7 +236,7 @@ function mapRowToBooking(row) {
     checkInAt: row[3] ?? "",
     expectedCheckOutAt: row[4] ?? "",
     actualCheckOutAt: emptyToUndefined(row[5]),
-    status: row[6] ?? "inquiry",
+    status: row[6] ?? "confirmed",
     ratePlanId,
     bookingType: rawBookingType || "daily",
     expectedDurationMinutes: durationMinutes,
@@ -1151,6 +1151,9 @@ var sheets = {
   }
 };
 
+// src/lib/google-sheets/bookings.repository.ts
+import { formatInTimeZone } from "date-fns-tz";
+
 // src/lib/google-sheets/datetime.ts
 var BUSINESS_TZ = process.env.BUSINESS_TZ ?? "Asia/Ho_Chi_Minh";
 function toDateString(date) {
@@ -1192,6 +1195,7 @@ async function generateId(prefix, sheetName, spreadsheetId) {
   let max = 0;
   for (const row of rows) {
     const raw = row[0] ?? "";
+    if (!raw.startsWith(prefix + "-")) continue;
     const numPart = raw.slice(prefix.length + 1);
     const n = parseInt(numPart, 10);
     if (!isNaN(n) && n > max) max = n;
@@ -1428,6 +1432,147 @@ async function findPrice(spreadsheetId, ratePlanId, roomId) {
   return all.find((p) => p.ratePlanId === ratePlanId && p.roomId === roomId) ?? null;
 }
 
+// src/lib/google-sheets/rooms.repository.ts
+async function readAll2(spreadsheetId) {
+  const range = `${SHEETS.Rooms}!A2:${String.fromCharCode(64 + ROOMS_HEADERS.length)}`;
+  const rows = await sheets.getValues(spreadsheetId, range);
+  return rows.map(mapRowToRoom);
+}
+async function readOne(spreadsheetId, roomId) {
+  const all = await readAll2(spreadsheetId);
+  return all.find((r) => r.roomId === roomId) ?? null;
+}
+async function create(spreadsheetId, input) {
+  const roomId = await generateId("ROOM", "Rooms", spreadsheetId);
+  const { createdAt, updatedAt } = timestamps();
+  const room = {
+    ...input,
+    roomId,
+    createdAt,
+    updatedAt
+  };
+  await sheets.appendRow(
+    spreadsheetId,
+    `${SHEETS.Rooms}!A:A`,
+    mapRoomToRow(room)
+  );
+  return room;
+}
+async function update(spreadsheetId, roomId, patch) {
+  const all = await readAll2(spreadsheetId);
+  const idx = all.findIndex((r) => r.roomId === roomId);
+  if (idx === -1) return null;
+  const updated = {
+    ...all[idx],
+    ...patch,
+    roomId,
+    // immutable
+    locationId: all[idx].locationId,
+    // immutable after create
+    createdAt: all[idx].createdAt,
+    // immutable
+    updatedAt: updatedTimestamp()
+  };
+  const sheetRow = idx + 2;
+  const col = String.fromCharCode(64 + ROOMS_HEADERS.length);
+  await sheets.setValues(
+    spreadsheetId,
+    `${SHEETS.Rooms}!A${sheetRow}:${col}`,
+    [mapRoomToRow(updated)]
+  );
+  return updated;
+}
+async function softDelete(spreadsheetId, roomId) {
+  const result = await update(spreadsheetId, roomId, {
+    status: "inactive",
+    active: false
+  });
+  return result !== null;
+}
+async function query(spreadsheetId, filters) {
+  let rooms2 = await readAll2(spreadsheetId);
+  if (filters?.locationId !== void 0) {
+    rooms2 = rooms2.filter((r) => r.locationId === filters.locationId);
+  }
+  if (filters?.status !== void 0) {
+    rooms2 = rooms2.filter((r) => r.status === filters.status);
+  }
+  if (filters?.active !== void 0) {
+    rooms2 = rooms2.filter((r) => r.active === filters.active);
+  }
+  return rooms2;
+}
+
+// src/lib/google-sheets/cleaning.repository.ts
+async function readAll3(spreadsheetId) {
+  const range = `${SHEETS.Cleaning}!A2:${String.fromCharCode(64 + CLEANING_HEADERS.length)}`;
+  const rows = await sheets.getValues(spreadsheetId, range);
+  return rows.map(mapRowToCleaningTask);
+}
+async function readOne2(spreadsheetId, cleaningId) {
+  const all = await readAll3(spreadsheetId);
+  return all.find((c) => c.cleaningId === cleaningId) ?? null;
+}
+async function query2(spreadsheetId, filters) {
+  let all = await readAll3(spreadsheetId);
+  if (filters?.roomId) all = all.filter((t) => t.roomId === filters.roomId);
+  if (filters?.bookingId) all = all.filter((t) => t.bookingId === filters.bookingId);
+  if (filters?.status) all = all.filter((t) => t.status === filters.status);
+  return all;
+}
+async function dueToday(spreadsheetId) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const all = await readAll3(spreadsheetId);
+  return all.filter(
+    (t) => t.status !== "completed" && t.status !== "cancelled" && t.scheduledAt <= now
+  );
+}
+async function create2(spreadsheetId, input) {
+  const cleaningId = await generateId("CLN", "Cleaning", spreadsheetId);
+  const { createdAt, updatedAt } = timestamps();
+  const task = {
+    ...input,
+    cleaningId,
+    createdAt,
+    updatedAt
+  };
+  await sheets.appendRow(
+    spreadsheetId,
+    `${SHEETS.Cleaning}!A:A`,
+    mapCleaningTaskToRow(task)
+  );
+  return task;
+}
+async function transition(spreadsheetId, cleaningId, newStatus) {
+  const all = await readAll3(spreadsheetId);
+  const idx = all.findIndex((t) => t.cleaningId === cleaningId);
+  if (idx === -1) return null;
+  const existing = all[idx];
+  const now = updatedTimestamp();
+  const patch = { status: newStatus };
+  if (newStatus === "in_progress" && existing.status === "pending") {
+    patch.startedAt = now;
+  }
+  if (newStatus === "completed") {
+    patch.completedAt = now;
+  }
+  const updated = {
+    ...existing,
+    ...patch,
+    cleaningId: existing.cleaningId,
+    createdAt: existing.createdAt,
+    updatedAt: now
+  };
+  const sheetRow = idx + 2;
+  const col = String.fromCharCode(64 + CLEANING_HEADERS.length);
+  await sheets.setValues(
+    spreadsheetId,
+    `${SHEETS.Cleaning}!A${sheetRow}:${col}`,
+    [mapCleaningTaskToRow(updated)]
+  );
+  return updated;
+}
+
 // src/lib/google-sheets/bookings.repository.ts
 var OVERTIME_HOURLY_RATE = 7e4;
 var STANDARD_FALLBACK_RATES = {
@@ -1436,7 +1581,7 @@ var STANDARD_FALLBACK_RATES = {
   "RP-0003": 4e5,
   "RP-0004": 55e4
 };
-async function readAll2(spreadsheetId) {
+async function readAll4(spreadsheetId) {
   try {
     const rawRows = await sheets.getValues(spreadsheetId, `${SHEETS.Bookings}!A1:Z`);
     if (!rawRows || rawRows.length === 0) return [];
@@ -1508,12 +1653,12 @@ async function readAll2(spreadsheetId) {
     return [];
   }
 }
-async function readOne(spreadsheetId, bookingId) {
-  const all = await readAll2(spreadsheetId);
+async function readOne3(spreadsheetId, bookingId) {
+  const all = await readAll4(spreadsheetId);
   return all.find((b) => b.bookingId === bookingId) ?? null;
 }
-async function query(spreadsheetId, filters) {
-  let all = await readAll2(spreadsheetId);
+async function query3(spreadsheetId, filters) {
+  let all = await readAll4(spreadsheetId);
   if (filters?.roomId) all = all.filter((b) => b.roomId === filters.roomId);
   if (filters?.customerId) all = all.filter((b) => b.customerId === filters.customerId);
   if (filters?.status) all = all.filter((b) => b.status === filters.status);
@@ -1528,10 +1673,10 @@ async function query(spreadsheetId, filters) {
   return all;
 }
 async function byRoom(spreadsheetId, roomId) {
-  return query(spreadsheetId, { roomId });
+  return query3(spreadsheetId, { roomId });
 }
 async function byCustomer(spreadsheetId, customerId) {
-  return query(spreadsheetId, { customerId });
+  return query3(spreadsheetId, { customerId });
 }
 async function hasOverlap(spreadsheetId, roomId, checkInAt, expectedCheckOutAt, excludeBookingId) {
   const existing = await byRoom(spreadsheetId, roomId);
@@ -1541,11 +1686,14 @@ async function hasOverlap(spreadsheetId, roomId, checkInAt, expectedCheckOutAt, 
     (b) => windowsOverlap(b.checkInAt, b.expectedCheckOutAt, checkInAt, expectedCheckOutAt)
   );
 }
-async function create(spreadsheetId, input) {
+async function create3(spreadsheetId, input) {
   if (new Date(input.checkInAt) >= new Date(input.expectedCheckOutAt)) {
     throw new Error("checkInAt must be before expectedCheckOutAt");
   }
-  const bookingId = await generateId("B", "Bookings", spreadsheetId);
+  const tz = process.env.BUSINESS_TZ ?? "Asia/Ho_Chi_Minh";
+  const yymm = formatInTimeZone(/* @__PURE__ */ new Date(), tz, "yyMM");
+  const prefix = `B-${yymm}`;
+  const bookingId = await generateId(prefix, "Bookings", spreadsheetId);
   const createdAt = nowIso();
   const updatedAt = createdAt;
   const bookingType = input.bookingType ?? (input.ratePlanId === CUSTOM_RATE_PLAN_ID ? "hourly" : "daily");
@@ -1606,15 +1754,16 @@ async function create(spreadsheetId, input) {
   );
   return booking;
 }
-async function update(spreadsheetId, bookingId, patch) {
-  const all = await readAll2(spreadsheetId);
+async function update2(spreadsheetId, bookingId, patch) {
+  const all = await readAll4(spreadsheetId);
   const idx = all.findIndex((b) => b.bookingId === bookingId);
   if (idx === -1) return null;
   const existing = all[idx];
   const checkInAt = patch.checkInAt ?? existing.checkInAt;
   const expectedCheckOutAt = patch.expectedCheckOutAt ?? existing.expectedCheckOutAt;
   const roomId = patch.roomId ?? existing.roomId;
-  if (patch.checkInAt || patch.expectedCheckOutAt || patch.roomId) {
+  const dateOrRoomChanged = patch.checkInAt && Math.abs(new Date(patch.checkInAt).getTime() - new Date(existing.checkInAt).getTime()) > 6e4 || patch.expectedCheckOutAt && Math.abs(new Date(patch.expectedCheckOutAt).getTime() - new Date(existing.expectedCheckOutAt).getTime()) > 6e4 || patch.roomId && patch.roomId !== existing.roomId;
+  if (dateOrRoomChanged) {
     const overlap = await hasOverlap(
       spreadsheetId,
       roomId,
@@ -1676,10 +1825,26 @@ async function update(spreadsheetId, bookingId, patch) {
     `${SHEETS.Bookings}!A${sheetRow}:${col}`,
     [mapBookingToRow(updated)]
   );
+  if (patch.roomId && patch.roomId !== existing.roomId && existing.status === "checked_in") {
+    const oldRoomId = existing.roomId;
+    const newRoomId = patch.roomId;
+    const newRoom = await readOne(spreadsheetId, newRoomId);
+    await update(spreadsheetId, oldRoomId, { status: "needs_cleaning" });
+    const guestLabel = existing.guestName || existing.customerId;
+    await create2(spreadsheetId, {
+      roomId: oldRoomId,
+      bookingId: existing.bookingId,
+      scheduledAt: nowIso(),
+      status: "pending",
+      priority: "high",
+      note: `Kh\xE1ch ${guestLabel} \u0111\u1ED5i sang ph\xF2ng ${newRoom?.name ?? newRoomId}`
+    });
+    await update(spreadsheetId, newRoomId, { status: "occupied" });
+  }
   return updated;
 }
 async function checkout(spreadsheetId, bookingId, actualCheckOutAt, extras) {
-  const all = await readAll2(spreadsheetId);
+  const all = await readAll4(spreadsheetId);
   const idx = all.findIndex((b) => b.bookingId === bookingId);
   if (idx === -1) return null;
   const existing = all[idx];
@@ -1766,92 +1931,21 @@ __export(dashboard_exports, {
   GET: () => GET2
 });
 
-// src/lib/google-sheets/rooms.repository.ts
-async function readAll3(spreadsheetId) {
-  const range = `${SHEETS.Rooms}!A2:${String.fromCharCode(64 + ROOMS_HEADERS.length)}`;
-  const rows = await sheets.getValues(spreadsheetId, range);
-  return rows.map(mapRowToRoom);
-}
-async function readOne2(spreadsheetId, roomId) {
-  const all = await readAll3(spreadsheetId);
-  return all.find((r) => r.roomId === roomId) ?? null;
-}
-async function create2(spreadsheetId, input) {
-  const roomId = await generateId("ROOM", "Rooms", spreadsheetId);
-  const { createdAt, updatedAt } = timestamps();
-  const room = {
-    ...input,
-    roomId,
-    createdAt,
-    updatedAt
-  };
-  await sheets.appendRow(
-    spreadsheetId,
-    `${SHEETS.Rooms}!A:A`,
-    mapRoomToRow(room)
-  );
-  return room;
-}
-async function update2(spreadsheetId, roomId, patch) {
-  const all = await readAll3(spreadsheetId);
-  const idx = all.findIndex((r) => r.roomId === roomId);
-  if (idx === -1) return null;
-  const updated = {
-    ...all[idx],
-    ...patch,
-    roomId,
-    // immutable
-    locationId: all[idx].locationId,
-    // immutable after create
-    createdAt: all[idx].createdAt,
-    // immutable
-    updatedAt: updatedTimestamp()
-  };
-  const sheetRow = idx + 2;
-  const col = String.fromCharCode(64 + ROOMS_HEADERS.length);
-  await sheets.setValues(
-    spreadsheetId,
-    `${SHEETS.Rooms}!A${sheetRow}:${col}`,
-    [mapRoomToRow(updated)]
-  );
-  return updated;
-}
-async function softDelete(spreadsheetId, roomId) {
-  const result = await update2(spreadsheetId, roomId, {
-    status: "inactive",
-    active: false
-  });
-  return result !== null;
-}
-async function query2(spreadsheetId, filters) {
-  let rooms2 = await readAll3(spreadsheetId);
-  if (filters?.locationId !== void 0) {
-    rooms2 = rooms2.filter((r) => r.locationId === filters.locationId);
-  }
-  if (filters?.status !== void 0) {
-    rooms2 = rooms2.filter((r) => r.status === filters.status);
-  }
-  if (filters?.active !== void 0) {
-    rooms2 = rooms2.filter((r) => r.active === filters.active);
-  }
-  return rooms2;
-}
-
 // src/lib/google-sheets/expenses.repository.ts
-async function readAll4(spreadsheetId) {
+async function readAll5(spreadsheetId) {
   const range = `${SHEETS.Expenses}!A2:${String.fromCharCode(64 + EXPENSES_HEADERS.length)}`;
   const rows = await sheets.getValues(spreadsheetId, range);
   return rows.map(mapRowToExpense);
 }
-async function query3(spreadsheetId, filters) {
-  let all = await readAll4(spreadsheetId);
+async function query4(spreadsheetId, filters) {
+  let all = await readAll5(spreadsheetId);
   const { from, to, category } = filters ?? {};
   if (from) all = all.filter((e) => e.date >= from);
   if (to) all = all.filter((e) => e.date <= to);
   if (category) all = all.filter((e) => e.category === category);
   return all;
 }
-async function create3(spreadsheetId, input) {
+async function create4(spreadsheetId, input) {
   const expenseId = await generateId("EXP", "Expenses", spreadsheetId);
   const { createdAt, updatedAt } = timestamps();
   const expense = {
@@ -2065,11 +2159,11 @@ async function GET2(request) {
     const todayStart = `${dateStr}T00:00:00${LOC_TZ_OFFSET}`;
     const todayEnd = `${dateStr}T23:59:59${LOC_TZ_OFFSET}`;
     const [allBookings, todayBookings, rooms2, allExpenses, upcomingBookings] = await Promise.all([
-      readAll2(SPREADSHEET_ID2),
-      query(SPREADSHEET_ID2, { from: todayStart, to: todayEnd }),
-      readAll3(SPREADSHEET_ID2),
       readAll4(SPREADSHEET_ID2),
-      query(SPREADSHEET_ID2, {
+      query3(SPREADSHEET_ID2, { from: todayStart, to: todayEnd }),
+      readAll2(SPREADSHEET_ID2),
+      readAll5(SPREADSHEET_ID2),
+      query3(SPREADSHEET_ID2, {
         status: "confirmed",
         from: todayEnd,
         to: `${dateStr}T23:59:59${LOC_TZ_OFFSET}`
@@ -2160,13 +2254,13 @@ __export(locations_exports, {
 });
 
 // src/lib/google-sheets/locations.repository.ts
-async function readAll5(spreadsheetId) {
+async function readAll6(spreadsheetId) {
   const range = `${SHEETS.Locations}!A2:${String.fromCharCode(64 + LOCATIONS_HEADERS.length)}`;
   const rows = await sheets.getValues(spreadsheetId, range);
   return rows.map(mapRowToLocation);
 }
 async function active2(spreadsheetId) {
-  const all = await readAll5(spreadsheetId);
+  const all = await readAll6(spreadsheetId);
   return all.filter((l) => l.active);
 }
 
@@ -2194,7 +2288,7 @@ async function GET5(request) {
   const { searchParams } = new URL(request.url);
   const locationId = searchParams.get("locationId") ?? void 0;
   const isExplicitPublic = searchParams.get("public") === "true" && !session;
-  const rooms2 = await query2(SPREADSHEET_ID4, {
+  const rooms2 = await query(SPREADSHEET_ID4, {
     locationId,
     active: isExplicitPublic ? true : void 0,
     status: isExplicitPublic ? "available" : void 0
@@ -2284,7 +2378,7 @@ async function verifyPassword(password, storedHash) {
 }
 
 // src/lib/google-sheets/users.repository.ts
-async function readAll6(spreadsheetId) {
+async function readAll7(spreadsheetId) {
   const range = `${SHEETS.Users}!A2:${String.fromCharCode(64 + USERS_HEADERS.length)}`;
   const rows = await sheets.getValues(spreadsheetId, range);
   return rows.map(mapRowToUser);
@@ -2292,7 +2386,7 @@ async function readAll6(spreadsheetId) {
 async function findByEmail(spreadsheetId, emailOrUsername) {
   const norm = (emailOrUsername ?? "").trim().toLowerCase();
   if (!norm) return null;
-  const all = await readAll6(spreadsheetId);
+  const all = await readAll7(spreadsheetId);
   const found = all.find((u) => u.email.toLowerCase() === norm) ?? all.find((u) => u.name.toLowerCase() === norm) ?? all.find((u) => u.userId.toLowerCase() === norm) ?? (norm === "admin" ? all.find((u) => u.role === "admin") : null) ?? (norm === "staff" ? all.find((u) => u.role === "staff") : null);
   if (found) return found;
   if (norm === "admin" || norm === "admin@homestay.local") {
@@ -2407,7 +2501,7 @@ __export(bookings_exports, {
 });
 
 // src/lib/google-sheets/ratePlans.repository.ts
-async function readAll7(spreadsheetId) {
+async function readAll8(spreadsheetId) {
   try {
     const range = `${SHEETS.RatePlans}!A2:J`;
     const rows = await sheets.getValues(spreadsheetId, range);
@@ -2422,13 +2516,13 @@ async function readAll7(spreadsheetId) {
   }
 }
 async function active3(spreadsheetId) {
-  const all = await readAll7(spreadsheetId);
+  const all = await readAll8(spreadsheetId);
   const activePlans = all.filter((p) => p.active !== false);
   return activePlans.length > 0 ? activePlans : ratePlans;
 }
 
 // src/lib/google-sheets/customers.repository.ts
-async function readAll8(spreadsheetId) {
+async function readAll9(spreadsheetId) {
   const lastCol = String.fromCharCode(64 + CUSTOMERS_HEADERS.length);
   const rawRows = await sheets.getValues(spreadsheetId, `${SHEETS.Customers}!A1:${lastCol}`);
   if (!rawRows || rawRows.length === 0) return [];
@@ -2465,11 +2559,11 @@ async function readAll8(spreadsheetId) {
     return mapRowToCustomer(row);
   });
 }
-async function readOne3(spreadsheetId, customerId) {
-  const all = await readAll8(spreadsheetId);
+async function readOne4(spreadsheetId, customerId) {
+  const all = await readAll9(spreadsheetId);
   return all.find((c) => c.customerId === customerId) ?? null;
 }
-async function create4(spreadsheetId, input) {
+async function create5(spreadsheetId, input) {
   const customerId = await generateId("CUS", "Customers", spreadsheetId);
   const { createdAt, updatedAt } = timestamps();
   const customer = {
@@ -2488,7 +2582,7 @@ async function create4(spreadsheetId, input) {
   return customer;
 }
 async function findOrCreate(spreadsheetId, input) {
-  const all = await readAll8(spreadsheetId);
+  const all = await readAll9(spreadsheetId);
   const inputName = input.name?.trim() || void 0;
   const inputSource = input.source;
   let existing;
@@ -2518,7 +2612,7 @@ async function findOrCreate(spreadsheetId, input) {
   }
   if (existing) return { customer: existing, created: false };
   console.log("[findOrCreate] creating new customer with name=", inputName);
-  const customer = await create4(spreadsheetId, input);
+  const customer = await create5(spreadsheetId, input);
   return { customer, created: true };
 }
 
@@ -2539,7 +2633,7 @@ async function GET7(request) {
     if (customerId) {
       bookings2 = await byCustomer(SPREADSHEET_ID6, customerId);
     } else {
-      bookings2 = await query(SPREADSHEET_ID6, {
+      bookings2 = await query3(SPREADSHEET_ID6, {
         roomId: roomId ?? void 0,
         status: status ?? void 0,
         from: from ?? void 0,
@@ -2562,7 +2656,7 @@ async function POST3(request) {
   const { guestName, customer, roomId, checkInAt, expectedCheckOutAt, status, ratePlanId, bookingType, totalAmount, numGuests, note } = parsed;
   console.log("[API bookings POST] bookingType:", bookingType, "ratePlanId:", ratePlanId, "roomId:", roomId, "totalAmount:", totalAmount, "numGuests:", numGuests);
   try {
-    const room = await readOne2(SPREADSHEET_ID6, roomId);
+    const room = await readOne(SPREADSHEET_ID6, roomId);
     if (!room) return jsonError(400, "VALIDATION_ERROR", `Room ${roomId} does not exist`);
     if (numGuests && room.capacity && numGuests > room.capacity) {
       return jsonError(
@@ -2573,7 +2667,7 @@ async function POST3(request) {
     }
     const isHourlyBooking = bookingType === "hourly";
     if (!isHourlyBooking && ratePlanId && ratePlanId !== CUSTOM_RATE_PLAN_ID) {
-      const allPlansList = await readAll7(SPREADSHEET_ID6);
+      const allPlansList = await readAll8(SPREADSHEET_ID6);
       const activePlansList = await active3(SPREADSHEET_ID6);
       const knownValidPlans = ["RP-0001", "RP-0002", "RP-0003", "RP-0004"];
       const exists = activePlansList.some((p) => p.ratePlanId === ratePlanId) || allPlansList.some((p) => p.ratePlanId === ratePlanId) || knownValidPlans.includes(ratePlanId);
@@ -2587,7 +2681,7 @@ async function POST3(request) {
       email: customer.email,
       note: customer.note
     });
-    const booking = await create(SPREADSHEET_ID6, {
+    const booking = await create3(SPREADSHEET_ID6, {
       roomId,
       guestName,
       customerId: savedCustomer.customerId,
@@ -2619,7 +2713,7 @@ async function POST3(request) {
   }
 }
 async function filterByLocation(bookings2, locationId) {
-  const rooms2 = await readAll3(SPREADSHEET_ID6);
+  const rooms2 = await readAll2(SPREADSHEET_ID6);
   const roomIds = new Set(rooms2.filter((r) => r.locationId === locationId).map((r) => r.roomId));
   return bookings2.filter((b) => roomIds.has(b.roomId));
 }
@@ -2656,78 +2750,6 @@ var status_exports = {};
 __export(status_exports, {
   PATCH: () => PATCH
 });
-
-// src/lib/google-sheets/cleaning.repository.ts
-async function readAll9(spreadsheetId) {
-  const range = `${SHEETS.Cleaning}!A2:${String.fromCharCode(64 + CLEANING_HEADERS.length)}`;
-  const rows = await sheets.getValues(spreadsheetId, range);
-  return rows.map(mapRowToCleaningTask);
-}
-async function readOne4(spreadsheetId, cleaningId) {
-  const all = await readAll9(spreadsheetId);
-  return all.find((c) => c.cleaningId === cleaningId) ?? null;
-}
-async function query4(spreadsheetId, filters) {
-  let all = await readAll9(spreadsheetId);
-  if (filters?.roomId) all = all.filter((t) => t.roomId === filters.roomId);
-  if (filters?.bookingId) all = all.filter((t) => t.bookingId === filters.bookingId);
-  if (filters?.status) all = all.filter((t) => t.status === filters.status);
-  return all;
-}
-async function dueToday(spreadsheetId) {
-  const now = (/* @__PURE__ */ new Date()).toISOString();
-  const all = await readAll9(spreadsheetId);
-  return all.filter(
-    (t) => t.status !== "completed" && t.status !== "cancelled" && t.scheduledAt <= now
-  );
-}
-async function create5(spreadsheetId, input) {
-  const cleaningId = await generateId("CLN", "Cleaning", spreadsheetId);
-  const { createdAt, updatedAt } = timestamps();
-  const task = {
-    ...input,
-    cleaningId,
-    createdAt,
-    updatedAt
-  };
-  await sheets.appendRow(
-    spreadsheetId,
-    `${SHEETS.Cleaning}!A:A`,
-    mapCleaningTaskToRow(task)
-  );
-  return task;
-}
-async function transition(spreadsheetId, cleaningId, newStatus) {
-  const all = await readAll9(spreadsheetId);
-  const idx = all.findIndex((t) => t.cleaningId === cleaningId);
-  if (idx === -1) return null;
-  const existing = all[idx];
-  const now = updatedTimestamp();
-  const patch = { status: newStatus };
-  if (newStatus === "in_progress" && existing.status === "pending") {
-    patch.startedAt = now;
-  }
-  if (newStatus === "completed") {
-    patch.completedAt = now;
-  }
-  const updated = {
-    ...existing,
-    ...patch,
-    cleaningId: existing.cleaningId,
-    createdAt: existing.createdAt,
-    updatedAt: now
-  };
-  const sheetRow = idx + 2;
-  const col = String.fromCharCode(64 + CLEANING_HEADERS.length);
-  await sheets.setValues(
-    spreadsheetId,
-    `${SHEETS.Cleaning}!A${sheetRow}:${col}`,
-    [mapCleaningTaskToRow(updated)]
-  );
-  return updated;
-}
-
-// src/pages/api/bookings/[id]/status.ts
 var SPREADSHEET_ID7 = process.env.SPREADSHEET_ID;
 async function getBookingId(request) {
   const segments = new URL(request.url).pathname.split("/");
@@ -2744,25 +2766,25 @@ async function PATCH(request) {
   if (parsed instanceof Response) return parsed;
   const { status } = parsed;
   try {
-    const existing = await readOne(SPREADSHEET_ID7, bookingId);
+    const existing = await readOne3(SPREADSHEET_ID7, bookingId);
     if (!existing) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
     if (existing.status === status) {
       return jsonSuccess({ booking: existing, changed: false, message: `Booking already ${status}` });
     }
-    const updated = await update(SPREADSHEET_ID7, bookingId, { status });
+    const updated = await update2(SPREADSHEET_ID7, bookingId, { status });
     if (!updated) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
     if (status === "checked_in") {
-      const room = await readOne2(SPREADSHEET_ID7, updated.roomId);
+      const room = await readOne(SPREADSHEET_ID7, updated.roomId);
       if (room && room.status !== "occupied") {
-        await update2(SPREADSHEET_ID7, updated.roomId, { status: "occupied" });
+        await update(SPREADSHEET_ID7, updated.roomId, { status: "occupied" });
       }
     }
     if (status === "cancelled") {
-      const room = await readOne2(SPREADSHEET_ID7, updated.roomId);
+      const room = await readOne(SPREADSHEET_ID7, updated.roomId);
       if (room && room.status === "occupied") {
-        await update2(SPREADSHEET_ID7, updated.roomId, { status: "available" });
+        await update(SPREADSHEET_ID7, updated.roomId, { status: "available" });
       }
-      const tasks = await query4(SPREADSHEET_ID7, {
+      const tasks = await query2(SPREADSHEET_ID7, {
         bookingId: updated.bookingId,
         status: "pending"
       });
@@ -2801,9 +2823,9 @@ async function GET8(request) {
   const bookingId = await getBookingId2(request);
   if (bookingId instanceof Response) return bookingId;
   try {
-    const booking = await readOne(SPREADSHEET_ID8, bookingId);
+    const booking = await readOne3(SPREADSHEET_ID8, bookingId);
     if (!booking) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
-    const customer = await readOne3(SPREADSHEET_ID8, booking.customerId);
+    const customer = await readOne4(SPREADSHEET_ID8, booking.customerId);
     return jsonSuccess({
       booking: {
         bookingId: booking.bookingId,
@@ -2856,13 +2878,13 @@ async function PATCH2(request) {
       });
       if (!result) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
       const { booking, overtimeMinutes, overtimeAmount } = result;
-      await update2(SPREADSHEET_ID8, booking.roomId, { status: "needs_cleaning" });
-      const tasks = await query4(SPREADSHEET_ID8, { bookingId });
+      await update(SPREADSHEET_ID8, booking.roomId, { status: "needs_cleaning" });
+      const tasks = await query2(SPREADSHEET_ID8, { bookingId });
       const hasActiveCleaningTask = tasks.some(
         (task) => task.status === "pending" || task.status === "in_progress"
       );
       if (!hasActiveCleaningTask) {
-        await create5(SPREADSHEET_ID8, {
+        await create2(SPREADSHEET_ID8, {
           roomId: booking.roomId,
           bookingId,
           scheduledAt: parsed.actualCheckOutAt,
@@ -2879,7 +2901,7 @@ async function PATCH2(request) {
       });
     }
     const { actualCheckOutAt: _, ...generalPatch } = parsed;
-    const updated = await update(SPREADSHEET_ID8, bookingId, generalPatch);
+    const updated = await update2(SPREADSHEET_ID8, bookingId, generalPatch);
     if (!updated) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
     return jsonSuccess(updated);
   } catch (err) {
@@ -2895,9 +2917,9 @@ async function DELETE(request) {
   const bookingId = await getBookingId2(request);
   if (bookingId instanceof Response) return bookingId;
   try {
-    const existing = await readOne(SPREADSHEET_ID8, bookingId);
+    const existing = await readOne3(SPREADSHEET_ID8, bookingId);
     if (!existing) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
-    const updated = await update(SPREADSHEET_ID8, bookingId, { status: "cancelled" });
+    const updated = await update2(SPREADSHEET_ID8, bookingId, { status: "cancelled" });
     return jsonNoContent();
   } catch (err) {
     return jsonServerError(err, "DELETE /api/bookings/:id");
@@ -2921,9 +2943,9 @@ async function GET9(request) {
   const date = searchParams.get("date") ?? void 0;
   const active4 = searchParams.get("active") === "true";
   try {
-    const tasks = active4 ? (await query4(SPREADSHEET_ID9)).filter(
+    const tasks = active4 ? (await query2(SPREADSHEET_ID9)).filter(
       (task) => task.status === "pending" || task.status === "in_progress"
-    ) : roomId || bookingId || status || date ? await query4(SPREADSHEET_ID9, {
+    ) : roomId || bookingId || status || date ? await query2(SPREADSHEET_ID9, {
       roomId: roomId ?? void 0,
       bookingId: bookingId ?? void 0,
       status: status ?? void 0
@@ -2939,7 +2961,7 @@ async function POST4(request) {
   const parsed = await parseBody(request, createCleaningSchema);
   if (parsed instanceof Response) return parsed;
   try {
-    const task = await create5(SPREADSHEET_ID9, {
+    const task = await create2(SPREADSHEET_ID9, {
       roomId: parsed.roomId,
       bookingId: parsed.bookingId,
       scheduledAt: parsed.scheduledAt,
@@ -2978,12 +3000,12 @@ async function PATCH3(request) {
     return jsonError(400, "VALIDATION_ERROR", "status is required");
   }
   try {
-    const existing = await readOne4(SPREADSHEET_ID10, cleaningId);
+    const existing = await readOne2(SPREADSHEET_ID10, cleaningId);
     if (!existing) return jsonError(404, "NOT_FOUND", `Cleaning task ${cleaningId} not found`);
     const updated = await transition(SPREADSHEET_ID10, cleaningId, parsed.status);
     if (!updated) return jsonError(404, "NOT_FOUND", `Cleaning task ${cleaningId} not found`);
     if (parsed.status === "completed" && existing.roomId) {
-      await update2(SPREADSHEET_ID10, existing.roomId, { status: "available" });
+      await update(SPREADSHEET_ID10, existing.roomId, { status: "available" });
     }
     return jsonSuccess(updated);
   } catch (err) {
@@ -3001,7 +3023,7 @@ async function GET10(request) {
   const session = await requireAuth(request);
   if (session instanceof Response) return session;
   try {
-    const customers2 = await readAll8(SPREADSHEET_ID11);
+    const customers2 = await readAll9(SPREADSHEET_ID11);
     return jsonSuccess(customers2);
   } catch (err) {
     return jsonServerError(err, "GET /api/customers");
@@ -3023,7 +3045,7 @@ async function GET11(request) {
   const to = searchParams.get("to") ?? void 0;
   const category = searchParams.get("category") ?? void 0;
   try {
-    const expenses2 = await query3(SPREADSHEET_ID12, { from, to, category });
+    const expenses2 = await query4(SPREADSHEET_ID12, { from, to, category });
     return jsonSuccess(expenses2);
   } catch (err) {
     return jsonServerError(err, "GET /api/expenses");
@@ -3035,7 +3057,7 @@ async function POST5(request) {
   const parsed = await parseBody(request, createExpenseSchema);
   if (parsed instanceof Response) return parsed;
   try {
-    const expense = await create3(SPREADSHEET_ID12, {
+    const expense = await create4(SPREADSHEET_ID12, {
       category: parsed.category,
       amount: parsed.amount,
       date: parsed.date,
@@ -3236,7 +3258,7 @@ async function GET14(request) {
   const session = await requireAuth(request);
   if (session instanceof Response) return session;
   try {
-    const plans = await readAll7(SPREADSHEET_ID17);
+    const plans = await readAll8(SPREADSHEET_ID17);
     console.log("[API /api/rate-plans] count:", plans.length, plans);
     return jsonSuccess(plans);
   } catch (err) {
@@ -3256,7 +3278,7 @@ async function POST7(request) {
   const parsed = await parseBody(request, createRoomSchema);
   if (parsed instanceof Response) return parsed;
   try {
-    const room = await create2(SPREADSHEET_ID18, {
+    const room = await create(SPREADSHEET_ID18, {
       locationId: parsed.locationId,
       name: parsed.name,
       description: parsed.description,
@@ -3301,7 +3323,7 @@ async function PATCH5(request) {
     return jsonError(403, "FORBIDDEN", "Only admins can change room status");
   }
   try {
-    const room = await update2(SPREADSHEET_ID19, roomId, parsed);
+    const room = await update(SPREADSHEET_ID19, roomId, parsed);
     if (!room) return jsonError(404, "NOT_FOUND", `Room ${roomId} not found`);
     return jsonSuccess(room);
   } catch (err) {
@@ -3315,7 +3337,7 @@ async function DELETE2(request) {
   if (roomIdResult instanceof Response) return roomIdResult;
   const roomId = roomIdResult;
   try {
-    const existing = await readOne2(SPREADSHEET_ID19, roomId);
+    const existing = await readOne(SPREADSHEET_ID19, roomId);
     if (!existing) return jsonError(404, "NOT_FOUND", `Room ${roomId} not found`);
     const ok = await softDelete(SPREADSHEET_ID19, roomId);
     if (!ok) return jsonError(404, "NOT_FOUND", `Room ${roomId} not found`);

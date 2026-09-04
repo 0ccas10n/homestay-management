@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Modal from './Modal';
-import type { Booking } from '@/types/index';
+import type { Booking, Room } from '@/types/index';
 import { getBookingTotal, formatVnd } from '@/utils/format';
 import { bookingsApi } from '@/services/api';
+import { useRooms } from '@/hooks/useRooms';
+import { useBookings } from '@/hooks/useBookings';
 
 interface QuickEditModalProps {
   booking: Booking | null;
@@ -27,10 +29,13 @@ function toLocalString(isoString: string) {
 }
 
 export default function QuickEditModal({ booking, guestName, roomName, onClose, onSuccess, darkMode }: QuickEditModalProps) {
+  const { rooms } = useRooms();
+  const { bookings } = useBookings();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form states
+  const [selectedRoomId, setSelectedRoomId] = useState('');
   const [checkInAt, setCheckInAt] = useState('');
   const [expectedCheckOutAt, setExpectedCheckOutAt] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
@@ -38,6 +43,7 @@ export default function QuickEditModal({ booking, guestName, roomName, onClose, 
 
   useEffect(() => {
     if (booking) {
+      setSelectedRoomId(booking.roomId);
       setCheckInAt(toLocalString(booking.checkInAt));
       setExpectedCheckOutAt(toLocalString(booking.expectedCheckOutAt));
       setTotalAmount(String(getBookingTotal(booking)));
@@ -46,7 +52,39 @@ export default function QuickEditModal({ booking, guestName, roomName, onClose, 
     }
   }, [booking]);
 
+  const activeRooms = useMemo(
+    () => rooms.filter(r => r.status !== 'inactive'),
+    [rooms],
+  );
+
+  const formatToLocalIso = (dtLocal: string) => {
+    return dtLocal.length === 16 ? `${dtLocal}:00+07:00` : dtLocal;
+  };
+
+  const ciIso = checkInAt ? formatToLocalIso(checkInAt) : '';
+  const coIso = expectedCheckOutAt ? formatToLocalIso(expectedCheckOutAt) : '';
+
+  const isRoomConflicted = (roomId: string) => {
+    if (!booking || !ciIso || !coIso) return false;
+    const ciTime = new Date(ciIso).getTime();
+    const coTime = new Date(coIso).getTime();
+    if (isNaN(ciTime) || isNaN(coTime) || ciTime >= coTime) return false;
+
+    return bookings.some(b => {
+      if (b.roomId !== roomId) return false;
+      if (b.bookingId === booking.bookingId) return false;
+      if (b.status === 'cancelled' || b.status === 'checked_out' || b.status === 'no_show') return false;
+
+      const bStart = new Date(b.checkInAt).getTime();
+      const bEnd = new Date(b.expectedCheckOutAt).getTime();
+      return bStart < coTime && bEnd > ciTime;
+    });
+  };
+
   if (!booking) return null;
+
+  const isRoomChanged = selectedRoomId && selectedRoomId !== booking.roomId;
+  const isCheckedIn = booking.status === 'checked_in';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,29 +97,34 @@ export default function QuickEditModal({ booking, guestName, roomName, onClose, 
       setLoading(true);
       setError(null);
 
-      // Ensure we append the correct local timezone offset (+07:00) 
-      // instead of converting to UTC so slice() operations on the frontend still work.
-      const formatToLocalIso = (dtLocal: string) => {
-        return dtLocal.length === 16 ? `${dtLocal}:00+07:00` : dtLocal;
-      };
-
-      const ciIso = formatToLocalIso(checkInAt);
-      const coIso = formatToLocalIso(expectedCheckOutAt);
-
       const numTotal = Number(totalAmount.replace(/[^\d]/g, ''));
       const numPaid = paidAmount.trim() ? Number(paidAmount.replace(/[^\d]/g, '')) : undefined;
       const paymentStatus = numPaid !== undefined
         ? (numPaid >= (numTotal || getBookingTotal(booking)) ? 'paid' : (numPaid > 0 ? 'partial' : 'unpaid'))
         : undefined;
 
-      const res = await bookingsApi.update(booking.bookingId, {
-        checkInAt: ciIso,
-        expectedCheckOutAt: coIso,
+      const initialCiLocal = toLocalString(booking.checkInAt);
+      const initialCoLocal = toLocalString(booking.expectedCheckOutAt);
+
+      const payload: any = {
         totalAmount: isNaN(numTotal) ? undefined : numTotal,
         paidAmount: numPaid,
         depositAmount: numPaid,
         paymentStatus,
-      });
+      };
+
+      if (isRoomChanged) {
+        payload.roomId = selectedRoomId;
+      }
+
+      if (checkInAt !== initialCiLocal) {
+        payload.checkInAt = ciIso;
+      }
+      if (expectedCheckOutAt !== initialCoLocal) {
+        payload.expectedCheckOutAt = coIso;
+      }
+
+      const res = await bookingsApi.update(booking.bookingId, payload);
 
       onSuccess(res);
       onClose();
@@ -101,17 +144,65 @@ export default function QuickEditModal({ booking, guestName, roomName, onClose, 
     fontSize: 14, fontFamily: "var(--font-sans)",
   };
 
-  const titleGuest = guestName || booking.customerId;
-  const titleRoom = roomName || booking.roomId;
+  const currentRoomName = rooms.find(r => r.roomId === selectedRoomId)?.name || roomName || booking.roomId;
+  const titleGuest = guestName || booking.guestName || booking.customerId;
 
   return (
-    <Modal open={!!booking} onClose={onClose} title={`Cập Nhật Booking: ${titleGuest} · ${titleRoom}`} darkMode={darkMode} width={400}>
+    <Modal open={!!booking} onClose={onClose} title={`Cập Nhật Booking: ${titleGuest} · ${currentRoomName}`} darkMode={darkMode} width={440}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 10 }}>
         {error && (
           <div style={{ padding: '8px 12px', background: '#FEE2E2', color: '#991B1B', borderRadius: 8, fontSize: 13 }}>
             {error}
           </div>
         )}
+
+        {/* ─── Chọn đổi phòng ────────────────────────────────────────── */}
+        <div>
+          <label style={labelStyle}>Phòng lưu trú</label>
+          <select
+            value={selectedRoomId}
+            onChange={e => setSelectedRoomId(e.target.value)}
+            style={inputStyle}
+          >
+            {activeRooms.map(r => {
+              const isCurrent = r.roomId === booking.roomId;
+              const hasConflict = isRoomConflicted(r.roomId);
+              return (
+                <option
+                  key={r.roomId}
+                  value={r.roomId}
+                  disabled={!isCurrent && hasConflict}
+                >
+                  {isCurrent
+                    ? `📍 ${r.name} (Phòng hiện tại)`
+                    : hasConflict
+                    ? `❌ ${r.name} (Đã có khách)`
+                    : `✅ ${r.name} ${r.priceDisplay ? `· ${r.priceDisplay}` : ''}`}
+                </option>
+              );
+            })}
+          </select>
+
+          {isRoomChanged && (
+            <div style={{
+              marginTop: 6, padding: '8px 12px', borderRadius: 6, fontSize: 11.5,
+              background: darkMode ? '#1E293B' : '#EFF6FF',
+              border: `1px solid ${darkMode ? '#3B82F6' : '#BFDBFE'}`,
+              color: darkMode ? '#93C5FD' : '#1D4ED8',
+              lineHeight: 1.4,
+            }}>
+              {isCheckedIn ? (
+                <span>
+                  🔄 <strong>Đổi phòng khi đang ở:</strong> Phòng cũ sẽ tự động chuyển sang <strong>Cần dọn dẹp</strong> và tạo 1 phiếu dọn phòng cho tạp vụ.
+                </span>
+              ) : (
+                <span>
+                  🔄 <strong>Đổi phòng trước khi đến:</strong> Khách sẽ được chuyển sang phòng mới.
+                </span>
+              )}
+            </div>
+          )}
+        </div>
 
         <div>
           <label style={labelStyle}>Check-in dự kiến</label>
@@ -149,7 +240,7 @@ export default function QuickEditModal({ booking, guestName, roomName, onClose, 
             placeholder="Ví dụ: 500000"
           />
           <span style={{ fontSize: 11, color: '#64748B', marginTop: 4, display: 'block' }}>
-            Nhập lại tổng tiền nếu khách gia hạn thêm giờ.
+            Nhập lại tổng tiền nếu có phụ thu đổi phòng hoặc gia hạn giờ.
           </span>
         </div>
 

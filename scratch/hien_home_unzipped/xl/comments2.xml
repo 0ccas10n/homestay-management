@@ -1,0 +1,514 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="xr" xmlns:xr="http://schemas.microsoft.com/office/spreadsheetml/2014/revision"><authors><author>tc={54122be8-c1b6-414f-941c-eb33d2c68c79}</author><author>tc={af25f133-0d1a-462e-843f-a34475301e5d}</author><author>tc={031b4ac9-bb00-4687-9730-21dcdeb20059}</author><author>tc={16340e2d-a45a-404f-99cc-af3f110aba83}</author><author>tc={ab8a2ac9-378e-4aef-b466-91b14d4cc85d}</author><author>tc={f3a1be10-3e0d-493a-87bf-1c101eba4b8e}</author><author>tc={ca2d87ea-1905-4d5d-9653-60f2b9dbef34}</author><author>tc={805f9fff-05bf-4b9a-ad49-20ddb1927174}</author><author>tc={38f270ea-a381-4e84-a479-6232d7cdbcee}</author><author>tc={461db5fb-0360-4b0e-b654-008cc0908a49}</author><author>tc={0216c1f4-b0ad-4412-b2bb-5a080baa09ce}</author><author>tc={0b501751-6204-4b23-bd0a-d34411fce094}</author><author>tc={29af4563-45dc-4e76-9199-3d585ba989ee}</author><author>tc={eb7e661c-3b82-4e8a-be81-e3350d231302}</author><author>tc={aa74f049-f21e-4959-a1b1-e74a2e62f8d1}</author><author>tc={56e97d58-0714-488e-8af7-16bc5be0645f}</author><author>tc={715ab262-1629-4427-91a4-e4894e996077}</author><author>tc={33534415-dc8a-41fb-bf8b-28ba660dfcb8}</author><author>tc={76e2d123-9eaf-47d6-92f9-49fc5a929a91}</author><author>tc={72501813-df64-44a1-a380-e401d280b7b6}</author><author>tc={d0238de2-778c-4f0f-8762-99fa5fa33e1f}</author><author>tc={67502f73-f0a3-464c-a7af-546610bff3c0}</author><author>tc={85ceb55f-b94a-4431-a5d2-a91a9c4b8585}</author><author>tc={bd277d88-6814-4bac-b232-b2bf7e34b47c}</author><author>tc={ec093772-ca11-42a1-afcf-6fc1b52d985c}</author><author>tc={af8ae20f-a68d-4bfe-8680-bbc858aaa3df}</author><author>tc={6b4e548c-8d15-4fda-992e-63fc1b5ff5c6}</author><author>tc={f3966556-5ecf-4c34-9cc1-7fbad324cb08}</author><author>tc={423cc4be-2617-4a08-b288-85087452734d}</author><author>tc={7f8f7cdd-7003-4264-8f82-be8a01e5978c}</author><author>tc={58a79630-ac97-4b69-a163-4dc468433286}</author><author>tc={9acd137d-73a9-48e1-b6c2-b7becd480c29}</author><author>tc={24b02d1b-16d2-4b8a-ac7d-89e2aed96275}</author><author>tc={521e9a82-32c2-4b1b-b8e2-e9452c4631f7}</author><author>tc={fb809085-bac5-4f39-940a-9f65f35e67f9}</author><author>tc={7b6121ea-4c62-49e8-bd64-041c3d1cf2f2}</author><author>tc={f709934b-6e8b-44c5-881d-c846175badad}</author><author>tc={773ca04f-3076-4c79-a18b-e5b8f681b2f9}</author><author>tc={153db113-710b-4fef-a503-2e93e21f423b}</author><author>tc={d6edab03-2a3e-4235-9dc9-2814e41d958d}</author><author>tc={a6249993-1984-423c-9aff-3b3724f83d86}</author><author>tc={58811750-9ad9-4cc8-9d27-5fdd657d0a57}</author><author>tc={ce76ac84-2e6d-4895-b0d5-6718750c94ec}</author><author>tc={137e6c39-2645-4fcd-97a1-810ff69861b3}</author><author>tc={8a7557cc-8d89-47d1-8f44-cd200311d5c9}</author><author>tc={80658b10-4e42-4a1c-92f7-cea166d93cce}</author><author>tc={305acfa5-3dca-4917-a8fc-b52f6a897055}</author><author>tc={5016c004-8283-4ef5-8186-2436b2f8ae57}</author><author>tc={a81d3ca5-7d18-4449-82df-654fbc34704b}</author><author>tc={3bb502fe-82df-423d-92bb-b0174b6224c6}</author><author>tc={80f4ba88-4305-4922-99dc-fe54c6758b84}</author><author>tc={6f1c494e-49e9-4182-a447-3317bd40dfe6}</author><author>tc={0d6525f4-f8be-43b3-b1f5-6e6ebf3d121f}</author><author>tc={04b8e2a3-80c8-4c04-8a7a-3dca50e9db19}</author><author>tc={0302e411-293a-4cd0-97d6-5511cabc1d10}</author><author>tc={7c113276-705e-40a3-9766-0d4bafaa9af7}</author><author>tc={456dff38-ebba-479c-98c9-5ae5a1f0e213}</author><author>tc={573eb523-c7de-44f0-9ef4-ba12d4838a06}</author><author>tc={9da65330-ae19-470d-88e5-6a68aedc760b}</author><author>tc={e99f2b70-d268-43dd-8fed-bb991486022e}</author><author>tc={0c5eea36-9bbc-493b-b7a3-4124c52953a5}</author><author>tc={0af89847-a326-40f3-b0cd-c0bd6dc6e647}</author><author>tc={9430ff54-74c9-40f3-b664-e5c3638822f4}</author><author>tc={54da2e7c-d108-415b-8e12-329aafcd321b}</author><author>tc={d5c51259-d285-4eaa-a53c-77799fe9984e}</author><author>tc={2925c0d8-4f27-4295-abd1-7f5e27048aaf}</author><author>tc={060ac071-1613-4056-8970-be64a1c5ca9a}</author><author>tc={3966fead-669a-4d6b-965c-99266ecddaad}</author><author>tc={6d9dfd53-bedf-47d9-9887-294969bb29d4}</author><author>tc={29227cc9-6ece-430d-9fbe-46296bb5a2bf}</author><author>tc={5115639d-5362-4f49-a3e1-c41600738f5c}</author><author>tc={37f7590c-ab4b-4f6d-9a2d-63833ae54246}</author><author>tc={317bdde3-f97d-4f91-a322-ecf5888b82b8}</author><author>tc={76472e26-a123-4f35-ad5a-9467c3212d43}</author><author>tc={73bddfc5-0d70-4a16-8857-89c548916eb9}</author><author>tc={c460731a-9619-4da5-9a14-809471a4ef30}</author><author>tc={83b1e180-f393-45b6-99a8-c0ba6558b971}</author><author>tc={75d83304-f2fd-4edc-99f0-b4b55beae222}</author><author>tc={13655c65-2f33-4c65-b16f-4e5a9bac355a}</author><author>tc={50d9aee4-9b76-4ddd-8864-798606f053d7}</author><author>tc={d44cc78b-ceb1-41ca-9a1d-8a5b8f240430}</author><author>tc={5712f4a2-9b86-42b1-a473-baa27b331bd5}</author><author>tc={4a5920b2-c378-4ef3-a7bd-744bd9941b0c}</author></authors><commentList><comment ref="LQ4" authorId="0" shapeId="0" xr:uid="{54122BE8-C1B6-414F-941C-EB33D2C68C79}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG:_n.vzye10_
+Full 1350
+Vipp</t></text></comment><comment ref="LX4" authorId="1" shapeId="0" xr:uid="{AF25F133-0D1A-462E-843F-A34475301E5D}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG:/sk.brs_
+Cọc 350</t></text></comment><comment ref="MD4" authorId="2" shapeId="0" xr:uid="{031B4AC9-BB00-4687-9730-21DCDEB20059}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: Mai Ngọc Nhi</t></text></comment><comment ref="MV4" authorId="3" shapeId="0" xr:uid="{16340E2D-A45A-404F-99CC-AF3F110ABA83}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: uinnhy_
+Còn 1250</t></text></comment><comment ref="GG10" authorId="4" shapeId="0" xr:uid="{AB8A2AC9-378E-4AEF-B466-91B14D4CC85D}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Tiktok: chocopiee
+1.290, còn 645
+Cb thêm 1 khăn, 3 khách</t></text></comment><comment ref="IU10" authorId="5" shapeId="0" xr:uid="{F3A1BE10-3E0D-493A-87BF-1C101EBA4B8E}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    tiktok: Khoai lang béo
+2500, cọc 1500</t></text></comment><comment ref="JX10" authorId="6" shapeId="0" xr:uid="{CA2D87EA-1905-4D5D-9653-60F2B9DBEF34}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    3 Khách, 1260k còn 1260k
+Reply:
+    IG:_axisnu</t></text></comment><comment ref="KH10" authorId="7" shapeId="0" xr:uid="{805F9FFF-05BF-4B9A-AD49-20DDB1927174}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Zalo: Đức NGhĩa
+850, còn 540</t></text></comment><comment ref="KB12" authorId="8" shapeId="0" xr:uid="{38F270EA-A381-4E84-A479-6232D7CDBCEE}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Zalo: kim Ngân
+780+120</t></text></comment><comment ref="FK13" authorId="9" shapeId="0" xr:uid="{461DB5FB-0360-4B0E-B654-008CC0908A49}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Tiktok: NoahM
+Full 950</t></text></comment><comment ref="JJ13" authorId="10" shapeId="0" xr:uid="{0216C1F4-B0AD-4412-B2BB-5A080BAA09CE}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: bò húc
+6 khách, 475(950)</t></text></comment><comment ref="LH13" authorId="11" shapeId="0" xr:uid="{0B501751-6204-4B23-BD0A-D34411FCE094}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG:_ph.nhiii
+2550 + 200 checkin sớm
+Cọc 1275</t></text></comment><comment ref="ME13" authorId="12" shapeId="0" xr:uid="{29AF4563-45DC-4E76-9199-3D585BA989EE}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: Ngo Le Cao Nhan
+1450
+Sáng CN nhắn báo bạn dời từ Y3 xún Y1 theo ý của bạn gái bạn nhờ</t></text></comment><comment ref="FW14" authorId="13" shapeId="0" xr:uid="{EB7E661C-3B82-4E8A-BE81-E3350D231302}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: ccdm.nhims
+570k</t></text></comment><comment ref="KB14" authorId="14" shapeId="0" xr:uid="{AA74F049-F21E-4959-A1B1-E74A2E62F8D1}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Zalo: Kim Ngân
+780</t></text></comment><comment ref="KK14" authorId="15" shapeId="0" xr:uid="{56E97D58-0714-488E-8AF7-16BC5BE0645F}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: ktrannn_</t></text></comment><comment ref="MD14" authorId="16" shapeId="0" xr:uid="{715AB262-1629-4427-91A4-E4894E996077}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: Ngô Lê Cao Nhân 
+1450</t></text></comment><comment ref="FK15" authorId="17" shapeId="0" xr:uid="{33534415-DC8A-41FB-BF8B-28BA660DFCB8}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Tiktok NoahM full 950</t></text></comment><comment ref="HQ15" authorId="18" shapeId="0" xr:uid="{76E2D123-9EAF-47D6-92F9-49FC5A929A91}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: hwi_cun.04
+còn 400</t></text></comment><comment ref="MI15" authorId="19" shapeId="0" xr:uid="{72501813-DF64-44A1-A380-E401D280B7B6}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: minhlogarit
+640 còn 320</t></text></comment><comment ref="FL16" authorId="20" shapeId="0" xr:uid="{D0238DE2-778C-4F0F-8762-99FA5FA33E1F}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: ani.di47
+Full 620</t></text></comment><comment ref="FX16" authorId="21" shapeId="0" xr:uid="{67502F73-F0A3-464C-A7AF-546610BFF3C0}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Tiktok: 1m63_mie
+Còn 310</t></text></comment><comment ref="FZ16" authorId="22" shapeId="0" xr:uid="{85CEB55F-B94A-4431-A5D2-A91A9C4B8585}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    TikTok: 1m63_mie
+Còn 310</t></text></comment><comment ref="GB16" authorId="23" shapeId="0" xr:uid="{BD277D88-6814-4BAC-B232-B2BF7E34B47C}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    750, xong</t></text></comment><comment ref="GN16" authorId="24" shapeId="0" xr:uid="{EC093772-CA11-42A1-AFCF-6FC1B52D985C}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: Andyyy
+690, cọc 300</t></text></comment><comment ref="LN16" authorId="25" shapeId="0" xr:uid="{AF8AE20F-A68D-4BFE-8680-BBC858AAA3DF}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: bosuvinamilk
+Full 550</t></text></comment><comment ref="MD16" authorId="26" shapeId="0" xr:uid="{6B4E548C-8D15-4FDA-992E-63FC1B5FF5C6}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: fortynine.basement
+Full 570</t></text></comment><comment ref="FY17" authorId="27" shapeId="0" xr:uid="{F3966556-5ECF-4C34-9CC1-7FBAD324CB08}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: arrryaaa_vnm
+Full 830</t></text></comment><comment ref="GH17" authorId="28" shapeId="0" xr:uid="{423CC4BE-2617-4A08-B288-85087452734D}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Tiktok: Chàng Dé
+Full 390</t></text></comment><comment ref="JZ17" authorId="29" shapeId="0" xr:uid="{7F8F7CDD-7003-4264-8F82-BE8A01E5978C}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: nguyenpnn 
+570 
+Khách này ở dơ</t></text></comment><comment ref="KA17" authorId="30" shapeId="0" xr:uid="{58A79630-AC97-4B69-A163-4DC468433286}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: vixnhna
+680</t></text></comment><comment ref="LS17" authorId="31" shapeId="0" xr:uid="{9ACD137D-73A9-48E1-B6C2-B7BECD480C29}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: waly_vex
+Cong 275</t></text></comment><comment ref="LW17" authorId="32" shapeId="0" xr:uid="{24B02D1B-16D2-4B8A-AC7D-89E2AED96275}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: anthonynguyen201097
+Còn 185
+Chuyển cho Hiền</t></text></comment><comment ref="MR17" authorId="33" shapeId="0" xr:uid="{521E9A82-32C2-4B1B-B8E2-E9452C4631F7}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Zalo Thảo Trần
+1.130, cọc 600</t></text></comment><comment ref="FQ18" authorId="34" shapeId="0" xr:uid="{FB809085-BAC5-4F39-940A-9F65F35E67F9}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Zalo: Ngọc Hà
+còn 1725</t></text></comment><comment ref="GE18" authorId="35" shapeId="0" xr:uid="{7B6121EA-4C62-49E8-BD64-041C3D1CF2F2}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: burmburr
+FULL 900</t></text></comment><comment ref="GR18" authorId="36" shapeId="0" xr:uid="{F709934B-6E8B-44C5-881D-C846175BADAD}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: kit_24t
+FULL
+Khách thuê xe máy</t></text></comment><comment ref="HY18" authorId="37" shapeId="0" xr:uid="{773CA04F-3076-4C79-A18B-E5B8F681B2F9}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: ki_citiboi
+Còn 425</t></text></comment><comment ref="IA18" authorId="38" shapeId="0" xr:uid="{153DB113-710B-4FEF-A503-2E93E21F423B}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: hvn.vy
+1.550, xong</t></text></comment><comment ref="IC18" authorId="39" shapeId="0" xr:uid="{D6EDAB03-2A3E-4235-9DC9-2814E41D958D}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: meow
+còn 1225k</t></text></comment><comment ref="IM18" authorId="40" shapeId="0" xr:uid="{A6249993-1984-423C-9AFF-3B3724F83D86}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: tailstyle.co
+14:30-20:30 full 570</t></text></comment><comment ref="IP18" authorId="41" shapeId="0" xr:uid="{58811750-9AD9-4CC8-9D27-5FDD657D0A57}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    08.gh.inq
+full 850</t></text></comment><comment ref="JG18" authorId="42" shapeId="0" xr:uid="{CE76AC84-2E6D-4895-B0D5-6718750C94EC}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: hvn.vy
+Full 2450</t></text></comment><comment ref="JM18" authorId="43" shapeId="0" xr:uid="{137E6C39-2645-4FCD-97A1-810FF69861B3}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: 7hawwwwu
+Còn 425</t></text></comment><comment ref="KH18" authorId="44" shapeId="0" xr:uid="{8A7557CC-8D89-47D1-8F44-CD200311D5C9}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    2nd.mm
+640</t></text></comment><comment ref="LD18" authorId="45" shapeId="0" xr:uid="{80658B10-4E42-4A1C-92F7-CEA166D93CCE}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Tiktok: embebeoo
+đã cọc 1275</t></text></comment><comment ref="LH18" authorId="46" shapeId="0" xr:uid="{305ACFA5-3DCA-4917-A8FC-B52F6A897055}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: _ph.nhiii
+2550, cọc 1275</t></text></comment><comment ref="MA18" authorId="47" shapeId="0" xr:uid="{5016C004-8283-4EF5-8186-2436B2F8AE57}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Bảo Ngọc IG
+670</t></text></comment><comment ref="MK18" authorId="48" shapeId="0" xr:uid="{A81D3CA5-7D18-4449-82DF-654FBC34704B}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: IG: linhan.23
+Cọc 500
+Còn 430 + 100</t></text></comment><comment ref="KN19" authorId="49" shapeId="0" xr:uid="{3BB502FE-82DF-423D-92BB-B0174B6224C6}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: cinhnn
+Còn 425
+Reply:
+    Marked as resolved
+Reply:
+    Re-opened</t></text></comment><comment ref="GJ20" authorId="50" shapeId="0" xr:uid="{80F4BA88-4305-4922-99DC-FE54C6758B84}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: tn120404
+Còn 300k</t></text></comment><comment ref="JR20" authorId="51" shapeId="0" xr:uid="{6F1C494E-49E9-4182-A447-3317BD40DFE6}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Zalo: Yếnn
+1700, tt xong</t></text></comment><comment ref="KO20" authorId="52" shapeId="0" xr:uid="{0D6525F4-F8BE-43B3-B1F5-6E6EBF3D121F}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: ktrannn_</t></text></comment><comment ref="MG20" authorId="53" shapeId="0" xr:uid="{04B8E2A3-80C8-4C04-8A7A-3DCA50E9DB19}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Phan Huyền zalo
+750</t></text></comment><comment ref="MK20" authorId="54" shapeId="0" xr:uid="{0302E411-293A-4CD0-97D6-5511CABC1D10}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: linhan.23
+Cọc 500
+Còn 430
+Reply:
+    Marked as resolved
+Reply:
+    Re-opened</t></text></comment><comment ref="IG21" authorId="55" shapeId="0" xr:uid="{7C113276-705E-40A3-9766-0D4BAFAA9AF7}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: orm__4
+còn 320</t></text></comment><comment ref="FW22" authorId="56" shapeId="0" xr:uid="{456DFF38-EBBA-479C-98C9-5AE5A1F0E213}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: Hải Trịnh
+900, còn 450</t></text></comment><comment ref="KV22" authorId="57" shapeId="0" xr:uid="{573EB523-C7DE-44F0-9EF4-BA12D4838A06}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: zit.aries
+Chuyển từ Y2 sang nha</t></text></comment><comment ref="JE23" authorId="58" shapeId="0" xr:uid="{9DA65330-AE19-470D-88E5-6A68AEDC760B}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG:_ngdepp
+Còn 320k</t></text></comment><comment ref="IJ24" authorId="59" shapeId="0" xr:uid="{E99F2B70-D268-43DD-8FED-BB991486022E}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: dahlia._03
+Full 760</t></text></comment><comment ref="LM24" authorId="60" shapeId="0" xr:uid="{0C5EEA36-9BBC-493B-B7A3-4124C52953A5}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: ntpbentt
+Full 620</t></text></comment><comment ref="MD24" authorId="61" shapeId="0" xr:uid="{0AF89847-A326-40F3-B0CD-C0BD6DC6E647}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG:/vuszk
+Full 600</t></text></comment><comment ref="FI25" authorId="62" shapeId="0" xr:uid="{9430FF54-74C9-40F3-B664-E5C3638822F4}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: tran_tuananh
+650, xong</t></text></comment><comment ref="FN25" authorId="63" shapeId="0" xr:uid="{54DA2E7C-D108-415B-8E12-329AAFCD321B}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: choeleeee
+Full 1300</t></text></comment><comment ref="GM25" authorId="64" shapeId="0" xr:uid="{D5C51259-D285-4EAA-A53C-77799FE9984E}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: nhuoanh_98
+Full 650</t></text></comment><comment ref="HA25" authorId="65" shapeId="0" xr:uid="{2925C0D8-4F27-4295-ABD1-7F5E27048AAF}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    còn 300</t></text></comment><comment ref="HI25" authorId="66" shapeId="0" xr:uid="{060AC071-1613-4056-8970-BE64A1C5CA9A}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    ig: Minh Bảo
+650</t></text></comment><comment ref="HM25" authorId="67" shapeId="0" xr:uid="{3966FEAD-669A-4D6B-965C-99266ECDDAAD}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    TikTok: Hà Mã Đuối Nước
+750, con 375</t></text></comment><comment ref="JD25" authorId="68" shapeId="0" xr:uid="{6D9DFD53-BEDF-47D9-9887-294969BB29D4}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: bosuvinamilk
+Full 620</t></text></comment><comment ref="JF25" authorId="69" shapeId="0" xr:uid="{29227CC9-6ECE-430D-9FBE-46296BB5A2BF}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: 
+dg.nhii
+Còn 380</t></text></comment><comment ref="JK25" authorId="70" shapeId="0" xr:uid="{5115639D-5362-4F49-A3E1-C41600738F5C}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: phuong_dung_1608
+1400, coc 700
+Dời lịch từ Yên 2, 12-14. Nhờ thu thêm phần tiền phòg chênh lệch</t></text></comment><comment ref="JP25" authorId="71" shapeId="0" xr:uid="{37F7590C-AB4B-4F6D-9A2D-63833AE54246}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: lduc_
+620, cọc 310</t></text></comment><comment ref="JQ25" authorId="72" shapeId="0" xr:uid="{317BDDE3-F97D-4F91-A322-ECF5888B82B8}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    tiktok: Cunniu
+620k</t></text></comment><comment ref="KF25" authorId="73" shapeId="0" xr:uid="{76472E26-A123-4F35-AD5A-9467C3212D43}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: vusk
+Full 620</t></text></comment><comment ref="KG25" authorId="74" shapeId="0" xr:uid="{73BDDFC5-0D70-4A16-8857-89C548916EB9}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Zalo Đức Nghĩa
+620, còn 310</t></text></comment><comment ref="KU25" authorId="75" shapeId="0" xr:uid="{C460731A-9619-4DA5-9A14-809471A4EF30}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: louisngo08
+Full 660</t></text></comment><comment ref="KX25" authorId="76" shapeId="0" xr:uid="{83B1E180-F393-45B6-99A8-C0BA6558B971}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    ig: quynhmai1623
+còn 450</t></text></comment><comment ref="LB25" authorId="77" shapeId="0" xr:uid="{75D83304-F2FD-4EDC-99F0-B4B55BEAE222}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG:_tudothanhlycuabe
+Full 620</t></text></comment><comment ref="LX25" authorId="78" shapeId="0" xr:uid="{13655C65-2F33-4C65-B16F-4E5A9BAC355A}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    Cún iuu
+850</t></text></comment><comment ref="MD25" authorId="79" shapeId="0" xr:uid="{50D9AEE4-9B76-4DDD-8864-798606F053D7}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG Ngo Le Cao Nhan
+880, xong</t></text></comment><comment ref="FX26" authorId="80" shapeId="0" xr:uid="{D44CC78B-CEB1-41CA-9A1D-8A5B8F240430}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: Minh Châu
+Còn 350</t></text></comment><comment ref="HL26" authorId="81" shapeId="0" xr:uid="{5712F4A2-9B86-42B1-A473-BAA27B331BD5}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: phat5840
+Full 750</t></text></comment><comment ref="JZ26" authorId="82" shapeId="0" xr:uid="{4A5920B2-C378-4EF3-A7BD-744BD9941B0C}"><text><t>[Threaded comment]
+
+Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924
+
+Comment:
+    IG: dyy1_204
+620 full</t></text></comment></commentList></comments>

@@ -176,12 +176,12 @@ export default function Dashboard() {
   const customerMap = React.useMemo(() => new Map(customers.map(c => [c.customerId, c.name])), [customers]);
 
   // Tỉ trọng kênh bán (Channel Mix)
-  const channelMixData = React.useMemo(() => {
+  const { channelMixData, totalChannelCustomers } = React.useMemo(() => {
     const counts: Record<string, number> = {
-      'FACEBOOK': 0,
-      'ZALO': 0,
-      'TIKTOK': 0,
       'INSTAGRAM': 0,
+      'ZALO': 0,
+      'FACEBOOK': 0,
+      'TIKTOK': 0,
       'DIRECT / KHÁC': 0,
     };
 
@@ -196,26 +196,39 @@ export default function Dashboard() {
     });
 
     const CHANNEL_COLORS: Record<string, string> = {
-      'FACEBOOK': '#1877F2',                                      // Xanh đậm Facebook
-      'ZALO': '#38BDF8',                                          // Xanh nhạt Sky Blue (Zalo)
-      'TIKTOK': darkMode ? '#F1F5F9' : '#000000',                 // Đen TikTok (Trắng sáng trên DarkMode để không bị chìm)
-      'INSTAGRAM': '#F56040',                                     // Cam hồng Instagram
-      'DIRECT / KHÁC': '#64748B',                                 // Xám trung tính (Chuẩn UX cho mục "Khác")
+      'FACEBOOK': '#1877F2',
+      'ZALO': '#38BDF8',
+      'TIKTOK': darkMode ? '#F1F5F9' : '#000000',
+      'INSTAGRAM': '#F56040',
+      'DIRECT / KHÁC': '#64748B',
+    };
+
+    const CHANNEL_NAMES: Record<string, string> = {
+      'INSTAGRAM': 'Instagram',
+      'ZALO': 'Zalo',
+      'FACEBOOK': 'Facebook',
+      'TIKTOK': 'TikTok',
+      'DIRECT / KHÁC': 'Khác / Direct',
     };
 
     const result = Object.entries(counts)
       .filter(([_, count]) => count > 0)
-      .map(([name, count]) => ({
-        name,
+      .map(([key, count]) => ({
+        key,
+        name: CHANNEL_NAMES[key] || key,
         count,
         percentage: total > 0 ? Math.round((count / total) * 100) : 0,
-        color: CHANNEL_COLORS[name] || '#64748B',
-      }));
+        color: CHANNEL_COLORS[key] || '#64748B',
+      }))
+      .sort((a, b) => b.count - a.count);
 
     if (result.length === 0) {
-      return [{ name: 'DIRECT / KHÁC', count: customers.length || 1, percentage: 100, color: '#64748B' }];
+      return {
+        channelMixData: [{ key: 'DIRECT / KHÁC', name: 'Khác / Direct', count: customers.length || 1, percentage: 100, color: '#64748B' }],
+        totalChannelCustomers: customers.length || 1,
+      };
     }
-    return result;
+    return { channelMixData: result, totalChannelCustomers: total };
   }, [customers, darkMode]);
 
   // Doanh thu theo từng phòng (Tháng này)
@@ -241,7 +254,7 @@ export default function Dashboard() {
   }, [rooms, bookings]);
 
   const getGuestName = (booking: Booking): string => {
-    return booking.guestName || customerMap.get(booking.customerId) || booking.customerId;
+    return customerMap.get((booking.customerId || '').trim()) || booking.guestName || booking.customerId;
   };
 
   const getRoomNumber = (booking: Booking): string => {
@@ -771,44 +784,94 @@ export default function Dashboard() {
 
         {/* Tỉ trọng nguồn khách (Kế bên Sơ đồ phòng) */}
         <div style={card(darkMode)}>
-          <div style={{ marginBottom: 14 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: textPrimary, margin: '0 0 4px 0' }}>Tỉ trọng nguồn khách</h3>
-            <div style={{ fontSize: 12, color: textMuted }}>Phân bổ theo kênh đặt phòng (Channel Mix)</div>
+          <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: textPrimary, margin: '0 0 3px 0' }}>Tỉ trọng nguồn khách</h3>
+              <div style={{ fontSize: 12, color: textMuted }}>Phân bổ theo kênh đặt phòng (Channel Mix)</div>
+            </div>
+            <div style={{
+              fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
+              background: darkMode ? '#334155' : '#F1F5F9', color: textMuted,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}>
+              Tổng: {totalChannelCustomers}
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', height: 'calc(100% - 46px)' }}>
-            <div style={{ width: '100%', height: 160 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', height: 'calc(100% - 44px)' }}>
+            <div style={{ width: '100%', height: 160, position: 'relative' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={channelMixData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={45}
-                    outerRadius={70}
+                    innerRadius={46}
+                    outerRadius={68}
                     paddingAngle={3}
-                    dataKey="value"
+                    dataKey="count"
                   >
                     {channelMixData.map(entry => (
                       <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}` }}
-                    formatter={(v: any, name: any) => [`${v} đơn`, String(name || '')]}
+                    contentStyle={{ borderRadius: 8, fontSize: 12, background: darkMode ? '#1E293B' : '#fff', border: `1px solid ${borderColor}`, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    formatter={(v: any, name: any) => [`${v} khách`, String(name || '')]}
                   />
                 </PieChart>
               </ResponsiveContainer>
+              {/* Center Donut Metric */}
+              <div style={{
+                position: 'absolute', top: '50%', left: '50%',
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center', pointerEvents: 'none',
+              }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: textPrimary, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1 }}>
+                  {totalChannelCustomers}
+                </div>
+                <div style={{ fontSize: 9.5, color: textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 }}>
+                  Khách
+                </div>
+              </div>
             </div>
             
-            {/* Legend gọn gàng */}
-            <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginTop: 8 }}>
+            {/* Legend gọn gàng, chuẩn Data Analytics */}
+            <div style={{
+              width: '100%',
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '6px 12px',
+              marginTop: 8,
+              paddingTop: 8,
+              borderTop: `1px dashed ${darkMode ? '#334155' : '#E2E8F0'}`,
+            }}>
               {channelMixData.map(entry => (
-                <div key={entry.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color, flexShrink: 0 }} />
-                    <span style={{ color: textPrimary, fontWeight: 500 }}>{entry.name}</span>
+                <div key={entry.name} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '3px 6px', borderRadius: 6,
+                  background: darkMode ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: entry.color, flexShrink: 0 }} />
+                    <span style={{
+                      color: textPrimary, fontWeight: 500, fontSize: 11.5,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {entry.name}
+                    </span>
                   </div>
-                  <span style={{ color: textMuted, fontWeight: 700 }}>{entry.count} ({entry.percentage}%)</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: textPrimary, fontFamily: "'JetBrains Mono', monospace" }}>
+                      {entry.count}
+                    </span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, color: textMuted,
+                      background: darkMode ? '#334155' : '#F1F5F9',
+                      padding: '1px 4px', borderRadius: 4,
+                    }}>
+                      {entry.percentage}%
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

@@ -16,6 +16,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { sheets } from './client';
+import { formatInTimeZone } from 'date-fns-tz';
 import {
   SHEETS,
   BOOKINGS_HEADERS,
@@ -27,6 +28,8 @@ import { timestamps, updatedTimestamp, windowsOverlap, diffMinutes, nowIso } fro
 import { generateId } from './id';
 import { CUSTOM_RATE_PLAN_ID } from '@/lib/api/validation';
 import { findPrice } from './ratePlanPrices.repository';
+import { update as updateRoom, readOne as readRoom } from './rooms.repository';
+import { create as createCleaningTask } from './cleaning.repository';
 import { ROOM_RATE_PRICES } from '../../../scripts/seedData';
 
 // ─── Surcharge constants (同步 seedData.ts SURCHARGE_RULES) ───────────────────────
@@ -258,7 +261,10 @@ export async function create(
     throw new Error('checkInAt must be before expectedCheckOutAt');
   }
 
-  const bookingId = await generateId('B', 'Bookings', spreadsheetId);
+  const tz = process.env.BUSINESS_TZ ?? 'Asia/Ho_Chi_Minh';
+  const yymm = formatInTimeZone(new Date(), tz, 'yyMM');
+  const prefix = `B-${yymm}`;
+  const bookingId = await generateId(prefix, 'Bookings', spreadsheetId);
   const createdAt = nowIso();
   const updatedAt = createdAt;
 
@@ -376,12 +382,12 @@ export async function update(
   const expectedCheckOutAt = patch.expectedCheckOutAt ?? existing.expectedCheckOutAt;
   const roomId = patch.roomId ?? existing.roomId;
 
-  // Re-check overlap if dates or room changed
-  if (
-    patch.checkInAt ||
-    patch.expectedCheckOutAt ||
-    patch.roomId
-  ) {
+  const dateOrRoomChanged = 
+    (patch.checkInAt && Math.abs(new Date(patch.checkInAt).getTime() - new Date(existing.checkInAt).getTime()) > 60000) ||
+    (patch.expectedCheckOutAt && Math.abs(new Date(patch.expectedCheckOutAt).getTime() - new Date(existing.expectedCheckOutAt).getTime()) > 60000) ||
+    (patch.roomId && patch.roomId !== existing.roomId);
+
+  if (dateOrRoomChanged) {
     const overlap = await hasOverlap(
       spreadsheetId, roomId, checkInAt, expectedCheckOutAt, bookingId,
     );
@@ -458,6 +464,30 @@ export async function update(
     `${SHEETS.Bookings}!A${sheetRow}:${col}`,
     [mapBookingToRow(updated)],
   );
+
+  // If moving a guest who has already checked in:
+  if (patch.roomId && patch.roomId !== existing.roomId && existing.status === 'checked_in') {
+    const oldRoomId = existing.roomId;
+    const newRoomId = patch.roomId;
+    const newRoom = await readRoom(spreadsheetId, newRoomId);
+    
+    // 1. Old room becomes needs_cleaning
+    await updateRoom(spreadsheetId, oldRoomId, { status: 'needs_cleaning' });
+    
+    // 2. Create urgent cleaning task for housekeeping
+    const guestLabel = existing.guestName || existing.customerId;
+    await createCleaningTask(spreadsheetId, {
+      roomId: oldRoomId,
+      bookingId: existing.bookingId,
+      scheduledAt: nowIso(),
+      status: 'pending',
+      priority: 'high',
+      note: `Khách ${guestLabel} đổi sang phòng ${newRoom?.name ?? newRoomId}`,
+    });
+
+    // 3. New room becomes occupied
+    await updateRoom(spreadsheetId, newRoomId, { status: 'occupied' });
+  }
 
   return updated;
 }

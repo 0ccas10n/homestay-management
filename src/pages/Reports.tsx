@@ -160,7 +160,7 @@ export default function Reports() {
         const total = getBookingTotal(b);
         const paid = Number(b.paidAmount) || 0;
         const balance = Math.max(0, total - paid);
-        const guest = (b as any).guestName || customerMap.get(b.customerId) || b.customerId;
+        const guest = customerMap.get(b.customerId) || (b as any).guestName || b.customerId;
         const roomName = roomMap.get(b.roomId) || b.roomId;
         return {
           booking: b,
@@ -1366,7 +1366,7 @@ export default function Reports() {
       {/* Quick Edit Modal for Receivables collection */}
       <QuickEditModal
         booking={editingBooking}
-        guestName={editingBooking ? (editingBooking as any).guestName || customerMap.get(editingBooking.customerId) : undefined}
+        guestName={editingBooking ? (customerMap.get(editingBooking.customerId) || (editingBooking as any).guestName) : undefined}
         roomName={editingBooking ? roomMap.get(editingBooking.roomId) : undefined}
         onClose={() => setEditingBooking(null)}
         onSuccess={() => {

@@ -21,11 +21,12 @@ function getDaysInMonth(year: number, month: number) {
 }
 
 function getFirstDayOfWeek(year: number, month: number) {
-  return new Date(year, month, 1).getDay();
+  const day = new Date(year, month, 1).getDay();
+  return (day + 6) % 7;
 }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function CalendarView() {
   const { darkMode } = useOutletContext<{ darkMode: boolean }>();
@@ -45,10 +46,10 @@ export default function CalendarView() {
   useEffect(() => { refetchCustomers(); }, [refetchCustomers]);
 
   const roomMap = useMemo(() => new Map(rooms.map(r => [r.roomId, r.name])), [rooms]);
-  const customerMap = useMemo(() => new Map(customers.map(c => [c.customerId, c.name])), [customers]);
+  const customerMap = useMemo(() => new Map(customers.map(c => [(c.customerId || '').trim(), c.name])), [customers]);
 
   const getRoomName = (roomId: string) => roomMap.get(roomId) || roomId;
-  const getCustomerName = (b: Booking) => b.guestName || customerMap.get(b.customerId) || b.customerId;
+  const getCustomerName = (b: Booking) => customerMap.get((b.customerId || '').trim()) || b.guestName || b.customerId;
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -133,7 +134,7 @@ export default function CalendarView() {
   while (cells.length % 7 !== 0) cells.push(null);
 
   const bookingColors: Record<string, string> = {
-    checked_in: '#10B981', confirmed: '#2563EB', inquiry: '#8B5CF6',
+    confirmed: '#2563EB', checked_in: '#10B981',
     checked_out: '#94A3B8', cancelled: '#EF4444', no_show: '#F59E0B',
   };
 
@@ -185,11 +186,28 @@ export default function CalendarView() {
       </div>
 
       {/* Calendar grid */}
-      <div style={{ background: bg, borderRadius: 12, border: `1px solid ${border}`, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: `1px solid ${border}` }}>
-          {DAYS.map(d => (
-            <div key={d} style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: textMuted, background: cellBg }}>{d}</div>
-          ))}
+      <div style={{ background: bg, borderRadius: 12, border: `1px solid ${border}`, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        {/* Header Ngày trong tuần */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: `1px solid ${border}`, background: darkMode ? '#0F172A' : '#F1F5F9' }}>
+          {DAYS.map((d, di) => {
+            const isWeekend = di === 5 || di === 6; // Sat (5) & Sun (6)
+            return (
+              <div
+                key={d}
+                style={{
+                  padding: '12px 10px',
+                  textAlign: 'center',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  color: isWeekend ? (darkMode ? '#60A5FA' : '#2563EB') : textPrimary,
+                  borderRight: di < 6 ? `1px solid ${border}` : 'none',
+                  letterSpacing: 0.3,
+                }}
+              >
+                {d}
+              </div>
+            );
+          })}
         </div>
 
         {loading && bookings.length === 0 && (
@@ -198,33 +216,27 @@ export default function CalendarView() {
 
         {Array.from({ length: cells.length / 7 }, (_, wi) => {
           const week = cells.slice(wi * 7, wi * 7 + 7);
-          // Sunday of this row, computed from the grid offset (not from a day-of-month
-          // literal) so partial weeks that start in the previous/next month still
-          // align each booking block with its actual weekday column.
           const rowStartDate = new Date(year, month, 1 - firstDay + wi * 7);
           const rowEndDate   = new Date(year, month, 1 - firstDay + wi * 7 + 7);
           const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
           const weekStartStr = fmt(rowStartDate);
           const weekEndStr   = fmt(rowEndDate);
 
-          // Bookings that intersect this week — laid out as minute-precise blocks.
+          // Lấy đúng toạ độ thời gian gốc theo phút (Timeline Geometry)
           const weekBlocks = (weekStartStr && weekEndStr)
             ? monthBookings
                 .map(b => ({ b, geom: bookingBlock(b, weekStartStr, weekEndStr) }))
                 .filter((x): x is { b: Booking; geom: { leftPct: number; widthPct: number } } => x.geom !== null)
             : [];
 
-          // Assign each block to a vertical lane so overlapping bookings stack
-          // instead of overdrawing each other.
+          // Xếp lane thông minh để không đè lên nhau
           const laneCount = (() => {
-            const lanes: number[] = []; // lane end-times (ms)
+            const lanes: number[] = [];
             const blockLanes = new Map<string, number>();
             for (const { b } of weekBlocks) {
               const start = new Date(b.checkInAt).getTime();
               const realEnd = new Date(b.expectedCheckOutAt).getTime();
-              // Pad the end time by at least 18 hours (64800000 ms) so that stretched
-              // short blocks (minWidth: 140) don't visually overlap with subsequent bookings in the same lane.
-              const visualEnd = Math.max(realEnd, start + 18 * 60 * 60 * 1000);
+              const visualEnd = Math.max(realEnd, start + 6 * 60 * 60 * 1000);
               
               let lane = lanes.findIndex(endTime => endTime <= start);
               if (lane === -1) { lane = lanes.length; lanes.push(visualEnd); }
@@ -237,32 +249,46 @@ export default function CalendarView() {
           const weekHasToday = week.some(d =>
             d !== null && year === today.getFullYear() && month === today.getMonth() && d === today.getDate()
           );
-          const ROW_MIN_H = 90;
-          const BLOCK_H   = 19;
-          const BLOCK_GAP = 2;
-          const dayNumReserve = 28; // space reserved for day numbers row
+          const ROW_MIN_H = 100;
+          const BLOCK_H   = 20;
+          const BLOCK_GAP = 3;
+          const dayNumReserve = 30;
           const dynamicH = dayNumReserve + Math.max(0, laneCount.total) * (BLOCK_H + BLOCK_GAP) + 8;
           const rowMinH = Math.max(ROW_MIN_H, dynamicH);
 
           return (
-            <div key={wi} style={{ position: 'relative', borderBottom: wi < cells.length / 7 - 1 ? `1px solid ${border}` : 'none', background: weekHasToday ? (darkMode ? 'rgba(37,99,235,0.06)' : 'rgba(37,99,235,0.04)') : 'transparent', minHeight: rowMinH }}>
-              {/* Background day-number grid (kept so columns align with the header). */}
+            <div
+              key={wi}
+              style={{
+                position: 'relative',
+                borderBottom: wi < cells.length / 7 - 1 ? `1px solid ${border}` : 'none',
+                background: weekHasToday ? (darkMode ? 'rgba(37,99,235,0.06)' : 'rgba(37,99,235,0.03)') : 'transparent',
+                minHeight: rowMinH,
+              }}
+            >
+              {/* Lưới các ô ngày */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', position: 'absolute', inset: 0 }}>
                 {week.map((day, di) => {
                   const isToday = day !== null && year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
                   return (
                     <div
                       key={di}
-                      style={{ borderRight: di < 6 ? `1px solid ${border}` : 'none', background: day ? bg : cellBg, position: 'relative', minHeight: rowMinH }}
+                      style={{
+                        borderRight: di < 6 ? `1px solid ${border}` : 'none',
+                        background: day ? bg : cellBg,
+                        position: 'relative',
+                        minHeight: rowMinH,
+                      }}
                     >
                       {day && (
                         <div style={{
-                          position: 'absolute', top: 8, left: 8,
-                          width: 24, height: 24, borderRadius: 99,
+                          position: 'absolute', top: 6, left: 8,
+                          width: 22, height: 22, borderRadius: 99,
                           background: isToday ? '#2563EB' : 'transparent',
                           color: isToday ? '#fff' : textMuted,
-                          fontSize: 12, fontWeight: isToday ? 700 : 400,
+                          fontSize: 12, fontWeight: isToday ? 700 : 500,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: "'JetBrains Mono', monospace",
                           zIndex: 1,
                         }}>
                           {day}
@@ -273,12 +299,11 @@ export default function CalendarView() {
                 })}
               </div>
 
-              {/* Spanning booking blocks for this week. */}
+              {/* Các khối booking chuẩn toạ độ giờ gốc */}
               {weekBlocks.map(({ b, geom }) => {
                 const color = bookingColors[b.status] ?? '#94A3B8';
                 const lane = laneCount.blockLanes.get(b.bookingId) ?? 0;
                 const top = dayNumReserve + lane * (BLOCK_H + BLOCK_GAP);
-                // Past its expected checkout but staff never checked the guest out/cancelled — flag it.
                 const isOverdue = (b.status === 'confirmed' || b.status === 'checked_in')
                   && new Date(b.expectedCheckOutAt).getTime() < today.getTime();
                 const fmtDate = (iso: string) => {
@@ -290,6 +315,14 @@ export default function CalendarView() {
                   } catch { return iso; }
                 };
 
+                const sameDay = b.checkInAt.slice(0, 10) === b.expectedCheckOutAt.slice(0, 10);
+                const colWidthPct = 100 / 7;
+                // Giới hạn mép phải của booking trong ngày để không bao giờ vượt qua mép phải của cột ngày đó
+                const currentDayCol = Math.floor(geom.leftPct / colWidthPct);
+                const maxAllowedPct = sameDay
+                  ? Math.max(geom.widthPct, (currentDayCol + 1) * colWidthPct - geom.leftPct - 0.2)
+                  : (100 - geom.leftPct - 0.2);
+
                 return (
                   <div
                     key={b.bookingId}
@@ -298,23 +331,24 @@ export default function CalendarView() {
                     style={{
                       position: 'absolute',
                       left: `${geom.leftPct}%`,
-                      width: `calc(${geom.widthPct}% - 4px)`,
-                      minWidth: 'max-content', // Đảm bảo luôn đủ dài để hiển thị hết chữ
-                      marginLeft: 2,
+                      width: `calc(${geom.widthPct}% - 2px)`,
+                      minWidth: sameDay ? 'auto' : 40,
+                      maxWidth: `${maxAllowedPct}%`,
+                      marginLeft: 1,
                       top,
                       height: BLOCK_H,
                       background: `${color}18`,
-                      color,
-                      borderLeft: `2px solid ${isOverdue ? '#DC2626' : color}`,
+                      color: darkMode ? (color === '#1E293B' ? '#E2E8F0' : color) : color,
+                      borderLeft: `2.5px solid ${isOverdue ? '#DC2626' : color}`,
                       outline: isOverdue ? '1px dashed #DC2626' : 'none',
                       outlineOffset: -1,
                       borderRadius: '0 4px 4px 0',
-                      padding: '0 8px 0 6px',
-                      fontSize: 10, fontWeight: 600,
+                      padding: '0 6px',
+                      fontSize: 10.5, fontWeight: 600,
                       cursor: 'pointer',
-                      textAlign: 'left', // Căn lề trái
+                      textAlign: 'left',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      lineHeight: `${BLOCK_H}px`,
+                      lineHeight: `${BLOCK_H - 1}px`,
                       zIndex: 2,
                     }}
                   >
@@ -445,7 +479,7 @@ export default function CalendarView() {
 
       <QuickEditModal
         booking={editBooking}
-        guestName={editBooking ? customerMap.get(editBooking.customerId) : undefined}
+        guestName={editBooking ? (editBooking.guestName || customerMap.get(editBooking.customerId)) : undefined}
         roomName={editBooking ? roomMap.get(editBooking.roomId) : undefined}
         onClose={() => setEditBooking(null)}
         onSuccess={() => {

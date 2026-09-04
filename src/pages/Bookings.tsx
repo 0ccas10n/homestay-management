@@ -18,7 +18,7 @@ import QuickEditModal from '@/components/QuickEditModal';
 import CheckOutModal from '@/components/CheckOutModal';
 import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 
-const STATUSES = ['All', 'inquiry', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'];
+const STATUSES = ['All', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'];
 const PAGE_SIZE = 20;
 
 export default function Bookings() {
@@ -428,7 +428,7 @@ export default function Bookings() {
 
       <QuickEditModal
         booking={editBooking}
-        guestName={editBooking ? customerMap.get(editBooking.customerId) : undefined}
+        guestName={editBooking ? (editBooking.guestName || customerMap.get(editBooking.customerId)) : undefined}
         roomName={editBooking ? roomMap.get(editBooking.roomId) : undefined}
         onClose={() => setEditBooking(null)}
         onSuccess={() => {

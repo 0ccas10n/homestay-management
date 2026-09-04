@@ -351,7 +351,7 @@ export function mapRowToBooking(row: string[]): Booking {
     checkInAt:                row[3]  ?? '',
     expectedCheckOutAt:        row[4]  ?? '',
     actualCheckOutAt:         emptyToUndefined(row[5]),
-    status:                   (row[6]  ?? 'inquiry') as Booking['status'],
+    status:                   (row[6]  ?? 'confirmed') as Booking['status'],
     ratePlanId:               ratePlanId,
     bookingType:              (rawBookingType as Booking['bookingType']) || 'daily',
     expectedDurationMinutes:  durationMinutes,

@@ -38,6 +38,8 @@ export async function generateId(
   let max = 0;
   for (const row of rows) {
     const raw = row[0] ?? '';
+    if (!raw.startsWith(prefix + '-')) continue;
+
     // Match e.g. "ROOM-0042" → "0042"
     const numPart = raw.slice(prefix.length + 1);
     const n = parseInt(numPart, 10);

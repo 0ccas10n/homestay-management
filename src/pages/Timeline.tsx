@@ -286,7 +286,7 @@ export default function Timeline() {
     () => new Map<string, string>(
       customers
         .filter((c): c is typeof c & { name: string } => Boolean(c.name))
-        .map(c => [c.customerId, c.name as string]),
+        .map(c => [(c.customerId || '').trim(), c.name as string]),
     ),
     [customers],
   );
@@ -352,7 +352,7 @@ export default function Timeline() {
       const coutDate = b.expectedCheckOutAt.slice(0, 10);
 
       // Đang có khách lưu trú
-      if (eff === 'checked_in') {
+      if (eff === 'checked_in' && new Date(b.checkInAt).getTime() <= Date.now()) {
         occupiedRoomIds.add(b.roomId);
         currentlyStaying++;
       }
@@ -537,7 +537,7 @@ export default function Timeline() {
         </div>
 
         {!isMobile && <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {(['inquiry', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'] as const).map(status => {
+          {(['confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'] as const).map(status => {
             const v = statusVisual(status, darkMode);
             const swatchBg = v.striped
               ? `repeating-linear-gradient(45deg, ${v.border}33 0, ${v.border}33 3px, transparent 3px, transparent 6px)`
@@ -728,7 +728,7 @@ export default function Timeline() {
           <BookingDetail
             booking={selectedBooking}
             room={rooms.find(r => r.roomId === selectedBooking.roomId)}
-            guestName={customerMap.get(selectedBooking.customerId)}
+            guestName={customerMap.get((selectedBooking.customerId || '').trim()) || selectedBooking.guestName}
             textPrimary={textPrimary}
             textMuted={textMuted}
             border={border}
@@ -758,7 +758,7 @@ export default function Timeline() {
 
       <QuickEditModal
         booking={editBooking}
-        guestName={editBooking ? customerMap.get(editBooking.customerId) : undefined}
+        guestName={editBooking ? (customerMap.get((editBooking.customerId || '').trim()) || editBooking.guestName) : undefined}
         roomName={editBooking ? rooms.find(r => r.roomId === editBooking.roomId)?.name : undefined}
         onClose={() => setEditBooking(null)}
         onSuccess={() => {
@@ -839,16 +839,28 @@ function RoomRow({
     + (totalCancelledLanes > 0 ? 6 : 0) // separator gap
     + totalCancelledLanes * (LANE_H - 4) + Math.max(0, totalCancelledLanes - 1) * (LANE_GAP - 1);
 
-  const isOccupiedNow = bookings.some(b => {
-    return getEffectiveBookingStatus(b) === 'checked_in';
+  const now = Date.now();
+  const currentCheckedInBooking = bookings.find(b => {
+    if (b.status !== 'checked_in') return false;
+    const cin = new Date(b.checkInAt).getTime();
+    return cin <= now;
   });
 
-  const effectiveRoomStatus = isOccupiedNow ? 'occupied' : room.status;
+  const isOccupiedNow = Boolean(currentCheckedInBooking);
+
+  const effectiveRoomStatus = isOccupiedNow
+    ? 'occupied'
+    : (room.status === 'needs_cleaning' || room.status === 'cleaning')
+    ? 'needs_cleaning'
+    : room.status === 'maintenance'
+    ? 'maintenance'
+    : 'available';
+
   const effectiveStatusText = effectiveRoomStatus === 'occupied'
     ? 'Đang có khách'
     : effectiveRoomStatus === 'available'
     ? 'Sẵn sàng'
-    : effectiveRoomStatus === 'cleaning' || effectiveRoomStatus === 'needs_cleaning'
+    : effectiveRoomStatus === 'needs_cleaning'
     ? 'Cần dọn'
     : effectiveRoomStatus === 'maintenance'
     ? 'Bảo trì'
@@ -930,14 +942,14 @@ function RoomRow({
           const effectiveStatus = getEffectiveBookingStatus(b);
           const v = statusVisual(effectiveStatus, darkMode);
           const sameDay = b.checkInAt.slice(0, 10) === b.expectedCheckOutAt.slice(0, 10);
-          const guestName = customerMap.get(b.customerId) ?? `#${b.customerId.slice(-4)}`;
+          const guestName = customerMap.get((b.customerId || '').trim()) || b.guestName || `#${b.customerId.slice(-4)}`;
           const lane = activeLanes.blockLanes.get(b.bookingId) ?? 0;
           const top  = activeOffset + lane * (LANE_H + LANE_GAP);
           const total = formatVnd(getBookingTotal(b));
           const widthPx = (geom.widthPct / 100) * (windowDays * DAY_MIN_W);
           const showPrice = widthPx > 180 && effectiveStatus !== 'checked_out';
-          const showTime  = widthPx > 100;
-          const narrow    = widthPx < 80;
+          const showTime  = widthPx > 75;
+          const narrow    = widthPx < 32;
 
           return (
             <BookingBlock
@@ -963,7 +975,7 @@ function RoomRow({
           const geom = bookingBlock(b, windowStart, windowEnd);
           if (!geom) return null;
           const v = statusVisual(b.status, darkMode);
-          const guestName = customerMap.get(b.customerId) ?? `#${b.customerId.slice(-4)}`;
+          const guestName = customerMap.get((b.customerId || '').trim()) || b.guestName || `#${b.customerId.slice(-4)}`;
           const lane = cancelledLanes.blockLanes.get(b.bookingId) ?? 0;
           const cancelledTop = activeOffset
             + totalActiveLanes * LANE_H
@@ -971,7 +983,7 @@ function RoomRow({
             + 6
             + lane * (LANE_H - 4 + LANE_GAP - 1);
           const widthPx = (geom.widthPct / 100) * (windowDays * DAY_MIN_W);
-          const narrow = widthPx < 80;
+          const narrow = widthPx < 32;
 
           return (
             <BookingBlock
