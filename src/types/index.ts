@@ -36,6 +36,7 @@ export interface Room {
   status: RoomStatus;
   active: boolean;
   imageUrl?: string;
+  images?: string[];
   floor?: number;
   amenities?: string[];
   notes?: string;

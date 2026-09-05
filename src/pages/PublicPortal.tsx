@@ -46,15 +46,539 @@ const BRAND = {
   softBeigeLight: '#F3F6F1',
 };
 
-// Ảnh phòng mặc định chất lượng cao cho homestay nếu phòng chưa có imageUrl
-const FALLBACK_ROOM_IMAGES = [
-  'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1000&q=80',
-  'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1000&q=80',
-  'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=1000&q=80',
-  'https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=1000&q=80',
-  'https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1000&q=80',
-  'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=1000&q=80',
+// Bộ sưu tập album ảnh mẫu đa góc cho từng căn phòng (Giường nệm, Góc làm việc/Sofa, Phòng tắm, Cửa sổ/Bếp)
+const FALLBACK_ROOM_GALLERIES: string[][] = [
+  [
+    'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?auto=format&fit=crop&w=1200&q=80',
+  ],
+  [
+    'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80',
+  ],
+  [
+    'https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1620626011761-996317b8d101?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
+  ],
+  [
+    'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1540518614846-7ede433c4550?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+  ],
+  [
+    'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1502005229762-ee1b2b81e4b9?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
+  ],
+  [
+    'https://images.unsplash.com/photo-1616046229478-9901c5536a45?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1617806118233-18e1de247200?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
+  ],
 ];
+
+function getRoomImages(room: Room, roomIdx: number): string[] {
+  if (room.images && Array.isArray(room.images) && room.images.length > 0) {
+    const clean = room.images.filter(Boolean);
+    if (clean.length > 0) return clean;
+  }
+  if (room.imageUrl) {
+    const split = room.imageUrl.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    if (split.length > 0) return split;
+  }
+  return FALLBACK_ROOM_GALLERIES[roomIdx % FALLBACK_ROOM_GALLERIES.length];
+}
+
+interface RoomPhotoCarouselProps {
+  images: string[];
+  roomName: string;
+  branchName?: string;
+  floor?: number;
+  availableBadge?: React.ReactNode;
+  onOpenGallery: (startIdx: number) => void;
+}
+
+function RoomPhotoCarousel({
+  images,
+  roomName,
+  branchName,
+  floor,
+  availableBadge,
+  onOpenGallery,
+}: RoomPhotoCarouselProps) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const total = images.length;
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveIdx(prev => (prev === 0 ? total - 1 : prev - 1));
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveIdx(prev => (prev === total - 1 ? 0 : prev + 1));
+  };
+
+  return (
+    <div
+      onClick={() => onOpenGallery(activeIdx)}
+      style={{
+        position: 'relative',
+        height: 220,
+        background: '#E5D9C8',
+        cursor: 'pointer',
+        overflow: 'hidden',
+        userSelect: 'none',
+      }}
+      title="Bấm để xem trọn bộ ảnh lớn chất lượng cao"
+    >
+      <img
+        src={images[activeIdx]}
+        alt={`${roomName} - góc ${activeIdx + 1}`}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          transition: 'transform 0.3s ease',
+        }}
+        loading="lazy"
+      />
+
+      {/* Top Left Badges */}
+      <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', zIndex: 2 }}>
+        {branchName && (
+          <span
+            style={{
+              padding: '4px 8px',
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 700,
+              background: 'rgba(37, 24, 15, 0.82)',
+              color: '#F7F0E7',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            📍 {branchName}
+          </span>
+        )}
+        {availableBadge}
+      </div>
+
+      {/* Floor Badge */}
+      {floor && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 12,
+            right: 12,
+            background: 'rgba(37, 24, 15, 0.82)',
+            color: '#F7F0E7',
+            padding: '3px 8px',
+            borderRadius: 6,
+            fontSize: 10.5,
+            fontWeight: 600,
+            backdropFilter: 'blur(4px)',
+            zIndex: 2,
+          }}
+        >
+          Tầng {floor}
+        </div>
+      )}
+
+      {/* Navigation Arrows */}
+      {total > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={handlePrev}
+            aria-label="Ảnh trước"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: 10,
+              transform: 'translateY(-50%)',
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: 'rgba(37, 24, 15, 0.72)',
+              color: '#ffffff',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+              fontWeight: 'bold',
+              lineHeight: 1,
+              backdropFilter: 'blur(4px)',
+              transition: 'all 0.15s ease',
+              zIndex: 3,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(193, 122, 90, 0.95)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(37, 24, 15, 0.72)')}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={handleNext}
+            aria-label="Ảnh kế tiếp"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              right: 10,
+              transform: 'translateY(-50%)',
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: 'rgba(37, 24, 15, 0.72)',
+              color: '#ffffff',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+              fontWeight: 'bold',
+              lineHeight: 1,
+              backdropFilter: 'blur(4px)',
+              transition: 'all 0.15s ease',
+              zIndex: 3,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(193, 122, 90, 0.95)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(37, 24, 15, 0.72)')}
+          >
+            ›
+          </button>
+
+          {/* Dots Indicator */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 10,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              background: 'rgba(37, 24, 15, 0.65)',
+              padding: '3px 8px',
+              borderRadius: 12,
+              backdropFilter: 'blur(4px)',
+              zIndex: 2,
+            }}
+          >
+            {images.map((_, i) => (
+              <span
+                key={i}
+                onClick={e => {
+                  e.stopPropagation();
+                  setActiveIdx(i);
+                }}
+                style={{
+                  width: activeIdx === i ? 14 : 6,
+                  height: 6,
+                  borderRadius: 3,
+                  background: activeIdx === i ? '#C17A5A' : 'rgba(255, 255, 255, 0.6)',
+                  transition: 'all 0.2s ease',
+                  cursor: 'pointer',
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Photo count pill */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              background: 'rgba(37, 24, 15, 0.8)',
+              color: '#F7F0E7',
+              padding: '3px 8px',
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              backdropFilter: 'blur(4px)',
+              zIndex: 2,
+            }}
+          >
+            <span>📷</span>
+            <span>{activeIdx + 1}/{total}</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+interface PhotoGalleryModalProps {
+  room: Room;
+  images: string[];
+  initialIdx: number;
+  onClose: () => void;
+  onSelectBooking: (room: Room) => void;
+  branchName?: string;
+}
+
+function PhotoGalleryModal({
+  room,
+  images,
+  initialIdx,
+  onClose,
+  onSelectBooking,
+  branchName,
+}: PhotoGalleryModalProps) {
+  const [activeIdx, setActiveIdx] = useState(initialIdx);
+  const total = images.length;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft') setActiveIdx(prev => (prev === 0 ? total - 1 : prev - 1));
+      if (e.key === 'ArrowRight') setActiveIdx(prev => (prev === total - 1 ? 0 : prev + 1));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [total, onClose]);
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 10, 6, 0.94)',
+        backdropFilter: 'blur(10px)',
+        zIndex: 250,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '16px 20px 24px',
+      }}
+      onClick={onClose}
+    >
+      {/* Modal Top Bar */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: 1100,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          color: '#ffffff',
+          padding: '8px 0 14px',
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h3 style={{ fontSize: 21, fontWeight: 800, margin: 0, color: '#F7F0E7' }}>
+              {room.name}
+            </h3>
+            {branchName && (
+              <span
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  padding: '3px 9px',
+                  borderRadius: 6,
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  color: '#D4C4AE',
+                }}
+              >
+                📍 {branchName}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 13, color: '#C2B09A', marginTop: 3 }}>
+            Ảnh thực tế {activeIdx + 1} / {total} · {room.capacity ? `Tối đa ${room.capacity} khách` : '2 khách tiêu chuẩn'}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => onSelectBooking(room)}
+            style={{
+              padding: '9px 20px',
+              borderRadius: 8,
+              background: '#C17A5A',
+              color: '#ffffff',
+              fontSize: 13,
+              fontWeight: 700,
+              border: 'none',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: '0 3px 8px rgba(193, 122, 90, 0.4)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            💬 Đặt căn này
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'rgba(255, 255, 255, 0.12)',
+              border: 'none',
+              color: '#ffffff',
+              width: 38,
+              height: 38,
+              borderRadius: '50%',
+              fontSize: 20,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 0.15s',
+            }}
+            title="Đóng (Phím Esc)"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Main Large Image Viewport */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 1040,
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 280,
+          maxHeight: 'calc(100vh - 220px)',
+        }}
+      >
+        <img
+          key={images[activeIdx]}
+          src={images[activeIdx]}
+          alt={`${room.name} - Ảnh ${activeIdx + 1}`}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+            borderRadius: 14,
+            boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+          }}
+        />
+
+        {total > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setActiveIdx(prev => (prev === 0 ? total - 1 : prev - 1))}
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'rgba(37, 24, 15, 0.75)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                color: '#ffffff',
+                fontSize: 24,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backdropFilter: 'blur(6px)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveIdx(prev => (prev === total - 1 ? 0 : prev + 1))}
+              style={{
+                position: 'absolute',
+                right: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'rgba(37, 24, 15, 0.75)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                color: '#ffffff',
+                fontSize: 24,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backdropFilter: 'blur(6px)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              ›
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Bottom Thumbnail Strip */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: 900,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          overflowX: 'auto',
+          padding: '14px 10px 4px',
+        }}
+      >
+        {images.map((img, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => setActiveIdx(i)}
+            style={{
+              width: 72,
+              height: 50,
+              borderRadius: 8,
+              overflow: 'hidden',
+              border: activeIdx === i ? '2.5px solid #C17A5A' : '1.5px solid rgba(255,255,255,0.25)',
+              opacity: activeIdx === i ? 1 : 0.6,
+              cursor: 'pointer',
+              padding: 0,
+              background: '#000',
+              flexShrink: 0,
+              transform: activeIdx === i ? 'scale(1.08)' : 'scale(1)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const DEFAULT_AMENITIES = [
   '📶 Wifi tốc độ cao',
@@ -100,6 +624,32 @@ function formatLocationList(names: string[]): string {
   if (clean.length === 1) return clean[0];
   if (clean.length === 2) return `${clean[0]} & ${clean[1]}`;
   return `${clean.slice(0, -1).join(', ')} & ${clean[clean.length - 1]}`;
+}
+
+// Cuộn màn hình siêu mượt với đường cong gia tốc tự nhiên (easeInOutCubic)
+function smoothScrollTo(targetY: number, duration: number = 750) {
+  if (typeof window === 'undefined') return;
+  const startY = window.scrollY || window.pageYOffset;
+  const distance = targetY - startY;
+  const startTime = performance.now();
+
+  const easeInOutCubic = (t: number) => {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  };
+
+  function step(currentTime: number) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = easeInOutCubic(progress);
+
+    window.scrollTo(0, startY + distance * ease);
+
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    }
+  }
+
+  requestAnimationFrame(step);
 }
 
 export default function PublicPortal() {
@@ -151,10 +701,14 @@ export default function PublicPortal() {
   // Modal chọn kênh liên hệ / Zalo
   const [contactModalRoom, setContactModalRoom] = useState<Room | null>(null);
 
+  // Modal Album ảnh chi tiết (Lightbox Gallery đa góc chụp)
+  const [galleryModal, setGalleryModal] = useState<{ room: Room; images: string[]; activeIdx: number } | null>(null);
+
   // Refs hỗ trợ mở datepicker & select khi bấm vào bất kỳ đâu trong ô
   const checkInInputRef = useRef<HTMLInputElement>(null);
   const checkOutInputRef = useRef<HTMLInputElement>(null);
   const guestSelectRef = useRef<HTMLSelectElement>(null);
+  const roomSectionRef = useRef<HTMLElement>(null);
 
   const locationMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -207,6 +761,15 @@ export default function PublicPortal() {
       const coIso = `${checkOutDate}T12:00:00+07:00`;
       const res = await availabilityApi.getAvailableRoomIds(ciIso, coIso);
       setAvailableRoomIds(res.availableRoomIds);
+
+      // Tự động cuộn màn hình êm ái, mượt mà (Cinematic Smooth Scroll)
+      setTimeout(() => {
+        if (roomSectionRef.current) {
+          const rect = roomSectionRef.current.getBoundingClientRect();
+          const targetY = window.scrollY + rect.top - 85;
+          smoothScrollTo(targetY, 800);
+        }
+      }, 100);
     } catch (err) {
       console.error('Lỗi khi tra cứu lịch trống:', err);
     } finally {
@@ -260,14 +823,25 @@ export default function PublicPortal() {
     return n > 0 ? n : 1;
   }, [checkInDate, checkOutDate]);
 
-  // Lọc danh sách phòng hiển thị
+  // Lọc danh sách phòng hiển thị & Sắp xếp thông minh (Option C: Đẩy phòng còn trống lên đầu)
   const displayRooms = useMemo(() => {
-    return rooms.filter(r => {
+    const filtered = rooms.filter(r => {
       if (selectedLocationId !== 'all' && r.locationId !== selectedLocationId) return false;
       if (guestCount > 0 && r.capacity && r.capacity < guestCount) return false;
       return true;
     });
-  }, [rooms, guestCount, selectedLocationId]);
+
+    if (availableRoomIds !== null) {
+      // Đẩy các phòng còn trống lên trước, phòng đã kín xuống sau
+      return [...filtered].sort((a, b) => {
+        const aAvail = availableRoomIds.includes(a.roomId) ? 1 : 0;
+        const bAvail = availableRoomIds.includes(b.roomId) ? 1 : 0;
+        return bAvail - aAvail;
+      });
+    }
+
+    return filtered;
+  }, [rooms, guestCount, selectedLocationId, availableRoomIds]);
 
   // Tạo tin nhắn Zalo soạn sẵn
   const makeZaloLink = (roomName: string, targetZalo?: string, ci?: string, co?: string, guests?: number) => {
@@ -526,16 +1100,23 @@ export default function PublicPortal() {
 
             <button
               onClick={() => navigate('/login')}
+              title="Khu vực đăng nhập dành cho Quản trị & Nhân viên"
               style={{
-                padding: '7px 16px',
+                padding: '6px 13px',
                 borderRadius: 8,
-                background: BRAND.warmCharcoal,
-                color: BRAND.warmCream,
-                fontSize: 12.5,
+                background: '#D4C4AE',
+                color: BRAND.warmCharcoal,
+                fontSize: 12,
                 fontWeight: 600,
-                border: 'none',
+                border: '1px solid rgba(77, 51, 34, 0.12)',
                 cursor: 'pointer',
-                transition: 'background 0.2s',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#C5B39A';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#D4C4AE';
               }}
             >
               Đăng nhập
@@ -1059,6 +1640,36 @@ export default function PublicPortal() {
             </div>
           </form>
 
+          {/* ─── 3 Cam Kết Thương Hiệu (Trust Badges) ───────────────────────── */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              gap: '10px 22px',
+              marginTop: 16,
+              fontSize: 12.5,
+              color: '#D4C4AE',
+              fontWeight: 500,
+            }}
+          >
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>🔒</span>
+              <span>Riêng tư 100%</span>
+            </div>
+            <span style={{ opacity: 0.4, fontSize: 11 }}>•</span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>🏡</span>
+              <span>Đầy đủ tiện nghi như ở nhà</span>
+            </div>
+            <span style={{ opacity: 0.4, fontSize: 11 }}>•</span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>⚡</span>
+              <span>Check-in tự động 24/7</span>
+            </div>
+          </div>
+
           {/* Banner thông báo kết quả lọc */}
           {availableRoomIds !== null && (
             <div
@@ -1080,11 +1691,16 @@ export default function PublicPortal() {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>🌿</span>
-                <span>
-                  Tìm thấy <strong>{availableRoomIds.length}</strong> phòng còn trống từ ngày{' '}
-                  <strong>{formatDateDisplay(checkInDate)}</strong> đến{' '}
-                  <strong>{formatDateDisplay(checkOutDate)}</strong> ({stayNights} đêm)
-                </span>
+                <div>
+                  <div>
+                    Tìm thấy <strong>{availableRoomIds.length}</strong> phòng còn trống từ ngày{' '}
+                    <strong>{formatDateDisplay(checkInDate)}</strong> đến{' '}
+                    <strong>{formatDateDisplay(checkOutDate)}</strong> ({stayNights} đêm)
+                  </div>
+                  <div style={{ fontSize: 11.5, opacity: 0.9, marginTop: 2, fontWeight: 500 }}>
+                    ✨ Các phòng còn trống đã được tự động đẩy lên đầu để bạn dễ dàng chọn và đặt trước
+                  </div>
+                </div>
               </div>
 
               <button
@@ -1111,7 +1727,16 @@ export default function PublicPortal() {
       </section>
 
       {/* ─── Room Showcase Grid ─────────────────────────────────────────── */}
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '42px 20px 52px' }}>
+      <main
+        ref={roomSectionRef}
+        id="room-showcase"
+        style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          padding: '42px 20px 52px',
+          scrollMarginTop: 85,
+        }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h2 style={{ fontSize: 24, fontWeight: 800, color: BRAND.warmCharcoal, margin: 0, letterSpacing: '-0.3px' }}>
@@ -1216,9 +1841,11 @@ export default function PublicPortal() {
             }}
           >
             {displayRooms.map((room, idx) => {
-              const photo = room.imageUrl || FALLBACK_ROOM_IMAGES[idx % FALLBACK_ROOM_IMAGES.length];
+              const roomImages = getRoomImages(room, idx);
               const isAvailableForSelectedDates =
                 availableRoomIds === null || availableRoomIds.includes(room.roomId);
+              const isBookedForSelectedDates =
+                availableRoomIds !== null && !isAvailableForSelectedDates;
               const branchName = locationMap.get(room.locationId);
 
               return (
@@ -1228,38 +1855,41 @@ export default function PublicPortal() {
                     background: '#ffffff',
                     borderRadius: 16,
                     overflow: 'hidden',
-                    border: `1px solid ${BRAND.warmCreamBorder}`,
-                    boxShadow: '0 4px 14px rgba(77, 51, 34, 0.05)',
+                    border: isBookedForSelectedDates
+                      ? `1px dashed ${BRAND.warmCreamTonal}`
+                      : `1px solid ${BRAND.warmCreamBorder}`,
+                    boxShadow: isBookedForSelectedDates
+                      ? '0 2px 6px rgba(77, 51, 34, 0.03)'
+                      : '0 4px 14px rgba(77, 51, 34, 0.05)',
+                    opacity: isBookedForSelectedDates ? 0.65 : 1,
+                    filter: isBookedForSelectedDates ? 'grayscale(15%)' : 'none',
                     display: 'flex',
                     flexDirection: 'column',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    transition: 'all 0.25s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (isBookedForSelectedDates) {
+                      e.currentTarget.style.opacity = '0.95';
+                      e.currentTarget.style.filter = 'none';
+                    }
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (isBookedForSelectedDates) {
+                      e.currentTarget.style.opacity = '0.65';
+                      e.currentTarget.style.filter = 'grayscale(15%)';
+                    }
+                    e.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
-                  {/* Photo with Overlay Badge */}
-                  <div style={{ position: 'relative', height: 215, background: BRAND.warmCreamBorder }}>
-                    <img
-                      src={photo}
-                      alt={room.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      loading="lazy"
-                    />
-                    <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {branchName && (
-                        <span
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            background: 'rgba(37, 24, 15, 0.8)',
-                            color: BRAND.warmCream,
-                            backdropFilter: 'blur(4px)',
-                          }}
-                        >
-                          📍 {branchName}
-                        </span>
-                      )}
-                      {availableRoomIds !== null && (
+                  {/* Photo Carousel with Multi-angle previews */}
+                  <RoomPhotoCarousel
+                    images={roomImages}
+                    roomName={room.name}
+                    branchName={branchName}
+                    floor={room.floor}
+                    availableBadge={
+                      availableRoomIds !== null ? (
                         <span
                           style={{
                             padding: '4px 10px',
@@ -1273,27 +1903,12 @@ export default function PublicPortal() {
                         >
                           {isAvailableForSelectedDates ? '✓ Còn trống ngày này' : '✕ Đã kín ngày này'}
                         </span>
-                      )}
-                    </div>
-                    {room.floor && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          bottom: 10,
-                          right: 12,
-                          background: 'rgba(37, 24, 15, 0.75)',
-                          color: BRAND.warmCream,
-                          padding: '3px 8px',
-                          borderRadius: 6,
-                          fontSize: 10.5,
-                          fontWeight: 600,
-                          backdropFilter: 'blur(4px)',
-                        }}
-                      >
-                        Tầng {room.floor}
-                      </div>
-                    )}
-                  </div>
+                      ) : undefined
+                    }
+                    onOpenGallery={(startIdx) =>
+                      setGalleryModal({ room, images: roomImages, activeIdx: startIdx })
+                    }
+                  />
 
                   {/* Room Body */}
                   <div style={{ padding: 20, display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -1342,7 +1957,7 @@ export default function PublicPortal() {
                       </p>
                     )}
 
-                    {/* Amenities Tags */}
+                    {/* Amenities Tags - Điểm xuyết Soft Sage tươi mát */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 'auto', paddingTop: 10 }}>
                       {(() => {
                         const rawAm = room.amenities;
@@ -1358,12 +1973,15 @@ export default function PublicPortal() {
                             key={aIdx}
                             style={{
                               fontSize: 11,
-                              background: BRAND.warmCream,
-                              color: BRAND.warmCharcoal,
-                              border: `1px solid ${BRAND.warmCreamBorder}`,
+                              background: BRAND.softSageLight,
+                              color: BRAND.softSageDark,
+                              border: `1px solid ${BRAND.softSageBorder}`,
                               padding: '3px 8px',
                               borderRadius: 6,
-                              fontWeight: 500,
+                              fontWeight: 600,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
                             }}
                           >
                             {am}
@@ -1372,48 +1990,84 @@ export default function PublicPortal() {
                       })()}
                     </div>
 
-                    {/* Action Buttons */}
+                    {/* Action Buttons: Nút Xanh Soft Sage (Khám phá) đối trọng với Nút Cam Terracotta (Chốt Zalo) */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 18, paddingTop: 14, borderTop: `1px solid ${BRAND.warmCreamBorder}` }}>
                       <button
+                        type="button"
                         onClick={() => handleOpenCalendar(room)}
                         style={{
                           padding: '9px 10px',
                           borderRadius: 8,
-                          background: BRAND.warmCreamLight,
-                          color: BRAND.warmCharcoal,
+                          background: isBookedForSelectedDates ? BRAND.terracotta : BRAND.softSageLight,
+                          color: isBookedForSelectedDates ? '#ffffff' : BRAND.softSageDark,
                           fontSize: 12,
                           fontWeight: 700,
-                          border: `1px solid ${BRAND.warmCreamTonal}`,
+                          border: isBookedForSelectedDates ? 'none' : `1.5px solid ${BRAND.softSage}`,
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 4,
+                          boxShadow: isBookedForSelectedDates
+                            ? '0 2px 5px rgba(193, 122, 90, 0.3)'
+                            : '0 2px 5px rgba(138, 170, 162, 0.25)',
                           transition: 'all 0.15s ease',
                         }}
+                        onMouseEnter={(e) => {
+                          if (!isBookedForSelectedDates) {
+                            e.currentTarget.style.background = BRAND.softSage;
+                            e.currentTarget.style.color = '#ffffff';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isBookedForSelectedDates) {
+                            e.currentTarget.style.background = BRAND.softSageLight;
+                            e.currentTarget.style.color = BRAND.softSageDark;
+                          }
+                        }}
                       >
-                        📅 Xem lịch trống
+                        📅 {isBookedForSelectedDates ? 'Xem ngày khác' : 'Xem lịch trống'}
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => setContactModalRoom(room)}
                         style={{
                           padding: '9px 10px',
                           borderRadius: 8,
-                          background: BRAND.terracotta,
-                          color: '#fff',
+                          background: isBookedForSelectedDates ? BRAND.warmCreamLight : BRAND.terracotta,
+                          color: isBookedForSelectedDates ? BRAND.warmCharcoal : '#fff',
                           fontSize: 12,
                           fontWeight: 700,
-                          border: 'none',
+                          border: isBookedForSelectedDates ? `1px solid ${BRAND.warmCreamTonal}` : 'none',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 4,
-                          boxShadow: '0 2px 4px rgba(193, 122, 90, 0.3)',
+                          boxShadow: isBookedForSelectedDates ? 'none' : '0 2px 4px rgba(193, 122, 90, 0.3)',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isBookedForSelectedDates) {
+                            e.currentTarget.style.background = BRAND.terracottaHover;
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(193, 122, 90, 0.4)';
+                          } else {
+                            e.currentTarget.style.background = '#EDE3D5';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isBookedForSelectedDates) {
+                            e.currentTarget.style.background = BRAND.terracotta;
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(193, 122, 90, 0.3)';
+                          } else {
+                            e.currentTarget.style.background = BRAND.warmCreamLight;
+                          }
                         }}
                       >
-                        💬 Đặt phòng
+                        💬 {isBookedForSelectedDates ? 'Hỏi Zalo' : 'Đặt phòng'}
                       </button>
                     </div>
                   </div>
@@ -1458,8 +2112,8 @@ export default function PublicPortal() {
                 <h3 style={{ fontSize: 19, fontWeight: 800, color: BRAND.warmCharcoal, margin: 0 }}>
                   Lịch Phòng: {calendarRoom.name}
                 </h3>
-                <div style={{ fontSize: 12.5, color: BRAND.charcoalMuted, marginTop: 2 }}>
-                  Giá: <strong style={{ color: BRAND.terracotta }}>{calendarRoom.priceDisplay || '550.000 ₫ / đêm'}</strong> · Sức chứa: {calendarRoom.capacity || 2} khách
+                <div style={{ fontSize: 12.5, color: BRAND.charcoalMuted, marginTop: 3 }}>
+                  <strong style={{ color: BRAND.terracotta }}>Báo giá linh hoạt theo lịch trình</strong> (Theo giờ / Qua đêm / Cả ngày) · Sức chứa: {calendarRoom.capacity ? `Tối đa ${calendarRoom.capacity} khách` : '2 khách tiêu chuẩn'}
                 </div>
               </div>
               <button
@@ -1550,6 +2204,21 @@ export default function PublicPortal() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ─── Modal: Album Ảnh Toàn Màn Hình (Lightbox Gallery) ───────────── */}
+      {galleryModal && (
+        <PhotoGalleryModal
+          room={galleryModal.room}
+          images={galleryModal.images}
+          initialIdx={galleryModal.activeIdx}
+          onClose={() => setGalleryModal(null)}
+          onSelectBooking={(r) => {
+            setGalleryModal(null);
+            setContactModalRoom(r);
+          }}
+          branchName={locationMap.get(galleryModal.room.locationId)}
+        />
       )}
 
       {/* ─── Modal: Chọn Kênh Liên Hệ / Zalo Đặt Phòng ────────────────── */}
