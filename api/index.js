@@ -1364,6 +1364,9 @@ var updateBookingSchema = z.object({
   paymentStatus: z.enum(["unpaid", "partial", "paid"]).optional(),
   extraServicesAmount: z.number().nonnegative().optional(),
   extraServicesNote: z.string().max(500).optional(),
+  baseAmount: z.number().nonnegative().optional(),
+  overtimeAmount: z.number().nonnegative().optional(),
+  overtimeMinutes: z.number().nonnegative().optional(),
   totalAmount: z.number().nonnegative().optional(),
   note: z.string().max(1e3).optional()
 });
@@ -1846,16 +1849,15 @@ async function checkout(spreadsheetId, bookingId, actualCheckOutAt, extras) {
   const extraServicesNote = extras?.extraServicesNote ?? existing.extraServicesNote;
   const baseAmount = extras?.baseAmount !== void 0 ? extras.baseAmount : existing.baseAmount;
   const isHourly = existing.bookingType === "hourly" || existing.ratePlanId === CUSTOM_RATE_PLAN_ID;
-  let totalAmount = existing.totalAmount;
-  if (!isHourly) {
-    const overtimeMs = new Date(actualCheckOutAt).getTime() - new Date(existing.expectedCheckOutAt).getTime();
-    overtimeMinutes = Math.max(0, Math.round(overtimeMs / 6e4));
-    const overtimeHours = Math.ceil(overtimeMinutes / 60);
+  const overtimeMs = new Date(actualCheckOutAt).getTime() - new Date(existing.expectedCheckOutAt).getTime();
+  overtimeMinutes = extras?.overtimeMinutes !== void 0 ? extras.overtimeMinutes : Math.max(0, Math.round(overtimeMs / 6e4));
+  const overtimeHours = Math.ceil(overtimeMinutes / 60);
+  if (extras?.overtimeAmount !== void 0) {
+    overtimeAmount = extras.overtimeAmount;
+  } else if (!isHourly && overtimeMinutes > 0) {
     overtimeAmount = overtimeHours * OVERTIME_HOURLY_RATE;
-    totalAmount = baseAmount + overtimeAmount + extraServicesAmount;
-  } else {
-    totalAmount = baseAmount + extraServicesAmount;
   }
+  let totalAmount = baseAmount + overtimeAmount + extraServicesAmount;
   if (extras?.totalAmount !== void 0 && extras.totalAmount > 0) {
     totalAmount = extras.totalAmount;
   }
@@ -2902,8 +2904,10 @@ async function PATCH2(request) {
   try {
     if (parsed.actualCheckOutAt !== void 0) {
       const result = await checkout(SPREADSHEET_ID8, bookingId, parsed.actualCheckOutAt, {
-        baseAmount: parsed.totalAmount !== void 0 ? parsed.totalAmount : void 0,
+        baseAmount: parsed.baseAmount !== void 0 ? parsed.baseAmount : parsed.totalAmount !== void 0 ? parsed.totalAmount : void 0,
         totalAmount: parsed.totalAmount,
+        overtimeAmount: parsed.overtimeAmount,
+        overtimeMinutes: parsed.overtimeMinutes,
         extraServicesAmount: parsed.extraServicesAmount,
         extraServicesNote: parsed.extraServicesNote,
         paidAmount: parsed.paidAmount,

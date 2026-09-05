@@ -510,6 +510,8 @@ export async function checkout(
   extras?: {
     baseAmount?: number;
     totalAmount?: number;
+    overtimeAmount?: number;
+    overtimeMinutes?: number;
     extraServicesAmount?: number;
     extraServicesNote?: string;
     paidAmount?: number;
@@ -533,18 +535,20 @@ export async function checkout(
     existing.bookingType === 'hourly' ||
     existing.ratePlanId === CUSTOM_RATE_PLAN_ID;
 
-  let totalAmount = existing.totalAmount;
-  if (!isHourly) {
-    // Overtime = how many minutes past expectedCheckOutAt the guest actually left.
-    // DATABASE.md §10: overtimeMinutes = actualCheckOutAt − expectedCheckOutAt
-    const overtimeMs = new Date(actualCheckOutAt).getTime() - new Date(existing.expectedCheckOutAt).getTime();
-    overtimeMinutes = Math.max(0, Math.round(overtimeMs / 60_000));
-    const overtimeHours = Math.ceil(overtimeMinutes / 60);
+  // Overtime = how many minutes past expectedCheckOutAt the guest actually left.
+  const overtimeMs = new Date(actualCheckOutAt).getTime() - new Date(existing.expectedCheckOutAt).getTime();
+  overtimeMinutes = extras?.overtimeMinutes !== undefined
+    ? extras.overtimeMinutes
+    : Math.max(0, Math.round(overtimeMs / 60_000));
+  const overtimeHours = Math.ceil(overtimeMinutes / 60);
+
+  if (extras?.overtimeAmount !== undefined) {
+    overtimeAmount = extras.overtimeAmount;
+  } else if (!isHourly && overtimeMinutes > 0) {
     overtimeAmount = overtimeHours * OVERTIME_HOURLY_RATE;
-    totalAmount = baseAmount + overtimeAmount + extraServicesAmount;
-  } else {
-    totalAmount = baseAmount + extraServicesAmount;
   }
+
+  let totalAmount = baseAmount + overtimeAmount + extraServicesAmount;
 
   if (extras?.totalAmount !== undefined && extras.totalAmount > 0) {
     totalAmount = extras.totalAmount;

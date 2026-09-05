@@ -86,8 +86,10 @@ export async function PATCH(request: Request) {
     // ── Checkout path: actualCheckOutAt is set ──────────────────────────────────
     if (parsed.actualCheckOutAt !== undefined) {
       const result = await checkout(SPREADSHEET_ID, bookingId, parsed.actualCheckOutAt, {
-        baseAmount: parsed.totalAmount !== undefined ? parsed.totalAmount : undefined,
+        baseAmount: parsed.baseAmount !== undefined ? parsed.baseAmount : (parsed.totalAmount !== undefined ? parsed.totalAmount : undefined),
         totalAmount: parsed.totalAmount,
+        overtimeAmount: parsed.overtimeAmount,
+        overtimeMinutes: parsed.overtimeMinutes,
         extraServicesAmount: parsed.extraServicesAmount,
         extraServicesNote: parsed.extraServicesNote,
         paidAmount: parsed.paidAmount,

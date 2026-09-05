@@ -23,6 +23,11 @@ interface CheckOutModalProps {
     actualCheckOutAt: string;
     paidAmount: number;
     paymentStatus: 'paid' | 'partial' | 'unpaid';
+    totalAmount?: number;
+    baseAmount?: number;
+    overtimeAmount?: number;
+    overtimeMinutes?: number;
+    note?: string;
   }) => Promise<void>;
 }
 
@@ -64,6 +69,7 @@ export default function CheckOutModal({
   const [isEditingRoomCharge, setIsEditingRoomCharge] = useState(false);
   const [overrideReason, setOverrideReason] = useState<string>('');
   const [paymentOption, setPaymentOption] = useState<'full' | 'keep_partial'>('full');
+  const [customOvertime, setCustomOvertime] = useState<string>('');
 
   // Luôn đồng bộ lại dữ liệu chuẩn xác mỗi khi mở modal hoặc đổi đơn phòng
   useEffect(() => {
@@ -75,6 +81,14 @@ export default function CheckOutModal({
       setIsEditingRoomCharge(false);
       setError(null);
       setPaymentOption('full');
+
+      // Tự động tính phụ thu đề xuất:
+      const expTime = new Date(booking.expectedCheckOutAt).getTime();
+      const actTime = Date.now();
+      const otMin = expTime > 0 ? Math.max(0, Math.round((actTime - expTime) / 60_000)) : 0;
+      const otHours = Math.ceil(otMin / 60);
+      const defaultOt = otMin > 0 ? otHours * 70_000 : 0;
+      setCustomOvertime(String(defaultOt));
     }
   }, [booking?.bookingId, open]);
 
@@ -90,9 +104,13 @@ export default function CheckOutModal({
   const totalStayHours = Math.round((totalStayMinutes / 60) * 10) / 10;
 
   const overtimeMinutes = expectedCheckOutTime > 0 ? Math.max(0, Math.round((actualCheckOutTime - expectedCheckOutTime) / 60_000)) : 0;
-  const isHourly = booking?.bookingType === 'hourly';
   const overtimeHours = Math.ceil(overtimeMinutes / 60);
-  const overtimeAmount = !isHourly && overtimeMinutes > 0 ? overtimeHours * 70_000 : 0;
+  const calculatedOvertime = overtimeMinutes > 0 ? overtimeHours * 70_000 : 0;
+
+  // Cho phép quản lý chỉnh sửa phụ thu trễ giờ tùy biến (ví dụ miễn phí hoặc giảm giá)
+  const overtimeAmount = (customOvertime !== '' && !isNaN(Number(customOvertime)))
+    ? Math.max(0, Number(customOvertime))
+    : calculatedOvertime;
 
   // Total stay and settlement
   const baseRoomCharge = (customBaseCharge !== '' && !isNaN(Number(customBaseCharge)))
@@ -112,9 +130,15 @@ export default function CheckOutModal({
       const finalPaymentStatus = finalPaid >= finalTotalAmount ? 'paid' : (finalPaid > 0 ? 'partial' : 'unpaid');
 
       const isPriceOverridden = Number(customBaseCharge) !== initialTotal;
-      const auditNote = isPriceOverridden
-        ? `[Sửa giá check-out: ${formatVnd(initialTotal)} ➔ ${formatVnd(baseRoomCharge)}. Lý do: ${overrideReason.trim() || 'Không ghi lý do'}]`
-        : undefined;
+      const isOvertimeOverridden = overtimeAmount !== calculatedOvertime;
+      const auditParts: string[] = [];
+      if (isPriceOverridden) {
+        auditParts.push(`Sửa giá phòng: ${formatVnd(initialTotal)} ➔ ${formatVnd(baseRoomCharge)}. Lý do: ${overrideReason.trim() || 'Không ghi lý do'}`);
+      }
+      if (isOvertimeOverridden) {
+        auditParts.push(`Phụ thu trễ: ${formatVnd(overtimeAmount)} (chuẩn: ${formatVnd(calculatedOvertime)})`);
+      }
+      const auditNote = auditParts.length > 0 ? `[${auditParts.join(' | ')}]` : undefined;
       const combinedNote = auditNote
         ? (booking.note ? `${booking.note} | ${auditNote}` : auditNote)
         : booking.note;
@@ -125,8 +149,10 @@ export default function CheckOutModal({
         paymentStatus: finalPaymentStatus,
         totalAmount: finalTotalAmount,
         baseAmount: baseRoomCharge,
+        overtimeAmount,
+        overtimeMinutes,
         note: combinedNote,
-      } as any);
+      });
 
       onClose();
     } catch (err: any) {
@@ -175,7 +201,7 @@ export default function CheckOutModal({
             background: darkMode ? '#7F1D1D25' : '#FEF2F2',
             border: `1px solid ${darkMode ? '#7F1D1D' : '#FECACA'}`,
             borderRadius: 8, padding: '10px 14px',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10,
           }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: 13, color: '#EF4444', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -183,11 +209,70 @@ export default function CheckOutModal({
                 <span>Khách trả trễ: {formatMinutes(overtimeMinutes)}</span>
               </div>
               <div style={{ fontSize: 11, color: textMuted, marginTop: 2 }}>
-                Định mức phụ thu: {overtimeHours} giờ × 70.000 ₫/giờ
+                Định mức phụ thu: {overtimeHours} giờ × 70.000 ₫/giờ = {formatVnd(calculatedOvertime)}
               </div>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#EF4444' }}>
-              +{formatVnd(overtimeAmount)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: '#EF4444' }}>+</span>
+              <input
+                type="number"
+                step={10000}
+                min={0}
+                value={customOvertime}
+                onChange={e => setCustomOvertime(e.target.value)}
+                placeholder="0"
+                style={{
+                  width: 120,
+                  padding: '5px 8px',
+                  borderRadius: 6,
+                  border: '1.5px solid #EF4444',
+                  background: darkMode ? '#1E293B' : '#ffffff',
+                  color: '#EF4444',
+                  fontSize: 14,
+                  fontWeight: 800,
+                  textAlign: 'right',
+                  outline: 'none',
+                }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#EF4444' }}>₫</span>
+
+              {Number(customOvertime) > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setCustomOvertime('0')}
+                  title="Miễn phí phụ thu quá giờ cho khách"
+                  style={{
+                    fontSize: 11,
+                    padding: '4px 8px',
+                    borderRadius: 5,
+                    border: '1px solid #CBD5E1',
+                    background: darkMode ? '#334155' : '#F1F5F9',
+                    color: textMuted,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Miễn phí (0đ)
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCustomOvertime(String(calculatedOvertime))}
+                  title="Áp dụng lại mức phụ thu chuẩn định mức"
+                  style={{
+                    fontSize: 11,
+                    padding: '4px 8px',
+                    borderRadius: 5,
+                    border: '1px solid #EF4444',
+                    background: '#FEF2F2',
+                    color: '#EF4444',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                  }}
+                >
+                  Lấy định mức
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -243,10 +328,12 @@ export default function CheckOutModal({
               />
             </div>
           )}
-          {overtimeAmount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#EF4444' }}>
-              <span>2. Phụ thu quá giờ:</span>
-              <span style={{ fontWeight: 700 }}>+{formatVnd(overtimeAmount)}</span>
+          {overtimeMinutes > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: overtimeAmount > 0 ? '#EF4444' : textMuted }}>
+              <span>2. Phụ thu quá giờ ({formatMinutes(overtimeMinutes)}):</span>
+              <span style={{ fontWeight: 700 }}>
+                {overtimeAmount > 0 ? `+${formatVnd(overtimeAmount)}` : '0 ₫ (Miễn phí)'}
+              </span>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', color: textMuted, paddingTop: 4, borderTop: `1px dashed ${border}` }}>

@@ -136,6 +136,9 @@ export const updateBookingSchema = z.object({
   paymentStatus:       z.enum(['unpaid', 'partial', 'paid']).optional(),
   extraServicesAmount: z.number().nonnegative().optional(),
   extraServicesNote:   z.string().max(500).optional(),
+  baseAmount:          z.number().nonnegative().optional(),
+  overtimeAmount:      z.number().nonnegative().optional(),
+  overtimeMinutes:     z.number().nonnegative().optional(),
   totalAmount:         z.number().nonnegative().optional(),
   note:                z.string().max(1000).optional(),
 });
