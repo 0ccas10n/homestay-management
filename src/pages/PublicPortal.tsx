@@ -86,7 +86,41 @@ const FALLBACK_ROOM_GALLERIES: string[][] = [
   ],
 ];
 
+// Tự động gom tất cả file ảnh trong thư mục /public/rooms/ theo tiền tố H1, H2, H3, Y1, Y2, Y3...
+// Sử dụng Vite import.meta.glob để khi bạn thêm Y3-4, H1-9... hệ thống tự nhận diện 100% không cần sửa code!
+const ROOM_FILES_GLOB = import.meta.glob('/public/rooms/*.(jpg|jpeg|png|webp|JPG|JPEG|PNG|WEBP)', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+});
+
+// Phân nhóm ảnh theo mã phòng (h1, h2, h3, y1, y2, y3...)
+const AUTO_ROOM_PHOTOS: Record<string, string[]> = (() => {
+  const map: Record<string, string[]> = {};
+  for (const path of Object.keys(ROOM_FILES_GLOB)) {
+    // path ví dụ: "/public/rooms/Y3-4.jpg" -> filename: "Y3-4.jpg"
+    const filename = path.split('/').pop() || '';
+    const match = filename.match(/^([a-zA-Z0-9]+)-(\d+)\.[a-zA-Z0-9]+$/);
+    if (match) {
+      const roomCode = match[1].toLowerCase(); // "y3", "h1"...
+      if (!map[roomCode]) map[roomCode] = [];
+      // Đường dẫn public browser truy cập trực tiếp là /rooms/filename
+      map[roomCode].push(`/rooms/${filename}`);
+    }
+  }
+  // Sắp xếp thứ tự ảnh theo số thứ tự (1, 2, 3, 4, 10...)
+  for (const code of Object.keys(map)) {
+    map[code].sort((a, b) => {
+      const numA = parseInt(a.match(/-(\d+)\./)?.[1] || '0', 10);
+      const numB = parseInt(b.match(/-(\d+)\./)?.[1] || '0', 10);
+      return numA - numB;
+    });
+  }
+  return map;
+})();
+
 function getRoomImages(room: Room, roomIdx: number): string[] {
+  // 1. Ưu tiên ảnh thực tế đã cấu hình trên Google Sheets
   if (room.images && Array.isArray(room.images) && room.images.length > 0) {
     const clean = room.images.filter(Boolean);
     if (clean.length > 0) return clean;
@@ -95,6 +129,33 @@ function getRoomImages(room: Room, roomIdx: number): string[] {
     const split = room.imageUrl.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
     if (split.length > 0) return split;
   }
+
+  // 2. Tra cứu ảnh thực tế nội bộ từ thư mục public/rooms/ theo tên phòng (H1..H3, Y1..Y3)
+  const normalizedName = (room.name || '').trim().toLowerCase();
+  // Trích xuất mã phòng từ tên: ví dụ "Hiên 1" -> "h1", "Yên 3" -> "y3"
+  const aliasMatch = normalizedName.match(/^(hiên|yên)\s*(\d+)$/i);
+  let targetCode = '';
+  if (aliasMatch) {
+    const prefix = aliasMatch[1].startsWith('h') ? 'h' : 'y';
+    targetCode = `${prefix}${aliasMatch[2]}`;
+  } else {
+    // Thử tìm h1..h9, y1..y9 bên trong tên
+    const shortMatch = normalizedName.match(/([hy]\d+)/i);
+    if (shortMatch) targetCode = shortMatch[1].toLowerCase();
+  }
+
+  if (targetCode && AUTO_ROOM_PHOTOS[targetCode] && AUTO_ROOM_PHOTOS[targetCode].length > 0) {
+    return AUTO_ROOM_PHOTOS[targetCode];
+  }
+
+  // Thử khớp trực tiếp với bất kỳ key nào
+  for (const [code, photos] of Object.entries(AUTO_ROOM_PHOTOS)) {
+    if (normalizedName.includes(code) && photos.length > 0) {
+      return photos;
+    }
+  }
+
+  // 3. Fallback thư viện mẫu nếu chưa có ảnh
   return FALLBACK_ROOM_GALLERIES[roomIdx % FALLBACK_ROOM_GALLERIES.length];
 }
 
