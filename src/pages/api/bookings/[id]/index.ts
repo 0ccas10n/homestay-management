@@ -5,7 +5,7 @@
 
 import { readOne, update, checkout } from '@/lib/google-sheets/bookings.repository';
 import { readOne as readCustomer } from '@/lib/google-sheets/customers.repository';
-import { update as updateRoom } from '@/lib/google-sheets/rooms.repository';
+import { readOne as readRoom, update as updateRoom } from '@/lib/google-sheets/rooms.repository';
 import { create as createCleaning, query as queryCleaning } from '@/lib/google-sheets/cleaning.repository';
 import { updateBookingSchema, parseBody } from '@/lib/api/validation';
 import { requireAuth } from '@/lib/auth/middleware';
@@ -132,6 +132,13 @@ export async function PATCH(request: Request) {
     const { actualCheckOutAt: _, ...generalPatch } = parsed;
     const updated = await update(SPREADSHEET_ID, bookingId, generalPatch);
     if (!updated) return jsonError(404, 'NOT_FOUND', `Booking ${bookingId} not found`);
+
+    if (generalPatch.status === 'checked_in') {
+      const room = await readRoom(SPREADSHEET_ID, updated.roomId);
+      if (room && room.status !== 'occupied') {
+        await updateRoom(SPREADSHEET_ID, updated.roomId, { status: 'occupied' });
+      }
+    }
 
     return jsonSuccess(updated);
   } catch (err: any) {

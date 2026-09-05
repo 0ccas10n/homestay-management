@@ -16,6 +16,8 @@ import Modal from '@/components/Modal';
 import BookingFormModal from '@/components/BookingFormModal';
 import QuickEditModal from '@/components/QuickEditModal';
 import CheckOutModal from '@/components/CheckOutModal';
+import EarlyCheckInModal from '@/components/EarlyCheckInModal';
+import { bookingsApi } from '@/services/api';
 import { formatVnd, getBookingTotal, formatStatusLabel } from '@/utils/format';
 
 const STATUSES = ['All', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'];
@@ -31,6 +33,10 @@ export default function Bookings() {
   const [selected, setSelected] = useState<Booking | null>(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [checkOutTarget, setCheckOutTarget] = useState<Booking | null>(null);
+  const [earlyCheckInTarget, setEarlyCheckInTarget] = useState<{
+    booking: Booking;
+    roomName: string;
+  } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<Booking | null>(null);
   const [addBookingOpen, setAddBookingOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -110,6 +116,58 @@ export default function Bookings() {
         await refetch();
         showToast('Check-in thành công');
       }
+    } catch {
+      showToast('Check-in thất bại');
+    }
+  };
+
+  const triggerCheckIn = (b: Booking) => {
+    const scheduledMs = new Date(b.checkInAt).getTime();
+    const nowMs = Date.now();
+    const earlyMinutes = Math.round((scheduledMs - nowMs) / 60_000);
+
+    if (earlyMinutes > 30) {
+      setEarlyCheckInTarget({
+        booking: b,
+        roomName: roomMap.get(b.roomId) || b.roomId,
+      });
+      return;
+    }
+
+    handleCheckIn(b.bookingId);
+  };
+
+  const handleEarlyCheckInConfirm = async (
+    bookingId: string,
+    options: { earlySurcharge: number; note?: string }
+  ) => {
+    try {
+      const targetBooking = bookings.find(b => b.bookingId === bookingId);
+      if (!targetBooking) return;
+
+      const newTotal = (targetBooking.totalAmount ?? 0) + options.earlySurcharge;
+      const newExtra = (targetBooking.extraServicesAmount ?? 0) + options.earlySurcharge;
+      const auditNote = options.earlySurcharge > 0
+        ? `[Check-in sớm: phụ thu ${formatVnd(options.earlySurcharge)}${options.note ? ` - ${options.note}` : ''}]`
+        : `[Check-in sớm miễn phí${options.note ? ` - ${options.note}` : ''}]`;
+      const combinedNote = targetBooking.note
+        ? `${targetBooking.note} | ${auditNote}`
+        : auditNote;
+
+      await bookingsApi.update(bookingId, {
+        status: 'checked_in',
+        totalAmount: newTotal,
+        extraServicesAmount: newExtra > 0 ? newExtra : undefined,
+        note: combinedNote,
+      });
+
+      await refetch();
+      setEarlyCheckInTarget(null);
+      showToast(
+        options.earlySurcharge > 0
+          ? `✅ Check-in sớm thành công (+${formatVnd(options.earlySurcharge)} phụ thu)!`
+          : '✅ Check-in sớm miễn phí thành công!'
+      );
     } catch {
       showToast('Check-in thất bại');
     }
@@ -238,7 +296,7 @@ export default function Bookings() {
                       <button onClick={() => setEditBooking(b)} style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#3B82F6', marginRight: 4 }}>Sửa</button>
                     )}
                     {b.status === 'confirmed' && (
-                      <button onClick={() => handleCheckIn(b.bookingId)} style={{ background: '#D1FAE5', border: '1px solid #6EE7B7', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#047857', marginRight: 4 }}>Check-in</button>
+                      <button onClick={() => triggerCheckIn(b)} style={{ background: '#D1FAE5', border: '1px solid #6EE7B7', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#047857', marginRight: 4 }}>Check-in</button>
                     )}
                     {b.status === 'checked_in' && (
                       <button onClick={() => setCheckOutTarget(b)} style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#B45309', marginRight: 4 }}>Check-out</button>
@@ -299,6 +357,16 @@ export default function Bookings() {
         room={checkOutTarget ? rooms.find(r => r.roomId === checkOutTarget.roomId) : null}
         darkMode={darkMode}
         onConfirmCheckOut={handleCheckOutConfirm}
+      />
+
+      {/* Early Check-in Interceptor Modal */}
+      <EarlyCheckInModal
+        open={!!earlyCheckInTarget}
+        onClose={() => setEarlyCheckInTarget(null)}
+        booking={earlyCheckInTarget?.booking ?? null}
+        roomName={earlyCheckInTarget?.roomName}
+        darkMode={darkMode}
+        onConfirm={handleEarlyCheckInConfirm}
       />
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title={`Booking ${selected?.bookingId}`} darkMode={darkMode}>

@@ -20,6 +20,7 @@ import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import BookingFormModal from '@/components/BookingFormModal';
 import CheckOutModal from '@/components/CheckOutModal';
+import EarlyCheckInModal from '@/components/EarlyCheckInModal';
 import QuickEditModal from '@/components/QuickEditModal';
 import QuickRoomFinder from '@/components/QuickRoomFinder';
 import { formatVnd, getBookingTotal } from '@/utils/format';
@@ -81,6 +82,10 @@ export default function Dashboard() {
     numGuests?: string;
   } | null>(null);
   const [checkOutTarget, setCheckOutTarget] = useState<Booking | null>(null);
+  const [earlyCheckInTarget, setEarlyCheckInTarget] = useState<{
+    booking: Booking;
+    roomName: string;
+  } | null>(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -313,6 +318,64 @@ export default function Dashboard() {
       refetchLocalRooms();
       setModal(null);
       showToast('✅ Đã check-in thành công & cập nhật dữ liệu!');
+    } catch {
+      showToast('❌ Check-in thất bại. Vui lòng thử lại.');
+    }
+  };
+
+  /**
+   * Kiểm tra thông minh trước khi Check-in:
+   * Nếu khách đến sớm hơn giờ hẹn > 30 phút: Chặn lại và bật Popup Xác nhận Check-in sớm!
+   */
+  const triggerCheckIn = (b: Booking, rName?: string) => {
+    const scheduledMs = new Date(b.checkInAt).getTime();
+    const nowMs = Date.now();
+    const earlyMinutes = Math.round((scheduledMs - nowMs) / 60_000);
+
+    if (earlyMinutes > 30) {
+      setEarlyCheckInTarget({
+        booking: b,
+        roomName: rName || roomMap[b.roomId]?.name || b.roomId,
+      });
+      return;
+    }
+
+    handleCheckIn(b.bookingId);
+  };
+
+  const handleEarlyCheckInConfirm = async (
+    bookingId: string,
+    options: { earlySurcharge: number; note?: string }
+  ) => {
+    try {
+      const targetBooking = bookings.find(b => b.bookingId === bookingId);
+      if (!targetBooking) return;
+
+      const newTotal = (targetBooking.totalAmount ?? 0) + options.earlySurcharge;
+      const newExtra = (targetBooking.extraServicesAmount ?? 0) + options.earlySurcharge;
+      const auditNote = options.earlySurcharge > 0
+        ? `[Check-in sớm: phụ thu ${formatVnd(options.earlySurcharge)}${options.note ? ` - ${options.note}` : ''}]`
+        : `[Check-in sớm miễn phí${options.note ? ` - ${options.note}` : ''}]`;
+      const combinedNote = targetBooking.note
+        ? `${targetBooking.note} | ${auditNote}`
+        : auditNote;
+
+      await bookingsApi.update(bookingId, {
+        status: 'checked_in',
+        totalAmount: newTotal,
+        extraServicesAmount: newExtra > 0 ? newExtra : undefined,
+        note: combinedNote,
+      });
+
+      await refetchBookings();
+      refetchLocalRooms();
+      setEarlyCheckInTarget(null);
+      setModal(null);
+      showToast(
+        options.earlySurcharge > 0
+          ? `✅ Check-in sớm thành công (+${formatVnd(options.earlySurcharge)} phụ thu)!`
+          : '✅ Check-in sớm miễn phí thành công!'
+      );
     } catch {
       showToast('❌ Check-in thất bại. Vui lòng thử lại.');
     }
@@ -569,7 +632,7 @@ export default function Dashboard() {
                       ✏️ Sửa
                     </button>
                     <button
-                      onClick={() => handleCheckIn(b.bookingId)}
+                      onClick={() => triggerCheckIn(b, roomMap[b.roomId]?.name)}
                       style={{
                         background: '#2563EB',
                         color: '#fff',
@@ -807,11 +870,6 @@ export default function Dashboard() {
                 bgLight = darkMode ? '#334155' : '#F1F5F9';
                 borderColor = darkMode ? '#475569' : '#E2E8F0';
                 textColor = darkMode ? '#94A3B8' : '#64748B';
-              } else if (incoming) {
-                statusText = 'Sắp đến';
-                bgLight = darkMode ? '#1E3A8A' : '#EFF6FF';
-                borderColor = darkMode ? '#1D4ED8' : '#BFDBFE';
-                textColor = darkMode ? '#60A5FA' : '#1E40AF';
               }
 
               const live = currentBooking ? getLiveCheckoutTotal(currentBooking) : null;
@@ -895,31 +953,63 @@ export default function Dashboard() {
                           ✓ Đã dọn xong
                         </button>
                       </>
-                    ) : incoming ? (
-                      <>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getGuestName(incoming)}</div>
-                        <div style={{ fontSize: 11, color: textMuted }}>In: {formatStayTime(incoming.checkInAt)} · {incoming.numGuests ?? 1} khách</div>
-                        <button
-                          onClick={() => handleCheckIn(incoming.bookingId)}
-                          style={{ marginTop: 'auto', background: '#3B82F6', color: '#fff', border: 'none', padding: '5px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          ✓ Check-in ({getGuestName(incoming)})
-                        </button>
-                      </>
                     ) : room.status === 'maintenance' ? (
                       <div style={{ fontSize: 11, color: textMuted, fontStyle: 'italic', display: 'flex', flex: 1, alignItems: 'center' }}>Đang bảo trì</div>
                     ) : (
                       <>
-                        <div style={{ fontSize: 11, color: textMuted, fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>Phòng trống</div>
-                        <button
-                          onClick={() => {
-                            setFinderPrefill({ roomId: room.roomId, checkInDate: TODAY_DATE });
-                            setModal('add-booking');
-                          }}
-                          style={{ marginTop: 'auto', background: 'transparent', color: '#2563EB', border: `1px dashed ${borderColor}`, padding: '4px 6px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          + Đặt phòng
-                        </button>
+                        <div style={{ fontSize: 11, color: '#10B981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span>🟢</span> Phòng trống
+                        </div>
+                        {incoming && (
+                          <div style={{ fontSize: 10, background: darkMode ? '#1E3A8A33' : '#EFF6FF', color: '#2563EB', padding: '2px 6px', borderRadius: 4, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            🕒 Tiếp: {getGuestName(incoming)} ({formatStayTime(incoming.checkInAt)})
+                          </div>
+                        )}
+                        <div style={{ marginTop: 'auto', display: 'flex', gap: 4 }}>
+                          {incoming && (
+                            <button
+                              type="button"
+                              onClick={() => triggerCheckIn(incoming, room.name)}
+                              title="Nhận phòng cho khách sắp tới"
+                              style={{
+                                flex: 1,
+                                background: '#3B82F6',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '5px 6px',
+                                borderRadius: 6,
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              ✓ Check-in
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFinderPrefill({ roomId: room.roomId, checkInDate: TODAY_DATE });
+                              setModal('add-booking');
+                            }}
+                            title="Tạo đơn đặt phòng theo giờ hoặc qua đêm"
+                            style={{
+                              flex: incoming ? undefined : 1,
+                              background: 'transparent',
+                              color: '#2563EB',
+                              border: `1px dashed ${borderColor}`,
+                              padding: '5px 8px',
+                              borderRadius: 6,
+                              fontSize: 10.5,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            + Đặt phòng
+                          </button>
+                        </div>
                       </>
                     )}
                   </div>
@@ -1055,7 +1145,7 @@ export default function Dashboard() {
               <p style={{ margin: 0, color: darkMode ? '#94A3B8' : '#64748B', fontSize: 13 }}>Chọn booking muốn check-in:</p>
               {checkingIn.map(b => (
                 <div key={b.bookingId} style={{ padding: '12px', borderRadius: 8, border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`, cursor: 'pointer' }}
-                  onClick={() => handleCheckIn(b.bookingId)}>
+                  onClick={() => triggerCheckIn(b, roomMap[b.roomId]?.name)}>
                   <div style={{ fontWeight: 600, color: darkMode ? '#F1F5F9' : '#1E293B' }}>{getGuestName(b)}</div>
                   <div style={{ fontSize: 12, color: darkMode ? '#94A3B8' : '#64748B' }}>Room {getRoomNumber(b)} · {(b.checkInAt || '').slice(0, 16).replace('T', ' ')} → {(b.expectedCheckOutAt || '').slice(0, 16).replace('T', ' ')}</div>
                 </div>
@@ -1117,6 +1207,16 @@ export default function Dashboard() {
         room={checkOutTarget ? roomMap[checkOutTarget.roomId] : null}
         darkMode={darkMode}
         onConfirmCheckOut={handleCheckOutConfirm}
+      />
+
+      {/* Early Check-in Interceptor Modal */}
+      <EarlyCheckInModal
+        open={!!earlyCheckInTarget}
+        onClose={() => setEarlyCheckInTarget(null)}
+        booking={earlyCheckInTarget?.booking ?? null}
+        roomName={earlyCheckInTarget?.roomName}
+        darkMode={darkMode}
+        onConfirm={handleEarlyCheckInConfirm}
       />
 
       <Modal open={modal === 'cleaned'} onClose={() => setModal(null)} title="Đánh dấu đã dọn xong phòng (Mark Cleaned)" darkMode={darkMode}>

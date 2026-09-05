@@ -2941,6 +2941,12 @@ async function PATCH2(request) {
     const { actualCheckOutAt: _, ...generalPatch } = parsed;
     const updated = await update2(SPREADSHEET_ID8, bookingId, generalPatch);
     if (!updated) return jsonError(404, "NOT_FOUND", `Booking ${bookingId} not found`);
+    if (generalPatch.status === "checked_in") {
+      const room = await readOne(SPREADSHEET_ID8, updated.roomId);
+      if (room && room.status !== "occupied") {
+        await update(SPREADSHEET_ID8, updated.roomId, { status: "occupied" });
+      }
+    }
     return jsonSuccess(updated);
   } catch (err) {
     if (err?.message?.includes("overlap")) {

@@ -626,6 +626,25 @@ function formatLocationList(names: string[]): string {
   return `${clean.slice(0, -1).join(', ')} & ${clean[clean.length - 1]}`;
 }
 
+function formatRoomPriceDisplay(priceDisplay?: string, roomName?: string): string {
+  if (priceDisplay && priceDisplay.trim()) {
+    const trimmed = priceDisplay.trim();
+    if (/^từ\s+/i.test(trimmed)) {
+      return 'Từ ' + trimmed.replace(/^từ\s+/i, '');
+    }
+    const num = Number(trimmed);
+    if (!isNaN(num) && num > 0) {
+      return `Từ ${num.toLocaleString('vi-VN')} ₫`;
+    }
+    return `Từ ${trimmed}`;
+  }
+  if (roomName) {
+    const isHien = roomName.toLowerCase().includes('hiên');
+    return isHien ? 'Từ 250k' : 'Từ 300k';
+  }
+  return 'Giá linh hoạt';
+}
+
 // Cuộn màn hình siêu mượt với đường cong gia tốc tự nhiên (easeInOutCubic)
 function smoothScrollTo(targetY: number, duration: number = 750) {
   if (typeof window === 'undefined') return;
@@ -1917,11 +1936,11 @@ export default function PublicPortal() {
                         {room.name}
                       </h3>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 15, fontWeight: 800, color: BRAND.terracotta }}>
-                          Giá linh hoạt
+                        <div style={{ fontSize: 16, fontWeight: 800, color: BRAND.terracotta, letterSpacing: '-0.2px' }}>
+                          {formatRoomPriceDisplay(room.priceDisplay, room.name)}
                         </div>
                         <div style={{ fontSize: 11, color: BRAND.charcoalMuted, fontWeight: 500 }}>
-                          Theo giờ · Qua đêm · Cả ngày · Dài ngày
+                          Theo giờ · Qua đêm · Cả ngày
                         </div>
                       </div>
                     </div>
@@ -2256,7 +2275,7 @@ export default function PublicPortal() {
                   Liên Hệ Đặt Phòng
                 </h3>
                 <div style={{ fontSize: 13, color: BRAND.terracotta, fontWeight: 700, marginTop: 3 }}>
-                  {contactModalRoom.name} · Giá linh hoạt theo lịch trình
+                  {contactModalRoom.name} · {formatRoomPriceDisplay(contactModalRoom.priceDisplay, contactModalRoom.name)} · Linh hoạt theo lịch trình
                 </div>
               </div>
               <button
@@ -2417,7 +2436,7 @@ export default function PublicPortal() {
             </div>
             <div style={{ fontSize: 13, lineHeight: 1.85, color: '#C2B09A' }}>
               <div style={{ marginBottom: 6 }}>• <strong>Tạt qua (Theo giờ):</strong> Rảnh lúc nào ghé lúc đó, chỉ cần nhắn trước để Hiên check lịch trống.</div>
-              <div style={{ marginBottom: 6 }}>• <strong>Ngủ một giấc (Qua đêm):</strong> Trọn vẹn một đêm êm ái. Khung giờ phổ biến là 21:00 — 10:00 hôm sau, nhưng bạn hoàn toàn có thể đẩy lịch đến sớm hơn hoặc lùi giờ trả lại tùy ý.</div>
+              <div style={{ marginBottom: 6 }}>• <strong>Ngủ một giấc (Qua đêm):</strong> Trọn vẹn một đêm êm ái. Khung giờ phổ biến là 21:00 — 10:00 hôm sau, nhưng bạn hoàn toàn có thể đẩy lịch đến sớm hơn hoặc lùi giờ trả phòng tùy ý.</div>
               <div style={{ marginBottom: 6 }}>• <strong>Lười biếng trọn vẹn (Cả ngày):</strong> Trải nghiệm nguyên ngày thảnh thơi (thường từ 14:00 — 12:00). Cần nhận phòng sớm cất đồ hay ngủ nướng thêm vài tiếng? Cứ báo, Hiên sắp xếp được hết!</div>
               <div style={{ marginTop: 10, color: '#E5D9C8', fontWeight: 600 }}>
                 🔑 Quy trình Self check-in 100% tự động, nhanh gọn và riêng tư.
