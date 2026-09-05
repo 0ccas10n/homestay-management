@@ -3,14 +3,13 @@
 // ratePlanId and/or roomId via query params. Requires authentication.
 
 import { readAll, active, findPrice } from '@/lib/google-sheets/ratePlanPrices.repository';
-import { requireAuth } from '@/lib/auth/middleware';
+import { optionalAuth } from '@/lib/auth/middleware';
 import { jsonSuccess, jsonServerError } from '@/lib/api/response';
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
 
 export async function GET(request: Request) {
-  const session = await requireAuth(request);
-  if (session instanceof Response) return session;
+  await optionalAuth(request);
 
   try {
     const { searchParams } = new URL(request.url);

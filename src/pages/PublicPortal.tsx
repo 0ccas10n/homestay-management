@@ -9,8 +9,8 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { roomsApi, locationsApi, availabilityApi } from '@/services/api';
-import type { Room, Location } from '@/types/index';
+import { roomsApi, locationsApi, availabilityApi, ratePlanPricesApi } from '@/services/api';
+import type { Room, Location, RatePlanPrice } from '@/types/index';
 import { DEFAULT_BIZ_INFO } from '@/pages/Settings';
 import { ZaloIcon, InstagramIcon, TikTokIcon } from '@/components/SocialIcons';
 
@@ -687,23 +687,37 @@ function formatLocationList(names: string[]): string {
   return `${clean.slice(0, -1).join(', ')} & ${clean[clean.length - 1]}`;
 }
 
-function formatRoomPriceDisplay(priceDisplay?: string, roomName?: string): string {
-  if (priceDisplay && priceDisplay.trim()) {
-    const trimmed = priceDisplay.trim();
-    if (/^từ\s+/i.test(trimmed)) {
-      return 'Từ ' + trimmed.replace(/^từ\s+/i, '');
+function formatRoomPriceDisplay(
+  room: Room | null,
+  ratePlanPrices: RatePlanPrice[] = []
+): string {
+  if (!room) return 'Từ 400k';
+  const rId = room.roomId || (room as any).id;
+
+  // 1. Tra cứu chính xác từ bảng RatePlanPrices trong Google Sheet (Gói sàn Combo 4H: RP-0001)
+  const priceRow4H = ratePlanPrices.find(
+    p => (p.roomId === rId || p.roomId === room.roomId) && p.ratePlanId === 'RP-0001'
+  );
+  if (priceRow4H && Number(priceRow4H.priceVnd) > 0) {
+    const vnd = Number(priceRow4H.priceVnd);
+    if (vnd >= 1000) {
+      return `Từ ${Math.round(vnd / 1000)}k`;
     }
-    const num = Number(trimmed);
-    if (!isNaN(num) && num > 0) {
-      return `Từ ${num.toLocaleString('vi-VN')} ₫`;
-    }
-    return `Từ ${trimmed}`;
+    return `Từ ${vnd.toLocaleString('vi-VN')} ₫`;
   }
-  if (roomName) {
-    const isHien = roomName.toLowerCase().includes('hiên');
-    return isHien ? 'Từ 250k' : 'Từ 300k';
+
+  // 2. Tra cứu gói giá nhỏ nhất bất kỳ được cấu hình cho phòng
+  const allPrices = ratePlanPrices
+    .filter(p => (p.roomId === rId || p.roomId === room.roomId) && Number(p.priceVnd) > 0)
+    .map(p => Number(p.priceVnd));
+  if (allPrices.length > 0) {
+    const minVnd = Math.min(...allPrices);
+    return `Từ ${Math.round(minVnd / 1000)}k`;
   }
-  return 'Giá linh hoạt';
+
+  // 3. Fallback theo bảng giá chuẩn
+  const isHien = (room.name || '').toLowerCase().includes('hiên');
+  return isHien ? 'Từ 400k' : 'Từ 400k';
 }
 
 // Cuộn màn hình siêu mượt với đường cong gia tốc tự nhiên (easeInOutCubic)
@@ -749,6 +763,7 @@ export default function PublicPortal() {
   // Dữ liệu chính
   const [rooms, setRooms] = useState<Room[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [ratePlanPrices, setRatePlanPrices] = useState<RatePlanPrice[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -806,9 +821,10 @@ export default function PublicPortal() {
     async function loadData() {
       try {
         setLoading(true);
-        const [roomsData, locsData] = await Promise.all([
+        const [roomsData, locsData, pricesData] = await Promise.all([
           roomsApi.getPublic().catch(() => []),
           locationsApi.getAll().catch(() => []),
+          ratePlanPricesApi.getAll().catch(() => []),
         ]);
         if (cancelled) return;
         const activeRooms = (roomsData || []).filter(
@@ -816,6 +832,7 @@ export default function PublicPortal() {
         );
         setRooms(activeRooms);
         setLocations(locsData || []);
+        setRatePlanPrices(pricesData || []);
       } catch (err: any) {
         if (!cancelled) setError('Không thể tải danh sách phòng. Vui lòng thử lại sau.');
       } finally {
@@ -1998,7 +2015,7 @@ export default function PublicPortal() {
                       </h3>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: 16, fontWeight: 800, color: BRAND.terracotta, letterSpacing: '-0.2px' }}>
-                          {formatRoomPriceDisplay(room.priceDisplay, room.name)}
+                          {formatRoomPriceDisplay(room, ratePlanPrices)}
                         </div>
                         <div style={{ fontSize: 11, color: BRAND.charcoalMuted, fontWeight: 500 }}>
                           Theo giờ · Qua đêm · Cả ngày
@@ -2336,7 +2353,7 @@ export default function PublicPortal() {
                   Liên Hệ Đặt Phòng
                 </h3>
                 <div style={{ fontSize: 13, color: BRAND.terracotta, fontWeight: 700, marginTop: 3 }}>
-                  {contactModalRoom.name} · {formatRoomPriceDisplay(contactModalRoom.priceDisplay, contactModalRoom.name)} · Linh hoạt theo lịch trình
+                  {contactModalRoom.name} · {formatRoomPriceDisplay(contactModalRoom, ratePlanPrices)} · Linh hoạt theo lịch trình
                 </div>
               </div>
               <button

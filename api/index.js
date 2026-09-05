@@ -3271,8 +3271,7 @@ __export(rate_plan_prices_exports, {
 });
 var SPREADSHEET_ID16 = process.env.SPREADSHEET_ID;
 async function GET13(request) {
-  const session = await requireAuth(request);
-  if (session instanceof Response) return session;
+  await optionalAuth(request);
   try {
     const { searchParams } = new URL(request.url);
     const ratePlanId = searchParams.get("ratePlanId") ?? void 0;
