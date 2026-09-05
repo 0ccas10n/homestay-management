@@ -16,13 +16,16 @@ const TABS = ['Business Info', 'Rooms', 'Room Types', 'Staff', 'Pricing'];
 
 export const DEFAULT_BIZ_INFO = {
   name: 'Hiên Homestay',
-  address: 'Bình Lợi Trung, Bình Thạnh, Hồ Chí Minh',
-  phone: '+84 899 88 4470',
+  address: 'Bình Lợi Trung & Thạnh Mỹ Tây, Bình Thạnh, Hồ Chí Minh',
+  phone: '0899 884 470',
+  phoneSecondary: '0356 593 184',
   email: 'hello@hien.homestay',
   checkInTime: '14:00',
   checkOutTime: '12:00',
   currency: 'VND',
   website: 'https://beacons.ai/hien.homestay',
+  instagram: 'https://www.instagram.com/hien.home/',
+  tiktok: 'https://www.tiktok.com/@hien.homestaysg',
 };
 
 export default function Settings() {

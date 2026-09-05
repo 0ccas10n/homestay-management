@@ -1408,14 +1408,6 @@ function parseBody(request, schema) {
     return result.data;
   }).catch(() => jsonValidationError({ issues: [{ path: ["body"], message: "Invalid JSON body" }] }));
 }
-function parseQuery(url, schema) {
-  const params = Object.fromEntries(new URL(url).searchParams);
-  const result = schema.safeParse(params);
-  if (!result.success) {
-    return jsonValidationError(result.error);
-  }
-  return result.data;
-}
 
 // src/lib/google-sheets/ratePlanPrices.repository.ts
 async function readAll(spreadsheetId) {
@@ -1913,16 +1905,58 @@ async function calculateBasePricing(spreadsheetId, roomId, ratePlanId, checkInAt
 // src/pages/api/availability.ts
 var SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 async function GET(request) {
-  const parsed = parseQuery(request.url, availabilityQuerySchema);
-  if (parsed instanceof Response) return parsed;
-  const { roomId, checkIn, checkOut } = parsed;
-  const overlap = await hasOverlap(SPREADSHEET_ID, roomId, checkIn, checkOut);
-  return jsonSuccess({
-    roomId,
-    checkIn,
-    checkOut,
-    available: !overlap
-  });
+  const { searchParams } = new URL(request.url);
+  const roomId = searchParams.get("roomId") || void 0;
+  const checkIn = searchParams.get("checkIn") || void 0;
+  const checkOut = searchParams.get("checkOut") || void 0;
+  if (roomId && checkIn && checkOut) {
+    if (new Date(checkIn) >= new Date(checkOut)) {
+      return jsonError("INVALID_DATES", "checkIn must be before checkOut", 422);
+    }
+    const overlap = await hasOverlap(SPREADSHEET_ID, roomId, checkIn, checkOut);
+    return jsonSuccess({
+      roomId,
+      checkIn,
+      checkOut,
+      available: !overlap
+    });
+  }
+  if (!roomId && checkIn && checkOut) {
+    if (new Date(checkIn) >= new Date(checkOut)) {
+      return jsonError("INVALID_DATES", "checkIn must be before checkOut", 422);
+    }
+    const allRooms = await readAll2(SPREADSHEET_ID);
+    const activeRooms = (allRooms || []).filter(
+      (r) => r && r.active !== false && String(r.active).toLowerCase() !== "false" && r.status !== "inactive"
+    );
+    const checks = await Promise.all(
+      activeRooms.map(async (room) => {
+        const overlap = await hasOverlap(SPREADSHEET_ID, room.roomId, checkIn, checkOut);
+        return { roomId: room.roomId, available: !overlap };
+      })
+    );
+    const availableRoomIds = checks.filter((c) => c.available).map((c) => c.roomId);
+    return jsonSuccess({
+      checkIn,
+      checkOut,
+      availableRoomIds
+    });
+  }
+  if (roomId) {
+    const bookings2 = await byRoom(SPREADSHEET_ID, roomId);
+    const activeBookings = (bookings2 || []).filter(
+      (b) => b && b.status !== "cancelled" && b.status !== "checked_out" && b.status !== "no_show"
+    );
+    const bookedRanges = activeBookings.map((b) => ({
+      checkInAt: b.checkInAt,
+      expectedCheckOutAt: b.expectedCheckOutAt
+    }));
+    return jsonSuccess({
+      roomId,
+      bookedRanges
+    });
+  }
+  return jsonError("BAD_REQUEST", "Vui l\xF2ng truy\u1EC1n roomId, ho\u1EB7c checkIn & checkOut, ho\u1EB7c c\u1EA3 ba tham s\u1ED1", 400);
 }
 
 // src/pages/api/dashboard.ts

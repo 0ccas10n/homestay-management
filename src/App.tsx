@@ -15,6 +15,7 @@ import AuthProvider from '@/contexts/AuthContext.tsx';
 import RequireAuth from '@/RequireAuth';
 import AppShell from '@/AppShell';
 import LoginPage from '@/pages/Login';
+import PublicPortal from '@/pages/PublicPortal';
 import Dashboard from '@/pages/Dashboard';
 import Bookings from '@/pages/Bookings';
 import Rooms from '@/pages/Rooms';
@@ -32,7 +33,11 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public */}
+          {/* Public Portal dành cho khách vãng lai */}
+          <Route path="/" element={<PublicPortal />} />
+          <Route path="/explore" element={<PublicPortal />} />
+
+          {/* Public login dành cho quản trị & nhân viên */}
           <Route path="/login" element={<LoginPage />} />
 
           {/* Authenticated app routes */}
@@ -59,7 +64,7 @@ export default function App() {
           </Route>
 
           {/* Default redirect */}
-          <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

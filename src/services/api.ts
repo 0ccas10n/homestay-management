@@ -225,6 +225,14 @@ export const availabilityApi = {
     api.get<{ roomId: string; checkIn: string; checkOut: string; available: boolean }>(
       `/api/availability?roomId=${encodeURIComponent(roomId)}&checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`,
     ),
+  getAvailableRoomIds: (checkIn: string, checkOut: string) =>
+    api.get<{ checkIn: string; checkOut: string; availableRoomIds: string[] }>(
+      `/api/availability?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`,
+    ),
+  getBookedRanges: (roomId: string) =>
+    api.get<{ roomId: string; bookedRanges: { checkInAt: string; expectedCheckOutAt: string }[] }>(
+      `/api/availability?roomId=${encodeURIComponent(roomId)}`,
+    ),
 };
 
 export const cleaningApi = {
