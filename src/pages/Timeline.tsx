@@ -133,14 +133,6 @@ function statusVisual(status: string, darkMode: boolean): StatusVisual {
         text: isDark ? '#DBEAFE' : '#1E40AF',
         solid: true,
       };
-    case 'inquiry':
-      return {
-        ...base,
-        bg: isDark ? 'rgba(139,92,246,0.15)' : '#F5F3FF',
-        border: '#8B5CF6',
-        text: isDark ? '#C4B5FD' : '#5B21B6',
-        dashed: true,
-      };
     case 'checked_out':
       return {
         ...base,
@@ -292,7 +284,7 @@ export default function Timeline() {
   );
 
   const activeRooms = useMemo(
-    () => rooms.filter(r => r.status !== 'inactive'),
+    () => rooms.filter(r => r && r.active !== false && String(r.active).toLowerCase() !== 'false' && r.status !== 'inactive'),
     [rooms],
   );
 
@@ -1173,7 +1165,7 @@ function BookingDetail({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
         <StatusBadge status={effectiveStatus} />
         <div style={{ display: 'flex', gap: 8 }}>
-          {['inquiry', 'confirmed', 'checked_in'].includes(effectiveStatus) && onEdit && (
+          {['confirmed', 'checked_in'].includes(effectiveStatus) && onEdit && (
             <button
               onClick={onEdit}
               style={{
@@ -1185,7 +1177,7 @@ function BookingDetail({
               Sửa nhanh
             </button>
           )}
-          {(effectiveStatus === 'inquiry' || effectiveStatus === 'confirmed') && onCheckIn && (
+          {effectiveStatus === 'confirmed' && onCheckIn && (
             <button
               onClick={onCheckIn}
               style={{

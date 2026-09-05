@@ -53,7 +53,7 @@ export default function QuickEditModal({ booking, guestName, roomName, onClose, 
   }, [booking]);
 
   const activeRooms = useMemo(
-    () => rooms.filter(r => r.status !== 'inactive'),
+    () => rooms.filter(r => r && r.active !== false && String(r.active).toLowerCase() !== 'false' && r.status !== 'inactive'),
     [rooms],
   );
 

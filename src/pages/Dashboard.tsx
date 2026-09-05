@@ -20,6 +20,7 @@ import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import BookingFormModal from '@/components/BookingFormModal';
 import CheckOutModal from '@/components/CheckOutModal';
+import QuickEditModal from '@/components/QuickEditModal';
 import QuickRoomFinder from '@/components/QuickRoomFinder';
 import { formatVnd, getBookingTotal } from '@/utils/format';
 
@@ -80,6 +81,7 @@ export default function Dashboard() {
     numGuests?: string;
   } | null>(null);
   const [checkOutTarget, setCheckOutTarget] = useState<Booking | null>(null);
+  const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const handleBookFromFinder = (
@@ -125,22 +127,27 @@ export default function Dashboard() {
   const available = Math.max(0, totalRooms - occupied - needsCleaning - maintenanceRooms);
 
   const today = TODAY_DATE;
-  const checkingInToday = (bookings || []).filter(b => {
-    if (!b || b.status === 'cancelled' || (b.status !== 'confirmed' && b.status !== 'inquiry')) return false;
-    const checkInDate = (b.checkInAt || '').slice(0, 10);
-    return checkInDate === today;
-  });
+  const checkingInToday = (bookings || [])
+    .filter(b => {
+      if (!b || b.status !== 'confirmed') return false;
+      const checkInDate = (b.checkInAt || '').slice(0, 10);
+      return checkInDate === today;
+    })
+    .sort((a, b) => new Date(a.checkInAt).getTime() - new Date(b.checkInAt).getTime());
+
   const overdueCheckIns = (bookings || []).filter(b => {
-    if (!b || b.status === 'cancelled' || (b.status !== 'confirmed' && b.status !== 'inquiry')) return false;
+    if (!b || b.status !== 'confirmed') return false;
     const checkInDate = (b.checkInAt || '').slice(0, 10);
     return checkInDate && checkInDate < today;
   });
   const checkingIn = checkingInToday;
-  const checkingOut = (bookings || []).filter(b => {
-    if (!b || b.status !== 'checked_in') return false;
-    const checkoutDate = (b.expectedCheckOutAt || '').slice(0, 10);
-    return checkoutDate && checkoutDate <= today;
-  });
+  const checkingOut = (bookings || [])
+    .filter(b => {
+      if (!b || b.status !== 'checked_in') return false;
+      const checkoutDate = (b.expectedCheckOutAt || '').slice(0, 10);
+      return checkoutDate && checkoutDate <= today;
+    })
+    .sort((a, b) => new Date(a.expectedCheckOutAt).getTime() - new Date(b.expectedCheckOutAt).getTime());
 
   const prevMonthRevenue = monthlyRevenue.length >= 2
     ? monthlyRevenue[monthlyRevenue.length - 2]!.revenue
@@ -508,43 +515,162 @@ export default function Dashboard() {
       )}
 
       {/* Today's Arrivals & Departures */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         {/* Checking In */}
         <div style={card(darkMode)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Checking In Today</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16 }}>🛬</span>
+              <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Khách nhận phòng hôm nay (Checking In)</div>
+            </div>
             <span style={{ background: '#DBEAFE', color: '#1E40AF', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>{checkingIn.length}</span>
           </div>
           {checkingIn.length === 0 ? (
-            <p style={{ color: textMuted, fontSize: 13, margin: 0 }}>No arrivals today</p>
-          ) : checkingIn.map(b => (
-            <div key={b.bookingId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${borderColor}` }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>{getGuestName(b)}</div>
-                <div style={{ fontSize: 12, color: textMuted }}>Room {getRoomNumber(b)} · In: {formatStayTime(b.checkInAt)} · {b.numGuests ?? 1} khách</div>
-              </div>
-              <StatusBadge status={b.status} />
+            <div style={{ color: textMuted, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>✨ Hôm nay không có lượt nhận phòng nào</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {checkingIn.map(b => (
+                <div
+                  key={b.bookingId}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    background: darkMode ? '#0F172A' : '#F8FAFC',
+                    border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {getGuestName(b)}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: textMuted, marginTop: 2 }}>
+                      Phòng <strong>{getRoomNumber(b)}</strong> · In: <span style={{ color: '#2563EB', fontWeight: 600 }}>{formatStayTime(b.checkInAt)}</span> · {b.numGuests ?? 1} khách
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <button
+                      onClick={() => setEditBooking(b)}
+                      title="Sửa nhanh thông tin đơn"
+                      style={{
+                        background: 'none',
+                        border: `1px solid ${darkMode ? '#475569' : '#CBD5E1'}`,
+                        color: textMuted,
+                        borderRadius: 6,
+                        padding: '5px 8px',
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✏️ Sửa
+                    </button>
+                    <button
+                      onClick={() => handleCheckIn(b.bookingId)}
+                      style={{
+                        background: '#2563EB',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '5px 12px',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 1px 3px rgba(37,99,235,0.3)',
+                      }}
+                    >
+                      ✓ Check-in
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
 
         {/* Checking Out */}
         <div style={card(darkMode)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Checking Out Today</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16 }}>🛫</span>
+              <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>Khách trả phòng hôm nay (Checking Out)</div>
+            </div>
             <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>{checkingOut.length}</span>
           </div>
           {checkingOut.length === 0 ? (
-            <p style={{ color: textMuted, fontSize: 13, margin: 0 }}>No departures today</p>
-          ) : checkingOut.map(b => (
-            <div key={b.bookingId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${borderColor}` }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary }}>{getGuestName(b)}</div>
-                <div style={{ fontSize: 12, color: textMuted }}>Room {getRoomNumber(b)} · Out: {formatStayTime(b.expectedCheckOutAt)} · Tổng: {formatVnd(getBookingTotal(b))}</div>
-              </div>
-              <StatusBadge status="Checked In" />
+            <div style={{ color: textMuted, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>✨ Hôm nay không có lượt trả phòng nào</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {checkingOut.map(b => {
+                const depositPaid = b.paidAmount ?? b.depositAmount ?? 0;
+                const totalAmt = getBookingTotal(b);
+                const balanceDue = Math.max(0, totalAmt - depositPaid);
+
+                return (
+                  <div
+                    key={b.bookingId}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      background: darkMode ? '#0F172A' : '#F8FAFC',
+                      border: `1px solid ${darkMode ? '#334155' : '#E2E8F0'}`,
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {getGuestName(b)}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: textMuted, marginTop: 2 }}>
+                        Phòng <strong>{getRoomNumber(b)}</strong> · Out: <span style={{ color: '#D97706', fontWeight: 600 }}>{formatStayTime(b.expectedCheckOutAt)}</span> · Tổng: <strong>{formatVnd(totalAmt)}</strong>
+                        {balanceDue > 0 && <span style={{ color: '#EF4444', fontWeight: 700, marginLeft: 4 }}>(Còn thu: {formatVnd(balanceDue)})</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <button
+                        onClick={() => setEditBooking(b)}
+                        title="Sửa nhanh thông tin đơn"
+                        style={{
+                          background: 'none',
+                          border: `1px solid ${darkMode ? '#475569' : '#CBD5E1'}`,
+                          color: textMuted,
+                          borderRadius: 6,
+                          padding: '5px 8px',
+                          fontSize: 11.5,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✏️ Sửa
+                      </button>
+                      <button
+                        onClick={() => setCheckOutTarget(b)}
+                        style={{
+                          background: '#F59E0B',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '5px 12px',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 1px 3px rgba(245,158,11,0.3)',
+                        }}
+                      >
+                        Check-out
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -644,7 +770,22 @@ export default function Dashboard() {
             {rooms.filter(r => r.active && r.status !== 'inactive').map(room => {
               const currentBooking = bookings.find(b => (b.roomId === room.roomId || b.roomId === (room as any).id) && b.status === 'checked_in');
               const cleaningTask = cleaningTasks.find(t => (t.roomId === room.roomId || t.roomId === (room as any).id) && t.status !== 'completed');
-              const incoming = checkingIn.find(b => (b.roomId === room.roomId || b.roomId === (room as any).id));
+              
+              // Lấy các booking sắp tới của phòng này (chưa check-in, chưa huỷ, chưa checkout) và sort theo giờ check-in tăng dần
+              const upcomingBookingsForRoom = (bookings || [])
+                .filter(b => {
+                  if (!b || b.status === 'cancelled' || b.status === 'checked_out' || b.status === 'checked_in') return false;
+                  if (b.roomId !== room.roomId && b.roomId !== (room as any).id) return false;
+                  return true;
+                })
+                .sort((a, b) => new Date(a.checkInAt).getTime() - new Date(b.checkInAt).getTime());
+
+              // Booking sắp đến GẦN NHẤT trong khung giờ liên quan (-4h đến +36h)
+              const nowMs = new Date().getTime();
+              const incoming = upcomingBookingsForRoom.find(b => {
+                const diffHours = (new Date(b.checkInAt).getTime() - nowMs) / (1000 * 3600);
+                return diffHours >= -4 && diffHours <= 36;
+              });
 
               let statusText = 'Trống';
               let bgLight = darkMode ? '#064E3B' : '#ECFDF5';
@@ -695,7 +836,7 @@ export default function Dashboard() {
                         <div style={{ fontSize: 12, fontWeight: 600, color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getGuestName(currentBooking)}</div>
                         <div style={{ fontSize: 11, color: isOverdue ? '#EF4444' : textMuted }}>Out: {formatStayTime(currentBooking.expectedCheckOutAt)} {isOverdue && '(Quá giờ)'}</div>
                         {incoming && (
-                          <div style={{ fontSize: 10, background: darkMode ? '#1E3A8A33' : '#EFF6FF', color: '#2563EB', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
+                          <div style={{ fontSize: 10, background: darkMode ? '#1E3A8A33' : '#EFF6FF', color: '#2563EB', padding: '2px 6px', borderRadius: 4, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             🕒 Tiếp: {getGuestName(incoming)} ({formatStayTime(incoming.checkInAt)})
                           </div>
                         )}
@@ -727,6 +868,11 @@ export default function Dashboard() {
                     ) : (room.status === 'needs_cleaning' || cleaningTask) ? (
                       <>
                         <div style={{ fontSize: 11, color: textPrimary }}>Phòng đang đợi dọn</div>
+                        {incoming && (
+                          <div style={{ fontSize: 10, background: darkMode ? '#1E3A8A33' : '#EFF6FF', color: '#2563EB', padding: '2px 6px', borderRadius: 4, fontWeight: 600, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            🕒 Tiếp: {getGuestName(incoming)} ({formatStayTime(incoming.checkInAt)})
+                          </div>
+                        )}
                         <button
                           onClick={() => handleMarkCleaned(cleaningTask?.cleaningId, room.roomId)}
                           style={{
@@ -1005,6 +1151,20 @@ export default function Dashboard() {
       <Modal open={modal === 'expense'} onClose={() => setModal(null)} title="Add Expense" darkMode={darkMode}>
         <ExpenseForm darkMode={darkMode} onSave={handleAddExpense} />
       </Modal>
+
+      <QuickEditModal
+        booking={editBooking}
+        guestName={editBooking ? (customerMap.get((editBooking.customerId || '').trim()) || editBooking.guestName) : undefined}
+        roomName={editBooking ? roomMap[editBooking.roomId]?.name : undefined}
+        onClose={() => setEditBooking(null)}
+        onSuccess={() => {
+          showToast('✅ Đã cập nhật booking thành công');
+          refetchBookings();
+          refetchLocalRooms();
+          refetchLocalCleaning();
+        }}
+        darkMode={darkMode}
+      />
     </div>
   );
 }

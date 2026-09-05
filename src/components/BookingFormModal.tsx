@@ -314,11 +314,12 @@ export default function BookingFormModal({
       }),
     ]).then(([r, p]) => {
       if (cancelled) return;
-      setRooms(r);
+      const activeRoomsList = (r || []).filter(room => room && room.active !== false && String(room.active).toLowerCase() !== 'false' && room.status !== 'inactive');
+      setRooms(activeRoomsList);
       const plans = (p && p.length > 0) ? p : fallbackRatePlans;
       setRatePlans(plans);
 
-      const defaultRoomId = r[0]?.roomId || '';
+      const defaultRoomId = activeRoomsList[0]?.roomId || '';
       const activePlan = plans.find(plan => plan.active !== false && String(plan.active).toUpperCase() !== 'FALSE') || plans[0];
       const defaultPlanId = activePlan?.ratePlanId || '';
 

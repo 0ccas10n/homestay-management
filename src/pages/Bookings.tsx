@@ -82,7 +82,7 @@ export default function Bookings() {
 
   // Bookings that can still be cancelled by the user.
   const canCancel = (b: Booking) =>
-    b && (b.status === 'inquiry' || b.status === 'confirmed');
+    b && b.status === 'confirmed';
 
   const handleCheckOutConfirm = async (
     bookingId: string,
@@ -234,16 +234,16 @@ export default function Bookings() {
                   <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}><StatusBadge status={b.status} /></td>
                   <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                     <button onClick={() => setSelected(b)} style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: textMuted, marginRight: 4 }}>Xem</button>
-                    {['inquiry', 'confirmed', 'checked_in'].includes(b.status) && (
+                    {['confirmed', 'checked_in'].includes(b.status) && (
                       <button onClick={() => setEditBooking(b)} style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#3B82F6', marginRight: 4 }}>Sửa</button>
                     )}
-                    {(b.status === 'inquiry' || b.status === 'confirmed') && (
+                    {b.status === 'confirmed' && (
                       <button onClick={() => handleCheckIn(b.bookingId)} style={{ background: '#D1FAE5', border: '1px solid #6EE7B7', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#047857', marginRight: 4 }}>Check-in</button>
                     )}
                     {b.status === 'checked_in' && (
                       <button onClick={() => setCheckOutTarget(b)} style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#B45309', marginRight: 4 }}>Check-out</button>
                     )}
-                    {(b.status === 'inquiry' || b.status === 'confirmed') && (
+                    {b.status === 'confirmed' && (
                       <button onClick={() => handleNoShow(b.bookingId)} style={{ background: 'none', border: '1px solid #FDE68A', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: '#B45309', marginRight: 4 }}>No-show</button>
                     )}
                     {canCancel(b) && (
@@ -339,7 +339,7 @@ export default function Bookings() {
               </div>
             )}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {['inquiry', 'confirmed', 'checked_in'].includes(selected.status) && (
+              {['confirmed', 'checked_in'].includes(selected.status) && (
                 <button
                   onClick={() => {
                     const target = selected;
@@ -351,7 +351,7 @@ export default function Bookings() {
                   Sửa nhanh
                 </button>
               )}
-              {(selected.status === 'inquiry' || selected.status === 'confirmed') && (
+              {selected.status === 'confirmed' && (
                 <button onClick={() => handleCheckIn(selected.bookingId)} style={{ background: '#D1FAE5', color: '#047857', border: 'none', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Check-in</button>
               )}
               {selected.status === 'checked_in' && (
@@ -366,7 +366,7 @@ export default function Bookings() {
                   Check-out & Thu tiền
                 </button>
               )}
-              {(selected.status === 'inquiry' || selected.status === 'confirmed') && (
+              {selected.status === 'confirmed' && (
                 <button onClick={() => handleNoShow(selected.bookingId)} style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>No-show</button>
               )}
               {canCancel(selected) && (

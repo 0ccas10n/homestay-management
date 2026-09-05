@@ -55,7 +55,7 @@ export default function CalendarView() {
 
   // Bookings that can still be cancelled by the user.
   const canCancel = (b: Booking) =>
-    b.status === 'inquiry' || b.status === 'confirmed';
+    b.status === 'confirmed';
 
   const handleCancel = async (id: string) => {
     try {
@@ -96,7 +96,7 @@ export default function CalendarView() {
   const bg          = darkMode ? '#1E293B' : '#fff';
   const cellBg     = darkMode ? '#0F172A' : '#F8FAFC';
 
-  const activeRooms = useMemo(() => rooms.filter(r => r.status !== 'inactive'), [rooms]);
+  const activeRooms = useMemo(() => rooms.filter(r => r && r.active !== false && String(r.active).toLowerCase() !== 'false' && r.status !== 'inactive'), [rooms]);
 
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay   = getFirstDayOfWeek(year, month);
@@ -393,7 +393,7 @@ export default function CalendarView() {
                 Cancel Booking
               </button>
             )}
-            {['inquiry', 'confirmed', 'checked_in'].includes(selectedBooking.status) && (
+            {['confirmed', 'checked_in'].includes(selectedBooking.status) && (
               <button
                 onClick={() => {
                   setSelectedBooking(null);
@@ -409,7 +409,7 @@ export default function CalendarView() {
                 Sửa nhanh
               </button>
             )}
-            {(selectedBooking.status === 'inquiry' || selectedBooking.status === 'confirmed') && (
+            {selectedBooking.status === 'confirmed' && (
               <button
                 onClick={() => handleCheckIn(selectedBooking.bookingId)}
                 style={{
