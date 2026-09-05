@@ -7,11 +7,12 @@
 //   - 10% Warm Terracotta (#C17A5A) cho CTA & Soft Sage (#8AAAA2) cho điểm nhấn tự nhiên
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { roomsApi, locationsApi, availabilityApi } from '@/services/api';
 import type { Room, Location } from '@/types/index';
 import { DEFAULT_BIZ_INFO } from '@/pages/Settings';
+import { ZaloIcon, InstagramIcon, TikTokIcon } from '@/components/SocialIcons';
 
 // ─── Hiên Homestay Brand Palette ──────────────────────────────────────────────
 const BRAND = {
@@ -73,6 +74,18 @@ function getTomorrowStr(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
+}
+
+function addDaysToStr(dateStr: string, days: number = 1): string {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function formatDateDisplay(dateStr: string): string {
@@ -137,6 +150,11 @@ export default function PublicPortal() {
 
   // Modal chọn kênh liên hệ / Zalo
   const [contactModalRoom, setContactModalRoom] = useState<Room | null>(null);
+
+  // Refs hỗ trợ mở datepicker & select khi bấm vào bất kỳ đâu trong ô
+  const checkInInputRef = useRef<HTMLInputElement>(null);
+  const checkOutInputRef = useRef<HTMLInputElement>(null);
+  const guestSelectRef = useRef<HTMLSelectElement>(null);
 
   const locationMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -214,6 +232,23 @@ export default function PublicPortal() {
       setBookedRanges([]);
     } finally {
       setCalendarLoading(false);
+    }
+  };
+
+  // Tự động nhảy ngày trả phòng lên 1 ngày khi chọn ngày nhận phòng
+  const handleCheckInDateChange = (newVal: string) => {
+    setCheckInDate(newVal);
+    if (newVal) {
+      setCheckOutDate(addDaysToStr(newVal, 1));
+    }
+  };
+
+  const handleCheckOutDateChange = (newVal: string) => {
+    if (checkInDate && newVal <= checkInDate) {
+      // Nếu chọn ngày trả phòng nhỏ hơn hoặc bằng ngày nhận, tự động nhảy lên +1 ngày
+      setCheckOutDate(addDaysToStr(checkInDate, 1));
+    } else {
+      setCheckOutDate(newVal);
     }
   };
 
@@ -409,37 +444,39 @@ export default function PublicPortal() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {/* 2 số Hotline / Zalo */}
-            <div
+            {/* Nút Trọng Tâm Chốt Đơn: Chat Zalo Đặt Phòng */}
+            <a
+              href={`https://zalo.me/${zalo1}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Nhắn Zalo số ${rawPhone1} để nhận báo giá & đặt phòng nhanh`}
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
+                gap: 7,
+                padding: '6px 14px',
                 borderRadius: 8,
-                background: BRAND.softSageLight,
-                border: `1px solid ${BRAND.softSageBorder}`,
-                fontSize: 12,
-                fontWeight: 600,
+                background: '#FFFFFF',
+                border: '1px solid rgba(0, 104, 255, 0.25)',
+                color: '#0052CC',
+                fontSize: 12.5,
+                fontWeight: 700,
+                textDecoration: 'none',
+                boxShadow: '0 1px 3px rgba(0, 104, 255, 0.08)',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 3px 8px rgba(0, 104, 255, 0.18)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 104, 255, 0.08)';
               }}
             >
-              <span style={{ color: BRAND.softSageDark }}>📞 Hotline / Zalo:</span>
-              <a
-                href={`tel:${cleanPhone1}`}
-                title="Bấm để gọi số 1"
-                style={{ color: BRAND.softSageDark, fontWeight: 700, textDecoration: 'none' }}
-              >
-                {rawPhone1}
-              </a>
-              <span style={{ color: BRAND.softSageBorder }}>·</span>
-              <a
-                href={`tel:${cleanPhone2}`}
-                title="Bấm để gọi số 2"
-                style={{ color: BRAND.softSageDark, fontWeight: 700, textDecoration: 'none' }}
-              >
-                {rawPhone2}
-              </a>
-            </div>
+              <ZaloIcon size={18} />
+              <span>Chat Zalo Đặt Phòng</span>
+            </a>
 
             {/* Instagram */}
             <a
@@ -461,7 +498,7 @@ export default function PublicPortal() {
                 textDecoration: 'none',
               }}
             >
-              📸 Instagram
+              <InstagramIcon size={15} /> <span>Instagram</span>
             </a>
 
             {/* TikTok */}
@@ -473,8 +510,8 @@ export default function PublicPortal() {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
-                padding: '6px 10px',
+                gap: 5,
+                padding: '6px 11px',
                 borderRadius: 8,
                 background: BRAND.warmCreamLight,
                 border: `1px solid ${BRAND.warmCreamTonal}`,
@@ -484,7 +521,7 @@ export default function PublicPortal() {
                 textDecoration: 'none',
               }}
             >
-              🎵 TikTok
+              <TikTokIcon size={15} /> <span>TikTok</span>
             </a>
 
             <button
@@ -547,7 +584,7 @@ export default function PublicPortal() {
                 lineHeight: 1.35,
               }}
             >
-              ⏳ Quên luật "14h nhận – 12h trả" đi, giờ giấc ở Hiên là do bạn chọn!
+              ⏳ Ở Hiên không cứng nhắc "14h nhận – 12h trả", cứ thong thả theo nhịp của bạn nhé !!
             </h2>
             <p
               style={{
@@ -795,7 +832,9 @@ export default function PublicPortal() {
                 transition: 'all 0.15s ease',
               }}
             >
-              <span>👉 Nhắn Zalo để Hiên sắp xếp giờ giấc cho bạn</span>
+              <span>👉</span>
+              <ZaloIcon size={18} />
+              <span>Nhắn Zalo để Hiên sắp xếp giờ giấc cho bạn</span>
             </a>
           </div>
         </div>
@@ -852,15 +891,33 @@ export default function PublicPortal() {
               border: `1px solid ${BRAND.warmCreamBorder}`,
             }}
           >
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: BRAND.charcoalMuted, display: 'block', marginBottom: 6 }}>
+            {/* Ngày nhận phòng */}
+            <div
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                try {
+                  checkInInputRef.current?.showPicker?.();
+                } catch (err) {}
+              }}
+            >
+              <label
+                htmlFor="checkin-date-input"
+                style={{ fontSize: 12, fontWeight: 700, color: BRAND.charcoalMuted, display: 'block', marginBottom: 6, cursor: 'pointer' }}
+              >
                 📅 Ngày nhận phòng (Check-in)
               </label>
               <input
+                ref={checkInInputRef}
+                id="checkin-date-input"
                 type="date"
                 value={checkInDate}
                 min={getTodayStr()}
-                onChange={e => setCheckInDate(e.target.value)}
+                onChange={e => handleCheckInDateChange(e.target.value)}
+                onClick={(e) => {
+                  try {
+                    (e.currentTarget as any).showPicker?.();
+                  } catch (err) {}
+                }}
                 style={{
                   width: '100%',
                   height: 44,
@@ -873,20 +930,39 @@ export default function PublicPortal() {
                   outline: 'none',
                   color: BRAND.warmCharcoal,
                   background: BRAND.warmCreamLight,
+                  cursor: 'pointer',
                 }}
                 required
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: BRAND.charcoalMuted, display: 'block', marginBottom: 6 }}>
+            {/* Ngày trả phòng */}
+            <div
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                try {
+                  checkOutInputRef.current?.showPicker?.();
+                } catch (err) {}
+              }}
+            >
+              <label
+                htmlFor="checkout-date-input"
+                style={{ fontSize: 12, fontWeight: 700, color: BRAND.charcoalMuted, display: 'block', marginBottom: 6, cursor: 'pointer' }}
+              >
                 📅 Ngày trả phòng (Check-out)
               </label>
               <input
+                ref={checkOutInputRef}
+                id="checkout-date-input"
                 type="date"
                 value={checkOutDate}
-                min={checkInDate || getTodayStr()}
-                onChange={e => setCheckOutDate(e.target.value)}
+                min={addDaysToStr(checkInDate, 1) || getTodayStr()}
+                onChange={e => handleCheckOutDateChange(e.target.value)}
+                onClick={(e) => {
+                  try {
+                    (e.currentTarget as any).showPicker?.();
+                  } catch (err) {}
+                }}
                 style={{
                   width: '100%',
                   height: 44,
@@ -899,18 +975,37 @@ export default function PublicPortal() {
                   outline: 'none',
                   color: BRAND.warmCharcoal,
                   background: BRAND.warmCreamLight,
+                  cursor: 'pointer',
                 }}
                 required
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: BRAND.charcoalMuted, display: 'block', marginBottom: 6 }}>
+            {/* Số lượng khách */}
+            <div
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                try {
+                  guestSelectRef.current?.showPicker?.();
+                } catch (err) {}
+              }}
+            >
+              <label
+                htmlFor="guest-count-select"
+                style={{ fontSize: 12, fontWeight: 700, color: BRAND.charcoalMuted, display: 'block', marginBottom: 6, cursor: 'pointer' }}
+              >
                 👥 Số lượng khách
               </label>
               <select
+                ref={guestSelectRef}
+                id="guest-count-select"
                 value={guestCount}
                 onChange={e => setGuestCount(Number(e.target.value))}
+                onClick={(e) => {
+                  try {
+                    (e.currentTarget as any).showPicker?.();
+                  } catch (err) {}
+                }}
                 style={{
                   width: '100%',
                   height: 44,
@@ -923,6 +1018,7 @@ export default function PublicPortal() {
                   outline: 'none',
                   background: BRAND.warmCreamLight,
                   color: BRAND.warmCharcoal,
+                  cursor: 'pointer',
                 }}
               >
                 <option value={1}>1 khách</option>
@@ -1019,10 +1115,10 @@ export default function PublicPortal() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h2 style={{ fontSize: 24, fontWeight: 800, color: BRAND.warmCharcoal, margin: 0, letterSpacing: '-0.3px' }}>
-              Danh Sách Phòng Nghỉ
+              🌿 Hôm nay bạn muốn "trốn" ở căn nào?
             </h2>
             <p style={{ fontSize: 13.5, color: BRAND.charcoalMuted, marginTop: 4 }}>
-              {rooms.length || 6} không gian nhỏ ở {locations.length > 0 ? formatLocationList(locations.map(l => l.name)) : 'Bình Thạnh'} đều được chuẩn bị tươm tất, sạch sẽ, chỉ chờ bạn ghé chơi.
+              {rooms.length || 6} góc nhỏ đã được tụi mình trải sẵn nệm êm. Nơi đây có một khoảng không gian đủ tĩnh lặng để bạn cất gọn mọi bộn bề.
             </p>
           </div>
           <div
@@ -1526,8 +1622,8 @@ export default function PublicPortal() {
                   fontSize: 13.5,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>💬</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <ZaloIcon size={26} />
                   <div>
                     <div>Chat Zalo 1: {rawPhone1}</div>
                     <div style={{ fontSize: 11, fontWeight: 500, color: BRAND.charcoalMuted }}>Tư vấn & Nhận báo giá nhanh</div>
@@ -1555,8 +1651,8 @@ export default function PublicPortal() {
                   fontSize: 13.5,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>💬</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <ZaloIcon size={26} />
                   <div>
                     <div>Chat Zalo 2: {rawPhone2}</div>
                     <div style={{ fontSize: 11, fontWeight: 500, color: BRAND.charcoalMuted }}>Hotline giữ phòng 24/7</div>
@@ -1584,8 +1680,8 @@ export default function PublicPortal() {
                   fontSize: 13,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>📸</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <InstagramIcon size={26} />
                   <div>
                     <div>Instagram: @hien.home</div>
                     <div style={{ fontSize: 11, color: BRAND.charcoalMuted }}>Nhắn tin Direct Message trực tiếp</div>
@@ -1613,8 +1709,8 @@ export default function PublicPortal() {
                   fontSize: 13,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>🎵</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <TikTokIcon size={26} />
                   <div>
                     <div>TikTok: @hien.homestaysg</div>
                     <div style={{ fontSize: 11, color: BRAND.charcoalMuted }}>Xem video review phòng thực tế</div>
@@ -1642,7 +1738,7 @@ export default function PublicPortal() {
               <span>🏡</span> {homestayName}
             </div>
             <p style={{ fontSize: 13, lineHeight: 1.7, color: '#C2B09A' }}>
-              Không gian nghỉ dưỡng bình yên, vị trí thuận tiện di chuyển, cam kết vệ sinh sạch sẽ và dịch vụ tận tâm.
+              Một góc nhỏ bình yên giữa lòng thành phố. Nơi chăn luôn thơm, nệm luôn êm và tụi mình thì lúc nào cũng sẵn sàng đợi bạn ghé chơi để gác lại những xô bồ.
             </p>
           </div>
 
@@ -1665,11 +1761,26 @@ export default function PublicPortal() {
               📞 Kênh Liên Hệ & Mạng Xã Hội
             </div>
             <div style={{ fontSize: 13, lineHeight: 2, color: '#C2B09A' }}>
-              <div>📍 <strong>Địa chỉ:</strong> {homestayAddress}</div>
-              <div>💬 <strong>Zalo 1:</strong> <a href={`https://zalo.me/${zalo1}`} target="_blank" rel="noreferrer" style={{ color: BRAND.warmCream, textDecoration: 'underline' }}>{rawPhone1}</a></div>
-              <div>💬 <strong>Zalo 2:</strong> <a href={`https://zalo.me/${zalo2}`} target="_blank" rel="noreferrer" style={{ color: BRAND.warmCream, textDecoration: 'underline' }}>{rawPhone2}</a></div>
-              <div>📸 <strong>Instagram:</strong> <a href={instagramUrl} target="_blank" rel="noreferrer" style={{ color: BRAND.warmCream, textDecoration: 'underline' }}>@hien.home</a></div>
-              <div>🎵 <strong>TikTok:</strong> <a href={tiktokUrl} target="_blank" rel="noreferrer" style={{ color: BRAND.warmCream, textDecoration: 'underline' }}>@hien.homestaysg</a></div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 16, lineHeight: 1.3 }}>📍</span>
+                <span><strong>Địa chỉ:</strong> {homestayAddress}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <ZaloIcon size={18} />
+                <span><strong>Zalo 1:</strong> <a href={`https://zalo.me/${zalo1}`} target="_blank" rel="noreferrer" style={{ color: BRAND.warmCream, textDecoration: 'underline' }}>{rawPhone1}</a></span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <ZaloIcon size={18} />
+                <span><strong>Zalo 2:</strong> <a href={`https://zalo.me/${zalo2}`} target="_blank" rel="noreferrer" style={{ color: BRAND.warmCream, textDecoration: 'underline' }}>{rawPhone2}</a></span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <InstagramIcon size={18} />
+                <span><strong>Instagram:</strong> <a href={instagramUrl} target="_blank" rel="noreferrer" style={{ color: BRAND.warmCream, textDecoration: 'underline' }}>@hien.home</a></span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <TikTokIcon size={18} />
+                <span><strong>TikTok:</strong> <a href={tiktokUrl} target="_blank" rel="noreferrer" style={{ color: BRAND.warmCream, textDecoration: 'underline' }}>@hien.homestaysg</a></span>
+              </div>
             </div>
           </div>
         </div>

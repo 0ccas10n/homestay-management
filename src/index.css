@@ -36,6 +36,16 @@ input, button, select, textarea {
   font-family: inherit;
 }
 
+input[type="date"], select {
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
 /* Hide scrollbar by default, show on hover/scroll */
 ::-webkit-scrollbar {
   width: 5px;
