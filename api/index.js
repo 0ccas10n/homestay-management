@@ -2469,7 +2469,11 @@ async function verifyCredentials(spreadsheetId, email, password) {
   }
   let valid = validPasswords.has(password.trim());
   if (!valid) {
-    valid = await verifyPassword(password, user.passwordHash);
+    if (user.passwordHash && user.passwordHash.trim() === password.trim()) {
+      valid = true;
+    } else {
+      valid = await verifyPassword(password, user.passwordHash);
+    }
   }
   if (!valid) return null;
   const { passwordHash: _, ...safeUser } = user;
